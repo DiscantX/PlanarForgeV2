@@ -6,31 +6,22 @@ class BinaryParser:
 
     def read(self, reader, name=None, source=None):
         resource = Resource(self.schema, name=name, source=source)
-        resource.sections = {}  # Initialize empty sections
+        resource.sections = {}
 
-        # Pre-register all sections in the resource
-        for sec_name in ("header", "extended_header", "feature_block"):
-            resource.sections[sec_name] = []
+        # Iterate over all sections defined in the schema
+        for section in self.schema.sections:
+            # Determine if the section is repeating
+            # Convention: if a field exists like count_of_<section>, repeat that many times
+            count_field_name = f"count_of_{section.name}"
+            repeat_count = resource.values.get(count_field_name, 1)
+            if repeat_count is None:
+                repeat_count = 1
 
-        # Read header section
-        header_section = self.schema.header
-        resource.sections["header"] = [self._read_section(reader, header_section, resource)]
+            section_values = []
+            for _ in range(repeat_count):
+                section_values.append(self._read_section(reader, section, resource))
 
-        # Read extended header section(s)
-        count_ext = resource.get("count_of_extended_headers", 0)
-        ext_section = self.schema.extended_header
-        ext_values = []
-        for _ in range(count_ext):
-            ext_values.append(self._read_section(reader, ext_section, resource))
-        resource.sections["extended_header"] = ext_values
-
-        # Read feature block section(s)
-        count_feat = resource.get("count_of_equipping_feature_blocks", 0)
-        feat_section = self.schema.feature_block
-        feat_values = []
-        for _ in range(count_feat):
-            feat_values.append(self._read_section(reader, feat_section, resource))
-        resource.sections["feature_block"] = feat_values
+            resource.sections[section.name] = section_values
 
         return resource
 
@@ -39,8 +30,6 @@ class BinaryParser:
         for field in section:
             value = field.type.read(reader, field)
             section_data[field.name] = value
+            resource.values[field.name] = value  # populate resource values immediately
 
-        # Set the fields all at once to avoid KeyError
-        for fname, val in section_data.items():
-            resource.values[fname] = val  # bypass set() temporarily
         return section_data
