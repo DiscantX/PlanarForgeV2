@@ -150,6 +150,6 @@ def parse_itm_tables_to_yaml(url, output_file):
 
 
 # Example usage
-url = 'https://gibberlings3.github.io/iesdp/file_formats/ie_formats/bif_v1.htm'  # Replace with actual page
+url = 'https://gibberlings3.github.io/iesdp/file_formats/ie_formats/key_v1.htm'  # Replace with actual page
 output_file = 'resource.yaml'
 parse_itm_tables_to_yaml(url, output_file)

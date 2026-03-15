@@ -1,0 +1,79 @@
+name: KEY
+
+header:
+  fields:
+
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: count_bif_entries
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: count_of_resource_entries
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: bif_entries_offset   # fixed typo
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: resource_entries_offset
+    type: dword
+    size: 4
+    offset: 0x0014
+
+bif_entries:
+  offset_field: bif_entries_offset
+  count_field: count_bif_entries
+  fields:
+
+  - name: length_of_bif_file
+    type: dword
+    size: 4
+    offset: 0x0000
+
+  - name: offset_from_start_to_filename
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: length_of_filename
+    type: word
+    size: 2
+    offset: 0x0008
+
+  - name: file_location
+    type: bitmask   # interpret flags instead of plain number
+    size: 2
+    offset: 0x000a
+
+resource_entries:
+  offset_field: resource_entries_offset
+  count_field: count_of_resource_entries
+  fields:
+
+  - name: resource_name
+    type: resref
+    size: 8
+    offset: 0x0000
+
+  - name: resource_type
+    type: word
+    size: 2
+    offset: 0x0008
+
+  - name: resource_locator
+    type: dword
+    size: 4
+    offset: 0x000a
