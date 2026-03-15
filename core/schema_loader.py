@@ -8,13 +8,13 @@ class Field:
         self.type_name = field_type
         self.attributes = attributes or {}
         self.children = children or []
-        self.type = None
+        self.type = None  # Will be resolved via FieldTypes registry later
 
     def __repr__(self):
-        return f"<Field {self.name}:{self.type}>"
+        return f"<Field {self.name}:{self.type_name}>"
 
 
-class Schema:
+class Section:
     def __init__(self, name, fields):
         self.name = name
         self.fields = fields
@@ -27,7 +27,40 @@ class Schema:
         return iter(self.fields)
 
     def __repr__(self):
-        return f"<Schema {self.name} ({len(self.fields)} fields)>"
+        return f"<Section {self.name} ({len(self.fields)} fields)>"
+
+
+class Schema:
+    def __init__(self, name, sections=None):
+        self.name = name
+        self.sections = sections or []
+        self.section_map = {s.name: s for s in self.sections}
+
+        # Flatten all fields for quick lookup
+        self.field_map = {}
+        for section in self.sections:
+            for field in section:
+                self.field_map[field.name] = field
+
+        # Optional shortcut properties
+        self.header = self.get_section("header")
+        self.extended_header = self.get_section("extended_header")
+        self.feature_block = self.get_section("feature_block")
+
+    def get_section(self, name):
+        return self.section_map.get(name)
+
+    def get_field(self, name):
+        return self.field_map.get(name)
+
+    def __iter__(self):
+        for section in self.sections:
+            for field in section:
+                yield field
+
+    def __repr__(self):
+        total_fields = sum(len(s.fields) for s in self.sections)
+        return f"<Schema {self.name} ({total_fields} fields)>"
 
 
 class SchemaLoader:
@@ -43,26 +76,40 @@ class SchemaLoader:
     def get(self, name):
         return self.schemas.get(name)
 
+    def resolve_types(self, registry):
+        """
+        Resolve Field.type using a FieldTypes registry.
+        """
+        for schema in self.schemas.values():
+            for field in schema:
+                field.type = registry.get(field.type_name)
+
     def _load_schema(self, filepath):
         with open(filepath, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         name = data["name"]
-        fields = [self._parse_field(f) for f in data.get("fields", [])]
 
-        return Schema(name, fields)
+        # Build sections
+        sections = []
+
+        for section_name in ("header", "extended_header", "feature_block"):
+            fields_data = data.get(section_name, {}).get("fields", [])
+            fields = [self._parse_field(f) for f in fields_data]
+            sections.append(Section(section_name, fields))
+
+        # Construct the schema with all sections
+        schema = Schema(name, sections)
+
+        return schema
 
     def _parse_field(self, field_data):
         name = field_data["name"]
         field_type = field_data["type"]
 
-        attributes = {
-            k: v for k, v in field_data.items()
-            if k not in ("name", "type", "fields")
-        }
+        attributes = {k: v for k, v in field_data.items() if k not in ("name", "type", "fields")}
 
         children = []
-
         if "fields" in field_data:
             children = [self._parse_field(f) for f in field_data["fields"]]
 
