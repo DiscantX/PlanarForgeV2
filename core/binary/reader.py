@@ -40,4 +40,11 @@ class BinaryReader:
 
     def seek(self, offset):
         self.file.seek(offset)
+        
+    def size(self):
+        current = self.file.tell()
+        self.file.seek(0, 2)  # seek to end
+        size = self.file.tell()
+        self.file.seek(current)
+        return size
 

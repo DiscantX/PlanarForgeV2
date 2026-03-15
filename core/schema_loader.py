@@ -13,11 +13,12 @@ class Field:
     def __repr__(self):
         return f"<Field {self.name}:{self.type_name}>"
 
-
 class Section:
-    def __init__(self, name, fields):
+    def __init__(self, name, fields, offset_field=None, count_field=None):
         self.name = name
         self.fields = fields
+        self.offset_field = offset_field
+        self.count_field = count_field
         self.field_map = {f.name: f for f in fields}
 
     def get_field(self, name):
@@ -95,10 +96,18 @@ class SchemaLoader:
 
         sections = []
         for section_name, section_data in data.items():
-            # Some schema sections might be empty or not have fields
+
             fields_data = section_data.get("fields", [])
             fields = [self._parse_field(f) for f in fields_data]
-            sections.append(Section(section_name, fields))
+
+            section = Section(
+                section_name,
+                fields,
+                offset_field=section_data.get("offset_field"),
+                count_field=section_data.get("count_field")
+            )
+
+            sections.append(section)
 
         return Schema(name, sections)
 

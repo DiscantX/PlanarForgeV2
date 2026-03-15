@@ -1,35 +1,78 @@
 from core.resource import Resource
 
+
 class BinaryParser:
+
     def __init__(self, schema):
         self.schema = schema
 
     def read(self, reader, name=None, source=None):
+
         resource = Resource(self.schema, name=name, source=source)
         resource.sections = {}
 
-        # Iterate over all sections defined in the schema
+        filesize = reader.size()
+
+        # -----------------------------
+        # Parse header first
+        # -----------------------------
+
+        header = self.schema.get_section("header")
+
+        if header:
+            header_entries = [self._read_section(reader, header, resource)]
+            resource.sections["header"] = header_entries
+
+        # -----------------------------
+        # Parse remaining sections
+        # -----------------------------
+
         for section in self.schema.sections:
-            # Determine if the section is repeating
-            # Convention: if a field exists like count_of_<section>, repeat that many times
-            count_field_name = f"count_of_{section.name}"
-            repeat_count = resource.values.get(count_field_name, 1)
-            if repeat_count is None:
-                repeat_count = 1
 
-            section_values = []
-            for _ in range(repeat_count):
-                section_values.append(self._read_section(reader, section, resource))
+            if section.name == "header":
+                continue
 
-            resource.sections[section.name] = section_values
+            # Move to section offset if defined
+            if section.offset_field:
+                offset = resource.values.get(section.offset_field)
+
+                if offset is None:
+                    raise ValueError(
+                        f"Section '{section.name}' references missing offset field '{section.offset_field}'"
+                    )
+
+                reader.seek(offset)
+
+            # Determine entry count
+            count = 1
+            if section.count_field:
+                count = resource.values.get(section.count_field, 0)
+
+            entries = []
+
+            for _ in range(count):
+
+                # Safety guard: prevent reading past EOF
+                if reader.tell() >= filesize:
+                    break
+
+                entry = self._read_section(reader, section, resource)
+                entries.append(entry)
+
+            resource.sections[section.name] = entries
 
         return resource
 
+
     def _read_section(self, reader, section, resource):
+
         section_data = {}
-        for field in section:
+
+        for field in section.fields:
+
             value = field.type.read(reader, field)
+
             section_data[field.name] = value
-            resource.values[field.name] = value  # populate resource values immediately
+            resource.values[field.name] = value
 
         return section_data

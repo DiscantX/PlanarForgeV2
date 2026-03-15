@@ -23,12 +23,15 @@ header:
     size: 4
     offset: 0x000c
 
-  - name: file_entries
+  - name: file_entries_offset
     type: dword
     size: 4
     offset: 0x0010
 
 file_entries:
+  offset_field: file_entries_offset
+  count_field: file_entries
+  
   fields:
 
   - name: resource_locator

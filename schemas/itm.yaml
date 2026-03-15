@@ -188,7 +188,10 @@ header:
     size: 2
     offset: 0x0070
 
+
 extended_header:
+  offset_field: offset_to_extended_headers       # read from here
+  count_field: count_of_extended_headers        # read this many entries
   fields:
 
   - name: attack_type
@@ -336,7 +339,10 @@ extended_header:
     size: 2
     offset: 0x0036
 
+
 feature_block:
+  offset_field: offset_to_feature_blocks        # read from here
+  count_field: count_of_equipping_feature_blocks # read this many entries
   fields:
 
   - name: opcode_number
