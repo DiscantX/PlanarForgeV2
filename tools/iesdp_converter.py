@@ -25,7 +25,7 @@ def parse_itm_tables_to_yaml(url, output_file):
         headers = [th.get_text(strip=True).lower() for th in table.find_all('th')]
         
         # Filter tables: must strictly match these headers
-        if headers != ['offset', 'size (datatype)', 'description']:
+        if headers != ['offset', 'size (datatype)', 'description'] and headers != ['offset', 'size (data type)', 'description']:
             continue
             
         # Attempt to use preceding div > a as table name
@@ -55,7 +55,7 @@ def parse_itm_tables_to_yaml(url, output_file):
                         temp_data['offset'] = HexInt(int(cell_text, 16))
                     except ValueError:
                         temp_data['offset'] = cell_text
-                elif header == 'size (datatype)':
+                elif header == 'size (datatype)' or header == 'size (data type)':
                     # split number and type
                     # Handles standard "4 (dword)" and multiplier "1*4 (byte)"
                     match = re.match(r'(\d+)(?:\*(\d+))?\s*\(?([^\)]+)?\)?', cell_text)
@@ -150,6 +150,6 @@ def parse_itm_tables_to_yaml(url, output_file):
 
 
 # Example usage
-url = 'https://gibberlings3.github.io/iesdp/file_formats/ie_formats/itm_v1.htm'  # Replace with actual page
-output_file = 'itm_tables.yaml'
+url = 'https://gibberlings3.github.io/iesdp/file_formats/ie_formats/bif_v1.htm'  # Replace with actual page
+output_file = 'resource.yaml'
 parse_itm_tables_to_yaml(url, output_file)

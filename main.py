@@ -8,13 +8,18 @@ from core.field_types import FieldTypes
 loader = SchemaLoader("schemas")
 loader.load_all()
 loader.resolve_types(FieldTypes)
-cre_schema = loader.get("ITM")
+# itm_schema = loader.get("ITM")
+
+# itm_schema = loader.get("ITM")
+biff_schema = loader.get("BIFF")
+# print(biff_schema)
+
 
 # Open file
-with open("BLUN30C.itm", "rb") as f:
+with open("Items.bif", "rb") as f:
     reader = BinaryReader(f)
-    parser = BinaryParser(cre_schema)
-    resource = parser.read(reader, name="sw1h01", source="sw1h01.itm")
+    parser = BinaryParser(biff_schema)
+    resource = parser.read(reader, name="CHAN04", source="CHAN04.itm")
 
 # Pretty print sections
 print("\nResource Sections:")

@@ -1,0 +1,90 @@
+name: BIFF
+
+header:
+  fields:
+
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: file_entries
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: tileset_entries
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: file_entries
+    type: dword
+    size: 4
+    offset: 0x0010
+
+file_entries:
+  fields:
+
+  - name: resource_locator
+    type: dword
+    size: 4
+    offset: 0x0000
+
+  - name: offset
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: size_of_this_resource
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: type_of_this_resource
+    type: word
+    size: 2
+    offset: 0x000c
+
+  - name: unknown
+    type: word
+    size: 2
+    offset: 0x000e
+
+tileset_entries:
+  fields:
+
+  - name: resource_locator
+    type: dword
+    size: 4
+    offset: 0x0000
+
+  - name: offset
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: count_of_tiles_in_this_resource
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: size_of_each_tile_in_this_resource
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: type_of_this_resource
+    type: word
+    size: 2
+    offset: 0x0010
+
+  - name: unknown
+    type: word
+    size: 2
+    offset: 0x0012

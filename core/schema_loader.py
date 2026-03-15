@@ -8,7 +8,7 @@ class Field:
         self.type_name = field_type
         self.attributes = attributes or {}
         self.children = children or []
-        self.type = None  # Will be resolved via FieldTypes registry later
+        self.type = None  # resolved later via FieldTypes registry
 
     def __repr__(self):
         return f"<Field {self.name}:{self.type_name}>"
@@ -42,10 +42,9 @@ class Schema:
             for field in section:
                 self.field_map[field.name] = field
 
-        # Optional shortcut properties
-        self.header = self.get_section("header")
-        self.extended_header = self.get_section("extended_header")
-        self.feature_block = self.get_section("feature_block")
+        # Optional shortcut properties if they exist
+        for shortcut in ("header", "extended_header", "feature_block"):
+            setattr(self, shortcut, self.get_section(shortcut))
 
     def get_section(self, name):
         return self.section_map.get(name)
@@ -88,29 +87,19 @@ class SchemaLoader:
         with open(filepath, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
-        name = data["name"]
+        name = data.pop("name")
 
-        # Build sections
         sections = []
-
-        for section_name in ("header", "extended_header", "feature_block"):
-            fields_data = data.get(section_name, {}).get("fields", [])
+        for section_name, section_data in data.items():
+            fields_data = section_data.get("fields", [])
             fields = [self._parse_field(f) for f in fields_data]
             sections.append(Section(section_name, fields))
 
-        # Construct the schema with all sections
-        schema = Schema(name, sections)
-
-        return schema
+        return Schema(name, sections)
 
     def _parse_field(self, field_data):
         name = field_data["name"]
         field_type = field_data["type"]
-
         attributes = {k: v for k, v in field_data.items() if k not in ("name", "type", "fields")}
-
-        children = []
-        if "fields" in field_data:
-            children = [self._parse_field(f) for f in field_data["fields"]]
-
+        children = [self._parse_field(f) for f in field_data.get("fields", [])]
         return Field(name, field_type, attributes, children)

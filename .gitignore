@@ -2,3 +2,5 @@
 .venv
 *.pyc
 *.code-workspace
+*.ITM
+*.BIF
