@@ -26,17 +26,13 @@ class BinaryReader:
 
     def read_string(self, size):
         raw = self.read(size)
-        return raw.rstrip(b"\x00").decode("ascii")
+        return raw.rstrip(b"\x00").decode("latin-1")
 
     def read_resref(self):
         raw = self.read(8)
         stripped = raw.rstrip(b"\x00")
-
-        # Empty or non-printable bytes → None
-        if not stripped or any(b < 32 or b > 126 for b in stripped):
-            return None
-
-        return stripped.decode("ascii")
+        
+        return stripped.decode("latin-1")
 
     def read_strref(self):
         value = self.read_uint32()

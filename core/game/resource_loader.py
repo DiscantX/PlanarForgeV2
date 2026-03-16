@@ -2,6 +2,7 @@ import io
 from pathlib import Path
 from core.binary.reader import BinaryReader
 from core.binary.parser import BinaryParser
+from core.binary.writer import BinaryWriter
 from core.game.installation_finder import InstallationFinder
 from core.schema_loader import SchemaLoader
 from core.field_types import FieldTypes
@@ -36,7 +37,72 @@ class ResourceLoader:
             parser = BinaryParser(schema)
             resource = parser.read(reader, name=resref, source=file_path)
         return resource
+
+    def save_file(self, resource, file_path):
+        """
+        Saves a Resource object to a specified file path.
+        """
+        if not resource or not resource.schema:
+            print("Cannot save resource: Invalid resource or schema missing.")
+            return
+
+        parser = BinaryParser(resource.schema)
+        
+        try:
+            with open(file_path, "wb") as f:
+                writer = BinaryWriter(f)
+                parser.write(writer, resource)
+        except Exception as e:
+            print(f"Error saving resource to {file_path}: {e}")
     
+    def get_raw_bytes(self, resref, game=default_game):
+        """
+        Finds a resource and extracts its raw byte data from its source BIF.
+        Returns a tuple of (raw_bytes, source_path, resource_type_code).
+        """
+        res_entry = self._find_resource_location(resref, game)
+        if not res_entry:
+            return None, None, None
+
+        resource_index = res_entry.get("resource_locator").get("resource_index")
+        bif_file_path = self._find_bif_file(res_entry, game)
+        if not bif_file_path:
+            return None, None, None
+
+        try:
+            with open(bif_file_path, "rb") as f:
+                reader = BinaryReader(f)
+                cache_key = str(bif_file_path)
+                cached_header = self.bif_headers.get(cache_key)
+                
+                if cached_header:
+                    file_count, file_entries_offset = cached_header
+                else:
+                    reader.seek(0x08)
+                    file_count = reader.read_uint32()
+                    reader.seek(0x10)
+                    file_entries_offset = reader.read_uint32()
+                    self.bif_headers[cache_key] = (file_count, file_entries_offset)
+                
+                if resource_index >= file_count:
+                    return None, None, None
+                
+                entry_size = 16
+                entry_offset = file_entries_offset + (resource_index * entry_size)
+                
+                reader.seek(entry_offset + 4)
+                resource_offset = reader.read_uint32()
+                resource_size = reader.read_uint32()
+                
+                reader.seek(resource_offset)
+                raw_bytes = reader.read(resource_size)
+                
+                res_type_code = res_entry.get("resource_type")
+                return raw_bytes, bif_file_path, res_type_code
+
+        except (FileNotFoundError, Exception):
+            return None, None, None
+
     def load(self, resref=default_resref, restype=default_restype, game=default_game, file_path=None, schema=None):
         if file_path:
             return self.load_file(resref=resref, restype=restype, game=game, file_path=file_path, schema=schema)
@@ -46,71 +112,12 @@ class ResourceLoader:
                 print(f"No installation found for game {game}.")
                 return None
 
-            res_entry = self._find_resource_location(resref, game)
-            if not res_entry:
+            raw_bytes, source_path, res_type_code = self.get_raw_bytes(resref, game)
+            if raw_bytes is None:
                 return None
-
-            # Determine resource type automatically from CHITIN.KEY entry
-            res_type_code = res_entry.get("resource_type")
             
-            # If restype was passed manually (e.g. "ITM"), keep it. 
-            # Otherwise try to resolve the code (e.g. 1002 -> "ITM").
-            # If both fail, default to "KEY" (which will likely fail parsing but is safe fallback).
             if restype == self.default_restype and res_type_code in RESOURCE_TYPE_MAP:
                 restype = RESOURCE_TYPE_MAP[res_type_code]
-
-            resource_index = res_entry.get("resource_locator").get("resource_index")
-            bif_file_path = self._find_bif_file(res_entry, game)
-            if not bif_file_path:
-                return None
-
-            # Optimization: Random Access BIF Reading
-            # Instead of parsing the whole BIF, we read the header and jump to the specific entry.
-            try:
-                with open(bif_file_path, "rb") as f:
-                    reader = BinaryReader(f)
-                    
-                    # BIFF Header Caching
-                    cache_key = str(bif_file_path)
-                    cached_header = self.bif_headers.get(cache_key)
-                    
-                    if cached_header:
-                        file_count, file_entries_offset = cached_header
-                    else:
-                        # BIFF Header: 
-                        # 0x08: Count of file entries (4 bytes)
-                        # 0x10: Offset to file entries (4 bytes)
-                        reader.seek(0x08)
-                        file_count = reader.read_uint32()
-                        
-                        reader.seek(0x10)
-                        file_entries_offset = reader.read_uint32()
-                        self.bif_headers[cache_key] = (file_count, file_entries_offset)
-                    
-                    if resource_index >= file_count:
-                        print(f"Resource index {resource_index} is out of bounds for BIF {bif_file_path}")
-                        return None
-                    
-                    # BIF Entry format:
-                    # Locator (4), Offset (4), Size (4), Type (2), Unknown (2) = 16 bytes
-                    entry_size = 16
-                    entry_offset = file_entries_offset + (resource_index * entry_size)
-                    
-                    # Seek to entry (skip first 4 bytes for Locator) to read Offset and Size
-                    reader.seek(entry_offset + 4)
-                    resource_offset = reader.read_uint32()
-                    resource_size = reader.read_uint32()
-                    
-                    # Read the actual resource data
-                    reader.seek(resource_offset)
-                    raw_bytes = reader.read(resource_size)
-
-            except FileNotFoundError:
-                print(f"BIF file not found: {bif_file_path}")
-                return None
-            except Exception as e:
-                print(f"Error reading BIF file {bif_file_path}: {e}")
-                return None
 
             # Get the schema for the actual resource type (e.g., ITM, CRE).
             resource_schema = schema or self.schema_loader.get(restype)
@@ -123,7 +130,7 @@ class ResourceLoader:
             parser = BinaryParser(resource_schema)
             
             # Parse the final resource and return it.
-            return parser.read(bytes_reader, name=resref, source=f"BIF: {bif_file_path}")
+            return parser.read(bytes_reader, name=resref, source=f"BIF: {source_path}")
             
     def _find_bif_file(self, res_entry, game=default_game):
         chitin = self.chitins.get(game)

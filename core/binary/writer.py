@@ -27,7 +27,7 @@ class BinaryWriter:
     def write_string(self, value, size):
         if value is None:
             value = ""
-        encoded = value.encode("ascii", errors="replace")
+        encoded = value.encode("latin-1", errors="replace")
         if len(encoded) > size:
             encoded = encoded[:size]
         else:

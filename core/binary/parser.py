@@ -77,3 +77,67 @@ class BinaryParser:
             resource.values[field.name] = value
 
         return section_data
+
+    def write(self, writer, resource):
+        """
+        Writes a Resource object back to a binary stream.
+        Automatically recalculates offsets and counts for sections.
+        """
+        
+        # 1. Calculate Offsets & Counts
+        # We simulate the write position to determine where dynamic sections will land.
+        
+        current_offset = 0
+        
+        # Header is always first
+        header_section = self.schema.get_section("header")
+        if header_section:
+            # Header size is fixed based on its fields
+            header_size = sum(f.attributes.get("size", 0) for f in header_section.fields) 
+            # Note: This simple sum assumes fixed-size fields in header (standard for IE games)
+            current_offset += header_size
+
+        # Calculate positions for remaining sections
+        for section in self.schema.sections:
+            if section.name == "header":
+                continue
+
+            entries = resource.sections.get(section.name, [])
+            count = len(entries)
+            
+            # Update the resource's values for count/offset fields
+            if section.count_field:
+                resource.values[section.count_field] = count
+            
+            if section.offset_field:
+                if count > 0:
+                    resource.values[section.offset_field] = current_offset
+                else:
+                    # If section is empty, preserve the original offset if it exists.
+                    # This helps maintain binary fidelity with files that have 'stale' pointers.
+                    if resource.values.get(section.offset_field) is None:
+                        resource.values[section.offset_field] = 0
+
+            # Calculate size of this section to advance offset
+            # Note: This assumes fixed-size entries. If entries have dynamic size (rare in IE structs),
+            # we would need to iterate entries.
+            if count > 0:
+                # access the first entry to get the structure if needed, or just sum field sizes
+                entry_size = sum(f.attributes.get("size", 0) for f in section.fields)
+                current_offset += (entry_size * count)
+
+        # 2. Write Data
+        for section in self.schema.sections:
+            entries = resource.sections.get(section.name, [])
+            
+            # If it's the header, it's a list of 1 dict, but usually stored as just the dict in some parsers.
+            # Our parser stored it as a list of 1.
+            
+            for entry in entries:
+                for field in section.fields:
+                    val = entry.get(field.name)
+                    # If value is missing, check resource.values (for offsets/counts we just updated)
+                    if val is None:
+                        val = resource.values.get(field.name)
+                    
+                    field.type.write(writer, val, field)
