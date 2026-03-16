@@ -12,6 +12,8 @@ schema_loader.resolve_types(FieldTypes)
 
 resource_loader = ResourceLoader(schema_loader=schema_loader)
 resource = resource_loader.load()
+print(resource.sections["bif_entries"][:20])
+
 
 # itm_schema = loader.get("ITM")
 # biff_schema = loader.get("BIFF")

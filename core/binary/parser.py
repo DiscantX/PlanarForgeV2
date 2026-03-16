@@ -70,7 +70,8 @@ class BinaryParser:
 
         for field in section.fields:
 
-            value = field.type.read(reader, field)
+            # Pass the currently parsed section data for context-aware fields
+            value = field.type.read(reader, field, section_data)
 
             section_data[field.name] = value
             resource.values[field.name] = value

@@ -53,6 +53,11 @@ bif_entries:
     size: 2
     offset: 0x0008
 
+  - name: filename
+    type: pointer_string
+    offset_ref: offset_from_start_to_filename
+    length_ref: length_of_filename
+
   - name: file_location
     type: bitmask   # interpret flags instead of plain number
     size: 2

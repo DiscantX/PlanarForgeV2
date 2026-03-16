@@ -38,23 +38,7 @@ class ResourceLoader:
             if install_path is None:
                 print(f"No installation found for game {game}.")
                 return None
-            bif_table = self.chitin.sections["bif_entries"]
-            resource_table = self.chitin.sections["resource_entries"]
-            for bif_entry in bif_table:
-                print(bif_entry)
-                print(self._resolve_resource_location(bif_entry, game))
             return self.chitin
-    
-    def _resolve_resource_location(self, bif_entry, game=default_game):
-        chitin_path = self.install_finder.find_chitin(game)    
-        with open(chitin_path, "rb") as f:
-            BinaryReader(f).seek(bif_entry.get("offset_from_start_to_filename"))
-            try:
-                filename = BinaryReader(f).read_string(bif_entry.get("length_of_filename"))
-            except Exception as e:
-                print(f"Error reading filename for bif entry {bif_entry}: {e}")
-                return None
-            return filename
     
     def _load_chitin(self, game):
         ##NOTE: Look into caching this since it's needed for every resource load and is always the same for a given game

@@ -1,5 +1,23 @@
 from csv import reader
 
+'''
+Implementation note:
+What is the context parameter?
+The context parameter represents the data parsed so far within the current structure (section).
+
+In parser.py, when _read_section iterates through fields, it builds a dictionary called section_data. This dictionary is passed as context to the read method of every field type.
+This allows a field to be aware of its siblings. It turns the parsing process from a purely linear stream of bytes into a state-aware process where the value of Field A can determine how Field B is read.
+
+Use case (for file versions):
+Conditional Logic / Switch
+You could implement logic where the interpretation of a field changes based on a "version" or "type" field read earlier.
+
+Scenario: If version is 1, a field is 2 bytes. If version is 2, it is 4 bytes.
+Scenario: Calculated / Derived Fields:
+    You can create fields that don't read from the file at all but derive their value from existing data.
+    You want a field that combines two previous numbers, or formats them.
+The context parameter essentially upgrades your parser from handling Static Structures (C-struct style) to Dynamic Structures where the memory layout can change based on the data content itself.
+'''
 
 class FieldTypes:
     _types = {}
@@ -31,7 +49,7 @@ class FieldType:
         if cls.names:
             FieldTypes.register(cls)
 
-    def read(self, reader, field):
+    def read(self, reader, field, context=None):
         raise NotImplementedError
 
     def write(self, writer, value, field):
@@ -40,7 +58,7 @@ class FieldType:
 class UInt8(FieldType):
     names = ["byte", "char"]
 
-    def read(self, reader, field):
+    def read(self, reader, field, context=None):
         return reader.read_uint8()
 
     def write(self, writer, value, field):
@@ -49,7 +67,7 @@ class UInt8(FieldType):
 class UInt16(FieldType):
     names = ["word"]
 
-    def read(self, reader, field):
+    def read(self, reader, field, context=None):
         return reader.read_uint16()
 
     def write(self, writer, value, field):
@@ -58,7 +76,7 @@ class UInt16(FieldType):
 class UInt32(FieldType):
     names = ["dword",]
 
-    def read(self, reader, field):
+    def read(self, reader, field, context=None):
         return reader.read_uint32()
 
     def write(self, writer, value, field):
@@ -67,7 +85,7 @@ class UInt32(FieldType):
 class Bitmask(FieldType):
     names = ["bitmask"]
 
-    def read(self, reader, field):
+    def read(self, reader, field, context=None):
         size = field.attributes.get("size")
         value = 0
         
@@ -100,7 +118,7 @@ class Bitmask(FieldType):
 class ResRef(FieldType):
     names = ["resref"]
 
-    def read(self, reader, field):
+    def read(self, reader, field, context=None):
         return reader.read_resref()
 
     def write(self, writer, value, field):
@@ -109,7 +127,7 @@ class ResRef(FieldType):
 class StrRef(FieldType):
     names = ["strref"]
 
-    def read(self, reader, field):
+    def read(self, reader, field, context=None):
         return reader.read_strref()
 
     def write(self, writer, value, field):
@@ -118,7 +136,7 @@ class StrRef(FieldType):
 class CharArray(FieldType):
     names = ["char_array"]
 
-    def read(self, reader, field):
+    def read(self, reader, field, context=None):
         size = field.attributes["size"]
         return reader.read_string(size)
 
@@ -129,7 +147,7 @@ class CharArray(FieldType):
 class Enum(FieldType):
     name = "enum"
 
-    def read(self, reader, field):
+    def read(self, reader, field, context=None):
         index = reader.read_uint16()
         values = field.attributes["values"]
         return values[index]
@@ -137,3 +155,35 @@ class Enum(FieldType):
     def write(self, writer, value, field):
         values = field.attributes["values"]
         writer.write_uint16(values.index(value))
+
+class PointerString(FieldType):
+    names = ["pointer_string"]
+
+    def read(self, reader, field, context=None):
+        if context is None:
+            return None
+
+        offset_field_name = field.attributes.get("offset_ref")
+        length_field_name = field.attributes.get("length_ref")
+
+        if not offset_field_name or not length_field_name:
+            raise ValueError("PointerString requires 'offset_ref' and 'length_ref' attributes.")
+
+        offset = context.get(offset_field_name)
+        length = context.get(length_field_name)
+
+        if offset is None or length is None or length <= 1: # Also check for empty/null-terminator only strings
+            return None
+
+        # Store current position, seek to the string, read it, and restore the original position
+        current_pos = reader.tell()
+        try:
+            reader.seek(offset)
+            value = reader.read_string(length)
+        finally:
+            reader.seek(current_pos)
+
+        return value
+
+    def write(self, writer, value, field):
+        raise NotImplementedError("Writing PointerString is not yet supported.")
