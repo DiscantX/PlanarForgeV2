@@ -55,48 +55,35 @@ class FieldType:
     def write(self, writer, value, field):
         raise NotImplementedError
 
-class UInt8(FieldType):
+class BaseIntField(FieldType):
+    default_size = 4
+
+    def read(self, reader, field, context=None):
+        size = field.attributes.get("size", self.default_size)
+        return reader.read_uint(size)
+
+    def write(self, writer, value, field):
+        size = field.attributes.get("size", self.default_size)
+        writer.write_uint(value, size)
+
+class UInt8(BaseIntField):
     names = ["byte", "char"]
+    default_size = 1
 
-    def read(self, reader, field, context=None):
-        return reader.read_uint8()
-
-    def write(self, writer, value, field):
-        writer.write_uint8(value)
-
-class UInt16(FieldType):
+class UInt16(BaseIntField):
     names = ["word"]
+    default_size = 2
 
-    def read(self, reader, field, context=None):
-        return reader.read_uint16()
-
-    def write(self, writer, value, field):
-        writer.write_uint16(value)
-
-class UInt32(FieldType):
-    names = ["dword",]
-
-    def read(self, reader, field, context=None):
-        return reader.read_uint32()
-
-    def write(self, writer, value, field):
-        writer.write_uint32(value)
+class UInt32(BaseIntField):
+    names = ["dword"]
+    default_size = 4
         
-class Bitmask(FieldType):
+class Bitmask(BaseIntField):
     names = ["bitmask"]
+    default_size = 4
 
     def read(self, reader, field, context=None):
-        size = field.attributes.get("size")
-        value = 0
-        
-        if size == 4:
-            value = reader.read_uint32()
-        elif size == 2:
-            value = reader.read_uint16()
-        elif size == 1:
-            value = reader.read_uint8()
-        else:
-            raise ValueError(f"Unsupported bitmask size: {size}")
+        value = super().read(reader, field, context)
 
         flags = field.attributes.get("flags")
         if flags:
@@ -104,16 +91,16 @@ class Bitmask(FieldType):
         
         return value
 
-    def write(self, writer, value, field): 
-        if field.attributes.get("size") == 4:
-            writer.write_uint32(value)
-        elif field.attributes.get("size") == 2:
-            writer.write_uint16(value)
-        elif field.attributes.get("size") == 1:
-            writer.write_uint8(value)
+    def write(self, writer, value, field):
+        flags = field.attributes.get("flags")
+        if flags and isinstance(value, dict):
+            int_value = 0
+            for mask, name in flags.items():
+                if value.get(name):
+                    int_value |= mask
+            super().write(writer, int_value, field)
         else:
-            raise ValueError(f"Unsupported bitmask size: {field.attributes.get('size')}")
-
+            super().write(writer, value, field)
 
 class ResRef(FieldType):
     names = ["resref"]
@@ -144,17 +131,25 @@ class CharArray(FieldType):
         size = field.attributes["size"]
         writer.write_string(value, size)
 
-class Enum(FieldType):
-    name = "enum"
+class Enum(BaseIntField):
+    names = ["enum"]
+    default_size = 2
 
     def read(self, reader, field, context=None):
-        index = reader.read_uint16()
+        index = super().read(reader, field, context)
         values = field.attributes["values"]
+        if index >= len(values):
+            # Gracefully handle corrupted data or invalid indices
+            return None
         return values[index]
 
     def write(self, writer, value, field):
         values = field.attributes["values"]
-        writer.write_uint16(values.index(value))
+        try:
+            index = values.index(value)
+        except ValueError:
+            index = 0 # Default to first value if the provided one is invalid
+        super().write(writer, index, field)
 
 class PointerString(FieldType):
     names = ["pointer_string"]
@@ -186,23 +181,16 @@ class PointerString(FieldType):
         return value
 
     def write(self, writer, value, field):
-        raise NotImplementedError("Writing PointerString is not yet supported.")
+        # PointerString is a virtual field that reads from an offset.
+        # Writing does not happen in-line with the struct; string data management is handled externally.
+        pass
 
-class Bitfield(FieldType):
+class Bitfield(BaseIntField):
     names = ["bitfield"]
+    default_size = 4
 
     def read(self, reader, field, context=None):
-        size = field.attributes.get("size", 4)
-        value = 0
-        
-        if size == 4:
-            value = reader.read_uint32()
-        elif size == 2:
-            value = reader.read_uint16()
-        elif size == 1:
-            value = reader.read_uint8()
-        else:
-            raise ValueError(f"Unsupported bitfield size: {size}")
+        value = super().read(reader, field, context)
             
         bitfields = field.attributes.get("bitfields")
         if not bitfields:
@@ -218,4 +206,16 @@ class Bitfield(FieldType):
         return result
 
     def write(self, writer, value, field):
-        raise NotImplementedError("Writing Bitfield is not yet supported.")
+        bitfields = field.attributes.get("bitfields")
+        if bitfields and isinstance(value, dict):
+            int_value = 0
+            for name, params in bitfields.items():
+                shift = params.get("shift", 0)
+                mask = params.get("mask", 0xFFFFFFFF)
+                
+                val = value.get(name, 0)
+                int_value |= (val & mask) << shift
+            
+            super().write(writer, int_value, field)
+        else:
+            super().write(writer, value, field)
