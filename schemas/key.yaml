@@ -57,6 +57,15 @@ bif_entries:
     type: bitmask   # interpret flags instead of plain number
     size: 2
     offset: 0x000a
+    flags:
+      0x0001: is_in_data
+      0x0002: is_in_cache
+      0x0004: is_on_cd1
+      0x0008: is_on_cd2
+      0x0010: is_on_cd3
+      0x0020: is_on_cd4
+      0x0040: is_on_cd5
+      0x0080: is_on_cd6
 
 resource_entries:
   offset_field: resource_entries_offset

@@ -1,3 +1,6 @@
+from csv import reader
+
+
 class FieldTypes:
     _types = {}
 
@@ -53,13 +56,46 @@ class UInt16(FieldType):
         writer.write_uint16(value)
 
 class UInt32(FieldType):
-    names = ["dword", "bitmask"]
+    names = ["dword",]
 
     def read(self, reader, field):
         return reader.read_uint32()
 
     def write(self, writer, value, field):
         writer.write_uint32(value)
+        
+class Bitmask(FieldType):
+    names = ["bitmask"]
+
+    def read(self, reader, field):
+        size = field.attributes.get("size")
+        value = 0
+        
+        if size == 4:
+            value = reader.read_uint32()
+        elif size == 2:
+            value = reader.read_uint16()
+        elif size == 1:
+            value = reader.read_uint8()
+        else:
+            raise ValueError(f"Unsupported bitmask size: {size}")
+
+        flags = field.attributes.get("flags")
+        if flags:
+            return {name: bool(value & mask) for mask, name in flags.items()}
+        
+        return value
+
+    def write(self, writer, value, field): 
+        if field.attributes.get("size") == 4:
+            writer.write_uint32(value)
+        elif field.attributes.get("size") == 2:
+            writer.write_uint16(value)
+        elif field.attributes.get("size") == 1:
+            writer.write_uint8(value)
+        else:
+            raise ValueError(f"Unsupported bitmask size: {field.attributes.get('size')}")
+
 
 class ResRef(FieldType):
     names = ["resref"]
