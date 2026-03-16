@@ -17,7 +17,9 @@ class ResourceLoader:
         self.schema_loader.load_all()
         self.schema_loader.resolve_types(FieldTypes)
         
-        self.chitin = self._load_chitin(self.default_game)
+        self.chitins = {}
+        self.resource_maps = {}
+        self._load_chitin(self.default_game)
         
     def load_file(self, resref = default_resref, restype = default_restype, game = default_game, file_path=None, schema=None):
         if schema is None:
@@ -40,7 +42,7 @@ class ResourceLoader:
             if install_path is None:
                 print(f"No installation found for game {game}.")
                 return None
-            res_entry = self._find_resource_location(resref)
+            res_entry = self._find_resource_location(resref, game)
             if not res_entry:
                 return None
 
@@ -49,7 +51,7 @@ class ResourceLoader:
             # select the correct schema, instead of relying on the `restype` parameter.
             
             resource_index = res_entry.get("resource_locator").get("resource_index")
-            bif_file_path = self._find_bif_file(res_entry)
+            bif_file_path = self._find_bif_file(res_entry, game)
             if not bif_file_path:
                 return None
 
@@ -87,7 +89,11 @@ class ResourceLoader:
             return parser.read(bytes_reader, name=resref, source=f"BIF: {bif_file_path}")
             
     def _find_bif_file(self, res_entry, game=default_game):
-        bif_entries = self.chitin.sections.get("bif_entries", [])
+        chitin = self.chitins.get(game)
+        if not chitin:
+            return None
+            
+        bif_entries = chitin.sections.get("bif_entries", [])
         locator = res_entry.get("resource_locator")
         bif_index = locator.get("bif_index")
         if bif_index >= len(bif_entries):
@@ -97,21 +103,25 @@ class ResourceLoader:
         file_path = Path(f"{self.install_finder.find(game).install_path}/{filename}")
         return file_path
     
-    def _find_resource_location(self, resref):
-        if self.chitin is None:
-            print("CHITIN.KEY not loaded, cannot find resource location.")
+    def _find_resource_location(self, resref, game=default_game):
+        if game not in self.chitins:
+            self._load_chitin(game)
+            
+        resource_map = self.resource_maps.get(game)
+        if not resource_map:
+            print(f"CHITIN.KEY map not found for game {game}.")
             return None
         
-        resource_entries = self.chitin.sections.get("resource_entries", [])
-        for entry in resource_entries:
-            if entry.get("resource_name") == resref:
-                return entry
-        
-        print(f"Resource {resref} not found in CHITIN.KEY.")
-        return None
+        entry = resource_map.get(resref.upper())
+        if not entry:
+            print(f"Resource {resref} not found in CHITIN.KEY for {game}.")
+            
+        return entry
     
     def _load_chitin(self, game):
-        ##NOTE: Look into caching this since it's needed for every resource load and is always the same for a given game
+        if game in self.chitins:
+            return self.chitins[game]
+
         chitin_path = self.install_finder.find_chitin(game)
         if chitin_path is None:
             print(f"Failed to find CHITIN.KEY for game {game}.")
@@ -121,5 +131,13 @@ class ResourceLoader:
         if chitin is None:
             print(f"Failed to load CHITIN.KEY for game {game}.")
             return None
+            
+        self.chitins[game] = chitin
+        self.resource_maps[game] = {
+            entry.get("resource_name").upper(): entry 
+            for entry in chitin.sections.get("resource_entries", [])
+            if entry.get("resource_name")
+        }
+        
         return chitin
                 
