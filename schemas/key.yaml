@@ -88,6 +88,16 @@ resource_entries:
     offset: 0x0008
 
   - name: resource_locator
-    type: dword
+    type: bitfield
     size: 4
     offset: 0x000a
+    bitfields:
+      resource_index:
+        mask: 0x3FFF
+        shift: 0
+      tileset_index:
+        mask: 0x3F
+        shift: 14
+      bif_index:
+        mask: 0xFFF
+        shift: 20

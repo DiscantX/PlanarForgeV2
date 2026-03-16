@@ -187,3 +187,35 @@ class PointerString(FieldType):
 
     def write(self, writer, value, field):
         raise NotImplementedError("Writing PointerString is not yet supported.")
+
+class Bitfield(FieldType):
+    names = ["bitfield"]
+
+    def read(self, reader, field, context=None):
+        size = field.attributes.get("size", 4)
+        value = 0
+        
+        if size == 4:
+            value = reader.read_uint32()
+        elif size == 2:
+            value = reader.read_uint16()
+        elif size == 1:
+            value = reader.read_uint8()
+        else:
+            raise ValueError(f"Unsupported bitfield size: {size}")
+            
+        bitfields = field.attributes.get("bitfields")
+        if not bitfields:
+            return value
+
+        result = {}
+        for name, params in bitfields.items():
+            shift = params.get("shift", 0)
+            mask = params.get("mask", 0xFFFFFFFF)
+            # Shift first, then mask (logic: (val >> shift) & mask)
+            result[name] = (value >> shift) & mask
+        
+        return result
+
+    def write(self, writer, value, field):
+        raise NotImplementedError("Writing Bitfield is not yet supported.")
