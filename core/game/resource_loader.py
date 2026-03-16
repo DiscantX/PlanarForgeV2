@@ -55,25 +55,37 @@ class ResourceLoader:
             if not bif_file_path:
                 return None
 
-            # Parse the BIF file's structure to find the resource's location and size
-            bif_file = self.load_file(resref="BIF", restype="BIFF", game=game, file_path=bif_file_path, schema=self.schema_loader.get("BIFF"))
-            if not bif_file:
-                print(f"Failed to parse BIF file: {bif_file_path}")
-                return None
-
-            file_entries = bif_file.sections.get('file_entries', [])
-            if resource_index >= len(file_entries):
-                print(f"Resource index {resource_index} is out of bounds for BIF {bif_file_path}")
-                return None
-
-            bif_resource_entry = file_entries[resource_index]
-            offset = bif_resource_entry.get("offset")
-            size = bif_resource_entry.get("size_of_this_resource")
-
-            # Extract the raw bytes of the final resource from the BIF file.
+            # Optimization: Random Access BIF Reading
+            # Instead of parsing the whole BIF, we read the header and jump to the specific entry.
             with open(bif_file_path, "rb") as f:
-                f.seek(offset)
-                raw_bytes = f.read(size)
+                reader = BinaryReader(f)
+                
+                # BIFF Header: 
+                # 0x08: Count of file entries (4 bytes)
+                # 0x10: Offset to file entries (4 bytes)
+                reader.seek(0x08)
+                file_count = reader.read_uint32()
+                
+                reader.seek(0x10)
+                file_entries_offset = reader.read_uint32()
+                
+                if resource_index >= file_count:
+                    print(f"Resource index {resource_index} is out of bounds for BIF {bif_file_path}")
+                    return None
+                
+                # BIF Entry format:
+                # Locator (4), Offset (4), Size (4), Type (2), Unknown (2) = 16 bytes
+                entry_size = 16
+                entry_offset = file_entries_offset + (resource_index * entry_size)
+                
+                # Seek to entry (skip first 4 bytes for Locator) to read Offset and Size
+                reader.seek(entry_offset + 4)
+                resource_offset = reader.read_uint32()
+                resource_size = reader.read_uint32()
+                
+                # Read the actual resource data
+                reader.seek(resource_offset)
+                raw_bytes = reader.read(resource_size)
 
             # Get the schema for the actual resource type (e.g., ITM, CRE).
             resource_schema = schema or self.schema_loader.get(restype)
