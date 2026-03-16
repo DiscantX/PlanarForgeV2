@@ -5,6 +5,7 @@ from core.binary.parser import BinaryParser
 from core.game.installation_finder import InstallationFinder
 from core.schema_loader import SchemaLoader
 from core.field_types import FieldTypes
+from core.game.resource_types import RESOURCE_TYPE_MAP
 
 class ResourceLoader:
     default_resref = "CHITIN"
@@ -46,10 +47,15 @@ class ResourceLoader:
             if not res_entry:
                 return None
 
-            # TODO: The resource type is an integer in the KEY file. We should have a map
-            # to resolve this integer (e.g., 1002) to a string ("ITM") to automatically
-            # select the correct schema, instead of relying on the `restype` parameter.
+            # Determine resource type automatically from CHITIN.KEY entry
+            res_type_code = res_entry.get("resource_type")
             
+            # If restype was passed manually (e.g. "ITM"), keep it. 
+            # Otherwise try to resolve the code (e.g. 1002 -> "ITM").
+            # If both fail, default to "KEY" (which will likely fail parsing but is safe fallback).
+            if restype == self.default_restype and res_type_code in RESOURCE_TYPE_MAP:
+                restype = RESOURCE_TYPE_MAP[res_type_code]
+
             resource_index = res_entry.get("resource_locator").get("resource_index")
             bif_file_path = self._find_bif_file(res_entry, game)
             if not bif_file_path:
