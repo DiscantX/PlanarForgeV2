@@ -319,10 +319,20 @@ extended_header:
     size: 2
     offset: 0x002a
 
-  - name: melee_animation
+  - name: overhand_animation
     type: word
-    size: 6
+    size: 2
     offset: 0x002c
+
+  - name: overhead_animation
+    type: word
+    size: 2
+    offset: 0x002e
+
+  - name: backhand_animation
+    type: word
+    size: 2
+    offset: 0x0030
 
   - name: arrow_qualifier
     type: word
