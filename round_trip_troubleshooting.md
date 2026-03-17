@@ -169,4 +169,13 @@ We will start by addressing **Bitmask Fidelity** as it requires a targeted fix i
 *   Updated `BinaryParser._determine_section_count` to accept the `reader` instance.
 *   Added a heuristic: If parsing `feature_block` (which is typically the last section), check if there are physically more blocks remaining in the file than the logical count suggests.
 *   If extra blocks exist, read them. This preserves the "zombie" data in unmodified round-trips.
+
+### 2026-03-17: ResRef Display Sanitization
+
+**Problem:** `ResRef` fields, when containing non-ASCII or null-padded data, would display as garbled characters (e.g., `¤¶E♦` or `BAG01\x00\x00...`) in debug outputs, making them hard to read.
+**Analysis:** The `latin-1` encoding, necessary for round-trip fidelity, was being printed directly. We needed a way to show a clean, human-readable string for display while preserving the raw bytes for writing.
+**Solution:**
+*   A `ResRefString` wrapper class was created that inherits from `str`.
+*   `ResRef.read` now returns an instance of this wrapper, which stores the full, raw string data.
+*   `ResRefString` overrides the `__str__` and `__repr__` methods to display only the content up to the first null byte (`\x00`), providing a clean representation without losing the underlying data required for fidelity.
 ```
