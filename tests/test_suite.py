@@ -310,7 +310,7 @@ class TestPlanarForge(unittest.TestCase):
                                     self.log_file.write(f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> CRASH loading\n")
                                     self.log_file.write(f"  - Exception: {e}\n")
                                     try:
-                                        raw_bytes, _, _ = self.loader.get_raw_bytes(resref, game=game)
+                                        raw_bytes, _, _ = self.loader.get_raw_bytes(resref, restype=schema_name, game=game)
                                         if raw_bytes: self.log_file.write(f"  - Resource Size: {len(raw_bytes)} bytes\n")
                                     except: pass # Ignore if getting raw bytes also fails
                                     self.log_file.write("  - Traceback:\n")
@@ -322,7 +322,7 @@ class TestPlanarForge(unittest.TestCase):
                             continue
 
                         try:
-                            original_bytes, _, _ = self.loader.get_raw_bytes(resref, game=game)
+                            original_bytes, _, _ = self.loader.get_raw_bytes(resref, restype=schema_name, game=game)
                             if not original_bytes:
                                 continue
                         except Exception as e:
