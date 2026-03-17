@@ -17,7 +17,7 @@ resource_loader = ResourceLoader(schema_loader=schema_loader)
 if len(sys.argv) > 1:
     resref_to_test = sys.argv[1].upper()
 else:
-    resref_to_test = "BAG29"  # Default example
+    resref_to_test = "SW2H10"  # Default example
 
 
 output_path = Path(f"./{resref_to_test}.saved.itm")
