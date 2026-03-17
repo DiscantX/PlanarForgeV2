@@ -1,0 +1,33 @@
+name: BIF_COMPRESSION
+
+# Wrapper for "BIF " files (Single zlib blob)
+# The data, once uncompressed, is formatted as a normal BIF file.
+bif_wrapper_header:
+  fields:
+  - name: signature
+    type: char_array
+    size: 4
+  - name: version
+    type: char_array
+    size: 4
+  - name: filename_len
+    type: dword
+  - name: filename
+    type: char_array
+    size_ref: filename_len
+  - name: uncompressed_size
+    type: dword
+  - name: compressed_size
+    type: dword
+
+# Header for "BIFC" files (Block-based)
+bifc_header:
+  fields:
+  - name: signature
+    type: char_array
+    size: 4
+  - name: version
+    type: char_array
+    size: 4
+  - name: uncompressed_size
+    type: dword

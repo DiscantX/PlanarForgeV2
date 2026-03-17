@@ -124,7 +124,15 @@ class CharArray(FieldType):
     names = ["char_array"]
 
     def read(self, reader, field, context=None):
-        size = field.attributes["size"]
+        size_ref = field.attributes.get("size_ref")
+        if size_ref and context:
+            size = context.get(size_ref)
+            if size is None:
+                raise ValueError(f"CharArray field '{field.name}' references missing size field '{size_ref}'")
+        else:
+            size = field.attributes.get("size")
+            if size is None:
+                raise ValueError(f"CharArray field '{field.name}' requires a 'size' or 'size_ref' attribute.")
         return reader.read_string(size)
 
     def write(self, writer, value, field):

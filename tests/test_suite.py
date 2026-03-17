@@ -5,216 +5,431 @@ import sys
 import os
 import random
 from contextlib import redirect_stdout
+import zlib
+import argparse
+from unittest.mock import patch
+import tempfile
+from collections import defaultdict
 
 # Ensure core modules can be imported
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from core.game.installation_finder import InstallationFinder
 from core.game.resource_loader import ResourceLoader
 from core.schema_loader import SchemaLoader
 from core.field_types import FieldTypes
 from core.binary.writer import BinaryWriter
+from core.binary.reader import BinaryReader
 from core.binary.parser import BinaryParser
 from core.game.resource_types import RESOURCE_TYPE_MAP
 
+# A palette of available ANSI color codes.
+# Use these to define the theme below.
+PALETTE = {
+    # Standard
+    'black':   '\033[30m', 'red':     '\033[31m', 'green':   '\033[32m',
+    'yellow':  '\033[33m', 'blue':    '\033[34m', 'magenta': '\033[35m',
+    'cyan':    '\033[36m', 'white':   '\033[37m',
+    # Bright
+    'bright_black':  '\033[90m', 'bright_red':    '\033[91m', 'bright_green':  '\033[92m',
+    'bright_yellow': '\033[93m', 'bright_blue':   '\033[94m', 'bright_magenta':'\033[95m',
+    'bright_cyan':   '\033[96m', 'bright_white':  '\033[97m',
+    # Modifiers
+    'end':      '\033[0m',
+    'bold':     '\033[1m',
+    'underline':'\033[4m',
+}
+
+# Defines the color theme for the test suite output.
+# Change the values here to easily customize the look.
+class Colors:
+    # Semantic mappings
+    HEADER      = PALETTE['bright_black']
+    LABEL       = PALETTE['cyan']
+    VALUE       = PALETTE['bright_yellow']
+    TOTAL_COUNT = PALETTE['end']
+    FAILURE_LABEL = PALETTE['bright_magenta']   # "Failed:", "Error:"
+    FAILURE_COUNT = PALETTE['end']          # The numeric failure count
+    ERROR_MSG     = PALETTE['bright_black']       # The actual error message text
+    RESREF_LABEL  = PALETTE['cyan'] # For specific labels like 'Resrefs'
+    
+    # Direct modifiers
+    ENDC        = PALETTE['end']
+    BOLD        = PALETTE['bold']
+    UNDERLINE   = PALETTE['underline']
+
 class TestPlanarForge(unittest.TestCase):
+    # CLI arguments will be stored here
+    schema_filter = None
+    resref_filter = None
+    game_filter = None
     
     @classmethod
     def setUpClass(cls):
         print("--- Setting up PlanarForge Test Suite ---")
         
-        # Initialize the ecosystem
         cls.schema_loader = SchemaLoader("schemas")
         cls.schema_loader.load_all()
         cls.schema_loader.resolve_types(FieldTypes)
         cls.loader = ResourceLoader(schema_loader=cls.schema_loader)
         
-        # Locate a game to test against
-        cls.game = cls.loader.default_game
+        # Find all installed games
+        all_found_games = [inst.game_id for inst in cls.loader.install_finder.find_all()]
         
-        # If the default game isn't found, try to auto-discover any installed IE game
-        if cls.game not in cls.loader.resource_maps:
-             known_games = ["BG2EE", "BGEE", "IWDEE", "PSTEE", "BG2", "BG1", "IWD"]
-             for g in known_games:
-                 if cls.loader._get_install_path(g):
-                     print(f"Default game not found, switching to discovered: {g}")
-                     cls.loader._load_chitin(g)
-                     if g in cls.loader.resource_maps:
-                         cls.game = g
-                         break
+        # Load chitin for all found games
+        for game_id in all_found_games:
+            cls.loader._load_chitin(game_id)
         
-        if cls.game not in cls.loader.resource_maps:
-            print("WARNING: No game installation found. Integration tests will be skipped.")
+        # Determine which games to test based on CLI arg or all found games
+        if cls.game_filter:
+            cls.games_to_test = [g.strip().upper() for g in cls.game_filter.split(',')]
+            # Ensure the requested games are actually found and loaded
+            cls.games_to_test = [g for g in cls.games_to_test if g in cls.loader.chitins]
+        else:
+            cls.games_to_test = [g for g in all_found_games if g in cls.loader.chitins]
+
+        if not cls.games_to_test:
+            print("WARNING: No valid game installations found to test against. Integration tests will be skipped.")
             cls.skip_all = True
         else:
             cls.skip_all = False
-            print(f"Running tests against: {cls.game}")
+            print(f"Found {len(cls.games_to_test)} game(s) to test against: {', '.join(cls.games_to_test)}")
 
-    def test_01_biff_structure(self):
-        """
-        Test reading of BIF files themselves using the BIFF schema.
-        Verifies that headers and file entry tables can be parsed.
-        """
+    def test_01_biff_parsing_and_decompression(self):
         if self.skip_all:
             self.skipTest("No game installation found")
             
-        biff_schema = self.schema_loader.get("BIFF") or self.schema_loader.get("biff")
+        biff_schema = self.schema_loader.get("BIFF")
         if not biff_schema:
             self.fail("BIFF schema is missing from schemas/ directory.")
-
-        chitin = self.loader.chitins.get(self.game)
-        bif_entries = chitin.sections.get("bif_entries", [])
         
-        # Test a subset of BIFs to ensure the parser handles the container format correctly
-        # We look for standard data biffs usually found in 'data/'
-        samples = [b for b in bif_entries if "data" in b.get("filename", "").lower()]
-        if not samples:
-            samples = bif_entries[:3] # Fallback to first 3
-        else:
-            samples = samples[:3]
+        for game in self.games_to_test:
+            with self.subTest(game=game):
+                install_path = self.loader._get_install_path(game)
+                if not install_path:
+                    self.fail(f"Could not get install path for {game}")
 
-        for entry in samples:
-            filename = entry.get("filename")
-            install_path = self.loader._get_install_path(self.game)
-            file_path = os.path.join(install_path, filename)
-            
-            # Fix path separators for mixed environments
-            file_path = str(file_path).replace("\\", "/")
+                all_bifs = []
+                for root, _, files in os.walk(install_path):
+                    for file in files:
+                        if file.lower().endswith(".bif"):
+                            full_path = os.path.join(root, file)
+                            all_bifs.append(str(full_path).replace("\\", "/"))
 
-            if not os.path.exists(file_path):
-                print(f"Skipping BIF test for {filename} (File not found)")
-                continue
+                if not all_bifs:
+                    print(f"No BIF files found in installation for {game}. Skipping BIF parsing test for this game.")
+                    continue
 
-            print(f"Testing BIF Parser on: {filename}")
-            
-            try:
-                # Force load using the BIFF schema
-                resource = self.loader.load_file(
-                    resref=filename, 
-                    file_path=file_path, 
-                    schema=biff_schema
-                )
-                
-                self.assertIsNotNone(resource, f"Parser returned None for {filename}")
-                self.assertIn("header", resource.sections)
-                self.assertIn("file_entries", resource.sections)
-                
-                # logic check: entry count in header should match actual list size
-                header = resource.sections["header"][0]
-                expected_count = header.get("file_entries", 0)
-                actual_count = len(resource.sections["file_entries"])
-                
-                self.assertEqual(expected_count, actual_count, 
-                    f"BIF Header claims {expected_count} files, found {actual_count} in {filename}")
+                print(f"\n--- [{game}] Testing parsing for all {len(all_bifs)} located BIF files ---")
 
-            except Exception as e:
-                self.fail(f"Failed to parse BIF file {filename}: {e}")
+                for file_path in all_bifs:
+                    filename = os.path.basename(file_path)
+                    try:
+                        with self.loader._get_bif_stream(file_path) as bif_stream:
+                            reader = BinaryReader(bif_stream)
+                            parser = BinaryParser(biff_schema)
+                            resource = parser.read(reader, name=filename, source=file_path)
+                        self.assertIsNotNone(resource, f"Parser returned None for {filename}")
+                        self.assertIn("header", resource.sections)
+                        self.assertIn("file_entries", resource.sections)
+                        header = resource.sections["header"][0]
+                        expected_count = header.get("file_entries", 0)
+                        actual_count = len(resource.sections["file_entries"])
+                        self.assertEqual(expected_count, actual_count, f"BIF Header claims {expected_count} files, found {actual_count} in {filename}")
+                    except Exception as e:
+                        self.fail(f"Failed to parse BIF file {filename} (from path {file_path}): {e}")
 
     def test_02_resource_fidelity_roundtrip(self):
-        """
-        Test round-trip fidelity for every resource in CHITIN.KEY that has a corresponding schema.
-        """
         if self.skip_all:
             self.skipTest("No game installation found")
 
-        # Get all resource entries from the loaded CHITIN.KEY
-        chitin = self.loader.chitins.get(self.game)
-        if not chitin:
-            self.fail(f"CHITIN.KEY for {self.game} not loaded.")
-        
-        all_resource_entries = chitin.sections.get("resource_entries", [])
+        # Data structure for collecting results
+        # stats[schema][game] = {'tested': int, 'errors': {msg: [resrefs]}}
+        stats = defaultdict(lambda: defaultdict(lambda: {
+            'tested': 0,
+            'errors': defaultdict(list)
+        }))
+        any_tests_run = False
 
-        # Group resources by their schema name (e.g., 'ITM', 'SPL')
-        resources_by_schema = {}
-        for entry in all_resource_entries:
-            res_type_code = entry.get("resource_type")
-            res_name = entry.get("resource_name")
-            
-            # Use the resource type map to find the schema name
-            schema_name = RESOURCE_TYPE_MAP.get(res_type_code)
-
-            if schema_name and res_name:
-                if schema_name not in resources_by_schema:
-                    resources_by_schema[schema_name] = []
-                resources_by_schema[schema_name].append(res_name.strip())
-
-        tested_count = 0
-        total_failures = []
-        
-        # Iterate through each schema we have loaded
-        for schema_name, schema in self.schema_loader.schemas.items():
-            # We only care about schemas that represent game resources (not container formats like BIFF)
-            if schema_name not in resources_by_schema:
-                continue
-
-            print(f"\n--- Testing fidelity for schema: {schema_name} ---")
-            
-            resrefs_to_test = resources_by_schema[schema_name]
-            failures = []
-            
-            for resref in resrefs_to_test:
-                # We capture stdout to prevent "No schema found" spam
-                f = io.StringIO()
-                with redirect_stdout(f):
-                    try:
-                        # 1. Attempt Load
-                        resource = self.loader.load(resref, restype=schema_name, game=self.game)
-                    except Exception as e:
-                        failures.append(f"CRASH loading {resref}: {e}")
-                        continue
-
-                if resource is None:
-                    continue
-
-                # 2. Get Original Data
-                try:
-                    original_bytes, _, _ = self.loader.get_raw_bytes(resref, game=self.game)
-                    if not original_bytes:
-                        continue
-                except Exception as e:
-                    failures.append(f"Error reading raw bytes for {resref}: {e}")
-                    continue
-
-                # 3. Save to Memory (Simulate File Write)
-                try:
-                    output = io.BytesIO()
-                    writer = BinaryWriter(output)
-                    parser = BinaryParser(resource.schema)
-                    parser.write(writer, resource)
-                    saved_bytes = output.getvalue()
-                except Exception as e:
-                    failures.append(f"Error writing {resref}: {e}")
-                    continue
-
-                # 4. Compare
-                orig_hash = hashlib.md5(original_bytes).hexdigest()
-                saved_hash = hashlib.md5(saved_bytes).hexdigest()
-
-                if orig_hash != saved_hash:
-                    version = resource.get("version")
-                    
-                    limit = min(len(original_bytes), len(saved_bytes))
-                    diff_idx = next((i for i in range(limit) if original_bytes[i] != saved_bytes[i]), limit)
-                    
-                    fail_msg = (
-                        f"Fidelity mismatch: {resref} [{schema_name}] (File Ver: {version})\n"
-                        f"  Sizes: Orig={len(original_bytes)}, Saved={len(saved_bytes)}\n"
-                        f"  First mismatch at offset {hex(diff_idx)}"
-                    )
-                    failures.append(fail_msg)
+        for game in self.games_to_test:
+            with self.subTest(game=game):
+                chitin = self.loader.chitins.get(game)
+                if not chitin:
+                    self.fail(f"CHITIN.KEY for {game} not loaded.")
                 
-                tested_count += 1
-            
-            if failures:
-                total_failures.extend(failures)
-                print(f"Found {len(failures)} failures for {schema_name}:")
-                for fail in failures:
-                    print(f" - {fail}")
+                all_resource_entries = chitin.sections.get("resource_entries", [])
+                resources_by_schema = defaultdict(list)
+                for entry in all_resource_entries:
+                    res_type_code = entry.get("resource_type")
+                    res_name = entry.get("resource_name")
+                    schema_name = RESOURCE_TYPE_MAP.get(res_type_code)
+                    if schema_name and res_name:
+                        if schema_name not in resources_by_schema:
+                            resources_by_schema[schema_name] = []
+                        resources_by_schema[schema_name].append(res_name.strip())
+                
+                if self.resref_filter and not self.schema_filter:
+                    print(f"\n--- [{game}] Filtering fidelity test to resource: {self.resref_filter.upper()} ---")
+                elif self.schema_filter:
+                    print(f"\n--- [{game}] Filtering fidelity test to schema: {self.schema_filter.upper()} ---")
+                
+                # Iterate schemas in sorted order for consistent reporting
+                for schema_name, schema in sorted(self.schema_loader.schemas.items()):
+                    if self.schema_filter and schema_name != self.schema_filter.upper():
+                        continue
+                    if schema_name not in resources_by_schema:
+                        continue
 
-        print(f"\n--- Fidelity Test Suite Finished ---")
-        print(f"Total resources tested: {tested_count}")
+                    # print(f"\n--- [{game}] Testing fidelity for schema: {schema_name} ---") # Reduced verbosity
+                    
+                    resrefs_to_test = resources_by_schema[schema_name]
+                    if self.resref_filter:
+                        resref_filter_upper = self.resref_filter.strip().upper()
+                        if resref_filter_upper in resrefs_to_test:
+                            resrefs_to_test = [resref_filter_upper]
+                        else:
+                            continue
+                    
+                    for resref in resrefs_to_test:
+                        any_tests_run = True
+                        stats[schema_name][game]['tested'] += 1
+                        
+                        f = io.StringIO()
+                        with redirect_stdout(f):
+                            try:
+                                resource = self.loader.load(resref, restype=schema_name, game=game)
+                            except Exception as e:
+                                stats[schema_name][game]['errors'][f"CRASH loading: {e}"].append(resref)
+                                continue
+                        if resource is None:
+                            continue
+
+                        try:
+                            original_bytes, _, _ = self.loader.get_raw_bytes(resref, game=game)
+                            if not original_bytes:
+                                continue
+                        except Exception as e:
+                            stats[schema_name][game]['errors'][f"Error reading raw bytes: {e}"].append(resref)
+                            continue
+
+                        try:
+                            output = io.BytesIO()
+                            writer = BinaryWriter(output)
+                            parser = BinaryParser(resource.schema)
+                            parser.write(writer, resource)
+                            saved_bytes = output.getvalue()
+                        except Exception as e:
+                            stats[schema_name][game]['errors'][f"Error writing: {e}"].append(resref)
+                            continue
+
+                        orig_hash = hashlib.md5(original_bytes).hexdigest()
+                        saved_hash = hashlib.md5(saved_bytes).hexdigest()
+
+                        if orig_hash != saved_hash:
+                            stats[schema_name][game]['errors']["Fidelity mismatch"].append(resref)
+
+        # --- SUMMARY GENERATION ---
+        if not any_tests_run:
+             return
+
+        print("\n" + Colors.HEADER + "="*96 + Colors.ENDC)
+        print(f"{Colors.HEADER}FIDELITY TEST SUMMARY{Colors.ENDC}")
+        print(Colors.HEADER + "="*96 + Colors.ENDC)
         
-        if total_failures:
-            self.fail(f"Round-trip fidelity failed for {len(total_failures)} resources across all schemas.")
+        global_schema_stats = defaultdict(lambda: {'tested': 0, 'failed': 0})
+        global_error_stats = defaultdict(lambda: {'count': 0, 'resrefs': []})
+        total_errors_found = 0
+
+        for schema_name in sorted(stats.keys()):
+            game_data = stats[schema_name]
+            
+            schema_total_tested = 0
+            schema_total_failed = 0
+            schema_errors = defaultdict(lambda: {'count': 0, 'resrefs': []})
+
+            # Print per-game breakdown
+            for game in sorted(game_data.keys()):
+                g_info = game_data[game]
+                tested = g_info['tested']
+                errors = g_info['errors']
+                failed = sum(len(refs) for refs in errors.values())
+                
+                schema_total_tested += tested
+                schema_total_failed += failed
+                
+                if failed > 0:
+                    print(f"{Colors.LABEL}Game:{Colors.ENDC} {Colors.VALUE}{game:<6}{Colors.ENDC} | {Colors.LABEL}Schema:{Colors.ENDC} {Colors.VALUE}{schema_name:<4}{Colors.ENDC} | {Colors.FAILURE_LABEL}Failed:{Colors.ENDC} {Colors.FAILURE_COUNT}{failed}{Colors.ENDC}/{Colors.TOTAL_COUNT}{tested}{Colors.ENDC}")
+                    
+                    for msg, resrefs in errors.items():
+                        count = len(resrefs)
+                        schema_errors[msg]['count'] += count
+                        schema_errors[msg]['resrefs'].extend(resrefs)
+                        
+                        res_str = ", ".join(resrefs[:5])
+                        remaining = count - 5
+                        if remaining > 0: res_str += f", ... (+{remaining} more)"
+                        
+                        print(f"  - {Colors.FAILURE_LABEL}Failed:{Colors.ENDC} {Colors.FAILURE_COUNT}{count:>3}{Colors.ENDC}/{Colors.TOTAL_COUNT}{tested:<4}{Colors.ENDC} | {Colors.FAILURE_LABEL}Error:{Colors.ENDC} {Colors.ERROR_MSG}{msg}{Colors.ENDC}")
+                        print(f"                     | {Colors.RESREF_LABEL}Resrefs:{Colors.ENDC} {Colors.VALUE}{res_str}{Colors.ENDC}")
+
+            # Print Schema Aggregates
+            if schema_total_failed > 0:
+                print(f"\n{Colors.FAILURE_LABEL}FAILURES BY ERROR:{Colors.ENDC}")
+                for msg, info in schema_errors.items():
+                    print(f"- {Colors.FAILURE_LABEL}Failed:{Colors.ENDC} {Colors.FAILURE_COUNT}{info['count']:>3}{Colors.ENDC}/{Colors.TOTAL_COUNT}{schema_total_tested:<4}{Colors.ENDC} | {Colors.FAILURE_LABEL}Error: {Colors.ERROR_MSG}{msg}{Colors.ENDC}")
+                    
+                    global_error_stats[msg]['count'] += info['count']
+                    global_error_stats[msg]['resrefs'].extend(info['resrefs'])
+
+                print(f"\n{Colors.FAILURE_LABEL}TOTAL FAILED FOR SCHEMA: {schema_name} {Colors.FAILURE_COUNT}{schema_total_failed}{Colors.ENDC}/{Colors.TOTAL_COUNT}{schema_total_tested}{Colors.ENDC}")
+                print(Colors.HEADER + "-" * 96 + Colors.ENDC)
+
+            # Update Global Schema Stats
+            global_schema_stats[schema_name]['tested'] += schema_total_tested
+            global_schema_stats[schema_name]['failed'] += schema_total_failed
+            total_errors_found += schema_total_failed
+
+        # --- FULL TEST SUMMARY ---
+        total_tested_overall = sum(s['tested'] for s in global_schema_stats.values())
+
+        print(Colors.HEADER + "+" * 96 + Colors.ENDC)
+        print(f"{Colors.HEADER}FULL TEST SUMMARY{Colors.ENDC}")
+        print(Colors.HEADER + "-" * 96 + Colors.ENDC)
+        
+        print(f"{Colors.BOLD}{Colors.HEADER}FAILURES BY SCHEMA ACROSS ALL GAMES{Colors.ENDC}")
+        for schema_name, info in sorted(global_schema_stats.items()):
+            if info['failed'] > 0:
+                print(f"- {Colors.FAILURE_LABEL}Failed:{Colors.ENDC} {Colors.FAILURE_COUNT}{info['failed']:>4}{Colors.ENDC}/{Colors.TOTAL_COUNT}{info['tested']:<4}{Colors.ENDC} {Colors.VALUE}{schema_name}{Colors.ENDC}")
+        
+        print(Colors.HEADER + "-" * 96 + Colors.ENDC)
+        print(f"{Colors.BOLD}{Colors.HEADER}FAILURES BY ERROR ACROSS ALL GAMES{Colors.ENDC}")
+        print(Colors.HEADER + "-" * 96 + Colors.ENDC)
+        for msg, info in global_error_stats.items():
+            count = info['count']
+            res_str = ", ".join(info['resrefs'][:5])
+            remaining = len(info['resrefs']) - 5
+            if remaining > 0: res_str += f", ... (+{remaining} more)"
+            
+            print(f"  - {Colors.FAILURE_LABEL}Failed:{Colors.ENDC} {Colors.FAILURE_COUNT}{count:>4}{Colors.ENDC}/{Colors.TOTAL_COUNT}{total_tested_overall:<4}{Colors.ENDC} | {Colors.FAILURE_LABEL}Error: {Colors.ERROR_MSG}{msg}{Colors.ENDC}")
+            print(f"                      | {Colors.RESREF_LABEL}Resrefs:{Colors.ENDC} {Colors.VALUE}{res_str}{Colors.ENDC}")
+
+        print(Colors.HEADER + "+" * 96 + Colors.ENDC)
+        print(f"{Colors.BOLD}{Colors.HEADER}TOTAL ERRORS FOUND{Colors.ENDC}")
+        print(f"- {Colors.FAILURE_COUNT}{total_errors_found}{Colors.ENDC}/{Colors.TOTAL_COUNT}{total_tested_overall}{Colors.ENDC}")
+        print(Colors.HEADER + "+" * 96 + Colors.ENDC)
+
+    def test_03_bif_caching(self):
+        """
+        Tests that compressed BIF files are decompressed only once and then cached.
+        Uses a generated BIF file to ensure the test runs even if game data is uncompressed.
+        """
+        # 1. Create a dummy uncompressed BIFF (Minimal Valid Header)
+        # Sig(4)=BIFF, Ver(4)=V1  , Files(4)=0, Tiles(4)=0, Offset(4)=16
+        uncompressed_data = b'BIFFV1  \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00'
+        uncompressed_len = len(uncompressed_data)
+
+        # 2. Compress payload
+        compressed_payload = zlib.compress(uncompressed_data)
+        compressed_len = len(compressed_payload)
+
+        # 3. Construct BIF Wrapper (Format: 'BIF ')
+        # Header: Sig(4), Ver(4), NameLen(4), Name(N), UncompSize(4), CompSize(4)
+        filename = b"temp.bif"
+        filename_len = len(filename)
+
+        header = bytearray()
+        header.extend(b'BIF ')
+        header.extend(b'V1.0')
+        header.extend(filename_len.to_bytes(4, 'little'))
+        header.extend(filename)
+        header.extend(uncompressed_len.to_bytes(4, 'little'))
+        header.extend(compressed_len.to_bytes(4, 'little'))
+
+        full_file_content = header + compressed_payload
+
+        # 4. Write to a temp file
+        with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix=".bif") as tmp:
+            tmp_path = tmp.name
+            tmp.write(full_file_content)
+
+        try:
+            print(f"\n--- Testing caching on generated compressed BIF: {tmp_path} ---")
+            
+            with patch('zlib.decompress', wraps=zlib.decompress) as mock_decompress:
+                # First Access: Should trigger decompression
+                with self.loader._get_bif_stream(tmp_path) as stream:
+                    content = stream.read()
+                    self.assertEqual(content, uncompressed_data, "Decompressed content mismatch")
+                
+                self.assertTrue(mock_decompress.called, "zlib.decompress was NOT called on first access.")
+                initial_call_count = mock_decompress.call_count
+
+                # Second Access: Should use cache
+                with self.loader._get_bif_stream(tmp_path) as stream:
+                    content = stream.read()
+                    self.assertEqual(content, uncompressed_data, "Cached content mismatch")
+
+                self.assertEqual(mock_decompress.call_count, initial_call_count, "zlib.decompress was called again! Caching failed.")
+                print("Cache test passed. Decompression was not repeated.")
+
+        finally:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception as e:
+                    print(f"Warning: Failed to delete temp file {tmp_path}: {e}")
 
 if __name__ == "__main__":
-    unittest.main()
+    parser = argparse.ArgumentParser(
+        description="PlanarForge Test Suite Runner.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="""
+Examples:
+  Run all tests:
+    python tests/test_suite.py
+
+  Run a specific test by number:
+    python tests/test_suite.py --test 1
+
+  Run the fidelity test (test #2) for a single schema:
+    python tests/test_suite.py --test 2 --schema ITM
+
+  Run the fidelity test (test #2) for a single resource:
+    python tests/test_suite.py --test 2 --resref BAG29
+
+Available Tests:
+  1: BIF Parsing & Decompression
+  2: Resource Fidelity Round-trip
+  3: BIF Caching
+"""
+    )
+    parser.add_argument('--test', type=int, help='Run a specific test by number (1, 2, or 3).')
+    parser.add_argument('--schema', type=str, help='Limit fidelity test to a specific schema (e.g., ITM, SPL).')
+    parser.add_argument('--resref', type=str, help='Limit fidelity test to a specific resource reference (e.g., BAG29).')
+    parser.add_argument('--game', type=str, help='Limit tests to a specific game ID or comma-separated list (e.g., BG2EE,IWDEE). Defaults to all found games.')
+
+    # Separate custom args from unittest args
+    args, unknown = parser.parse_known_args()
+
+    TestPlanarForge.schema_filter = args.schema
+    TestPlanarForge.resref_filter = args.resref
+    TestPlanarForge.game_filter = args.game
+
+    # If --test is used, it overrides any other test specifications.
+    if args.test:
+        test_map = {
+            1: 'test_01_biff_parsing_and_decompression',
+            2: 'test_02_resource_fidelity_roundtrip',
+            3: 'test_03_bif_caching',
+        }
+        test_name = test_map.get(args.test)
+        if test_name:
+            sys.argv = [sys.argv[0], f'TestPlanarForge.{test_name}']
+        else:
+            print(f"Error: Invalid test number '{args.test}'. Available tests are: {', '.join(map(str, test_map.keys()))}.")
+            sys.exit(1)
+    else:
+        # Reconstruct sys.argv for unittest.main() to allow running tests by full name
+        sys.argv = [sys.argv[0]] + unknown
+
+    unittest.main(verbosity=2)

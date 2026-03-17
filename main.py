@@ -13,7 +13,7 @@ schema_loader.resolve_types(FieldTypes)
 resource_loader = ResourceLoader(schema_loader=schema_loader)
 
 # --- Round-trip Test ---
-resref_to_test = "ohbdeva"
+resref_to_test = "BAG29"  # Example resource reference to test (an item)
 output_path = Path(f"./{resref_to_test}.saved.itm")
 
 print(f"--- Running Round-Trip Test for {resref_to_test} ---")
