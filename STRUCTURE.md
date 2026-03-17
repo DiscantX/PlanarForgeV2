@@ -14,13 +14,15 @@ The brain of the application. It contains all Python logic required to read, wri
 - `Reader`/`Writer`: Low-level stream wrappers.
 - `BinaryParser`: The schema engine that interprets YAML definitions to process binary streams.
 
-#### `core/game/` (Domain Layer)
-**Purpose:** Logic specific to the Infinity Engine and the games supported (BG, IWD, PST).
-**Scope:** Code here handles the "business logic" of the game engine: how files are stored, how to find installations, and how to map resource names to data.
+#### `drivers/` (Plugin Layer)
+**Purpose:** Contains engine-specific logic and drivers.
+
+#### `drivers/InfinityEngine/`
+**Purpose:** The implementation for Baldur's Gate, Icewind Dale, etc.
 **Contents:**
-- `ResourceLoader`: The high-level API for finding and loading resources.
-- `BiffHandler`: The "Virtual File System" driver. Handles BIF/BIFC container logic, decompression, and stream caching.
-- `InstallationFinder`: Logic to locate games on the user's disk (Steam/GOG/Registry).
+- `ResourceLoader`: The driver entry point.
+- `BiffHandler`: Handles BIF/BIFC container logic.
+- `InstallationFinder`: Locates games on disk.
 - `ResourceTypes`: mappings between integer type codes and string extensions (e.g., `2012` -> `ITM`).
 
 #### `core/` (Shared/Root)
@@ -53,7 +55,7 @@ The brain of the application. It contains all Python logic required to read, wri
 **Why:** This is a fundamental building block of data parsing.
 
 #### 2. "I need to handle a specific file container (e.g., ERF or RIM files)."
-**Location:** `core/game/` (e.g., `erf_handler.py`).
+**Location:** `drivers/<EngineName>/` (e.g., `drivers/Aurora/erf_handler.py`).
 **Why:** Even though it involves reading binary data, handling a container format is specific to the game engine's storage method. It belongs in the Domain layer, not the generic Infrastructure layer.
 *Decision Reference:* `BiffHandler` was placed here because it encapsulates domain knowledge (Signature detection, Decompression algorithms specific to BIFF) rather than generic binary parsing.
 
@@ -73,5 +75,5 @@ The brain of the application. It contains all Python logic required to read, wri
     *   `BinaryParser` interprets the bytes (Structure).
     *   `ResourceLoader` coordinates the two.
 *   **Separation of Concerns (Infrastructure vs Domain):**
-    *   `core/binary` does not import `core/game`.
-    *   `core/game` depends on `core/binary`.
+    *   `core/binary` does not import `drivers`.
+    *   `drivers` depends on `core/binary`.

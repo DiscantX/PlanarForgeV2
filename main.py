@@ -3,7 +3,7 @@ from pathlib import Path
 from core.binary.parser import BinaryParser
 from core.schema_loader import SchemaLoader
 from core.field_types import FieldTypes
-from core.game.resource_loader import ResourceLoader
+from drivers.InfinityEngine.resource_loader import ResourceLoader
 import sys
 
 # Load schema

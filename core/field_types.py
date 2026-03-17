@@ -146,40 +146,6 @@ class Bitmask(BaseIntField):
         else:
             super().write(writer, value, field)
 
-class ResRef(FieldType):
-    names = ["resref"]
-
-    def read(self, reader, field, context=None):
-        val = reader.read_resref()
-        return ResRefString(val)
-
-    def write(self, writer, value, field):
-        writer.write_resref(value)  # you may also want safe writing later
-
-class ResRefString(str):
-    """
-    A string wrapper for ResRefs that preserves raw binary data (decoded as latin-1)
-    but sanitizes the string representation for display.
-    This ensures fidelity (bytes are preserved in the string content itself) while 
-    improving UX by showing only the meaningful characters.
-    """
-    def __str__(self):
-        # Return the string content up to the first null byte.
-        # This effectively hides any padding or garbage following the null terminator.
-        return self.split('\x00')[0]
-
-    def __repr__(self):
-        return repr(self.__str__())
-
-class StrRef(FieldType):
-    names = ["strref"]
-
-    def read(self, reader, field, context=None):
-        return reader.read_strref()
-
-    def write(self, writer, value, field):
-        writer.write_uint32(0 if value is None else value)
-
 class CharArray(FieldType):
     names = ["char_array"]
 

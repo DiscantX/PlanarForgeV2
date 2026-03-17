@@ -28,17 +28,6 @@ class BinaryReader:
         raw = self.read(size)
         return raw.rstrip(b"\x00").decode("latin-1")
 
-    def read_resref(self):
-        raw = self.read(8)
-        stripped = raw.rstrip(b"\x00")
-        
-        return stripped.decode("latin-1")
-
-    def read_strref(self):
-        value = self.read_uint32()
-        # 0 means no string
-        return None if value == 0 else value
-
     def tell(self):
         return self.file.tell()
 

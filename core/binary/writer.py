@@ -33,6 +33,3 @@ class BinaryWriter:
         else:
             encoded = encoded.ljust(size, b"\x00")
         self.write(encoded)
-
-    def write_resref(self, value):
-        self.write_string(value, 8)

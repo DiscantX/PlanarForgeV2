@@ -17,14 +17,14 @@ import re
 # Ensure core modules can be imported
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.game.installation_finder import InstallationFinder
-from core.game.resource_loader import ResourceLoader
+from drivers.InfinityEngine.installation_finder import InstallationFinder
+from drivers.InfinityEngine.resource_loader import ResourceLoader
 from core.schema_loader import SchemaLoader
 from core.field_types import FieldTypes
 from core.binary.writer import BinaryWriter
 from core.binary.reader import BinaryReader
 from core.binary.parser import BinaryParser
-from core.game.resource_types import RESOURCE_TYPE_MAP
+from drivers.InfinityEngine.resource_types import RESOURCE_TYPE_MAP
 
 # A palette of available ANSI color codes.
 # Use these to define the theme below.

@@ -3,11 +3,15 @@ from pathlib import Path
 from core.binary.reader import BinaryReader
 from core.binary.parser import BinaryParser
 from core.binary.writer import BinaryWriter
-from core.game.installation_finder import InstallationFinder
 from core.schema_loader import SchemaLoader
 from core.field_types import FieldTypes
-from core.game.resource_types import RESOURCE_TYPE_MAP, RESOURCE_TYPE_MAP_REV
-from core.game.biff_handler import BiffHandler
+
+# Import internal driver components
+from .installation_finder import InstallationFinder
+from .resource_types import RESOURCE_TYPE_MAP, RESOURCE_TYPE_MAP_REV
+from .biff_handler import BiffHandler
+# Import types to ensure they register themselves with FieldTypes
+from . import types
 
 class ResourceLoader:
     default_resref = "CHITIN"
@@ -145,9 +149,6 @@ class ResourceLoader:
             print(f"Resource {resref} not found in CHITIN.KEY for {game}.")
             return None
 
-        # If restype is provided, try to find the specific match
-        # We need to resolve the string type (e.g. "ITM") to the int code (e.g. 2055)
-        # If the input restype is already an int code (rare but possible), use it directly.
         if restype:
             target_code = RESOURCE_TYPE_MAP_REV.get(restype, restype)
 
@@ -155,7 +156,6 @@ class ResourceLoader:
                 if entry.get("resource_type") == target_code:
                     return entry
             
-        # Fallback: return the first entry if no type match (or if type wasn't crucial)
         if restype:
             print(f"Warning: Resource {resref} found, but type '{restype}' mismatch. Returning first match ({RESOURCE_TYPE_MAP.get(entries[0].get('resource_type'))}).")
         return entries[0]
@@ -186,7 +186,6 @@ class ResourceLoader:
             
         self.chitins[game] = chitin
         
-        # Build map: ResRef -> [Entry, Entry, ...]
         res_map = {}
         for entry in chitin.sections.get("resource_entries", []):
             res_name = entry.get("resource_name", "").upper()
@@ -197,4 +196,3 @@ class ResourceLoader:
         self.resource_maps[game] = res_map
         
         return chitin
-                
