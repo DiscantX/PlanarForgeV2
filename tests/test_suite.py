@@ -7,9 +7,12 @@ import random
 from contextlib import redirect_stdout
 import zlib
 import argparse
+import traceback
 from unittest.mock import patch
 import tempfile
 from collections import defaultdict
+import datetime
+import re
 
 # Ensure core modules can be imported
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -63,10 +66,22 @@ class TestPlanarForge(unittest.TestCase):
     schema_filter = None
     resref_filter = None
     game_filter = None
+    log_file = None
+    fidelity_stats = None
     
     @classmethod
     def setUpClass(cls):
         print("--- Setting up PlanarForge Test Suite ---")
+        
+        # Setup logging
+        log_filename = "test_suite.log"
+        try:
+            cls.log_file = open(log_filename, "w", encoding="utf-8")
+            cls.log_file.write(f"PlanarForge Test Suite Log - {datetime.datetime.now()}\n\n")
+            print(f"Logging test results to {log_filename}")
+        except IOError as e:
+            print(f"Warning: Could not open log file {log_filename}: {e}")
+            cls.log_file = None
         
         cls.schema_loader = SchemaLoader("schemas")
         cls.schema_loader.load_all()
@@ -94,6 +109,95 @@ class TestPlanarForge(unittest.TestCase):
         else:
             cls.skip_all = False
             print(f"Found {len(cls.games_to_test)} game(s) to test against: {', '.join(cls.games_to_test)}")
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.log_file:
+            if cls.fidelity_stats:
+                cls._write_log_summary()
+            cls.log_file.close()
+            cls.log_file = None
+        print("\n--- Test Suite Finished ---")
+
+    @classmethod
+    def _write_log_summary(cls):
+        stats = cls.fidelity_stats
+        log_file = cls.log_file
+
+        log_file.write("\n" + "="*96 + "\n")
+        log_file.write("FIDELITY TEST SUMMARY\n")
+        log_file.write("="*96 + "\n")
+
+        global_schema_stats = defaultdict(lambda: {'tested': 0, 'failed': 0})
+        global_error_stats = defaultdict(lambda: {'count': 0, 'resrefs': []})
+        total_errors_found = 0
+
+        for schema_name in sorted(stats.keys()):
+            game_data = stats[schema_name]
+            
+            schema_total_tested = 0
+            schema_total_failed = 0
+            schema_errors = defaultdict(lambda: {'count': 0, 'resrefs': []})
+
+            for game in sorted(game_data.keys()):
+                g_info = game_data[game]
+                tested = g_info['tested']
+                errors = g_info['errors']
+                failed = sum(len(refs) for refs in errors.values())
+                
+                schema_total_tested += tested
+                schema_total_failed += failed
+                
+                if failed > 0:
+                    log_file.write(f"Game: {game:<6} | Schema: {schema_name:<4} | Failed: {failed}/{tested}\n")
+                    for msg, resrefs in errors.items():
+                        count = len(resrefs)
+                        schema_errors[msg]['count'] += count
+                        res_str = ", ".join(resrefs[:5])
+                        if len(resrefs) > 5: res_str += f", ... (+{len(resrefs) - 5} more)"
+                        log_file.write(f"  - Failed: {count:>3}/{tested:<4} | Error: {msg}\n")
+                        log_file.write(f"                     | Resrefs: {res_str}\n")
+
+            if schema_total_failed > 0:
+                log_file.write("\nFAILURES BY ERROR:\n")
+                for msg, info in schema_errors.items():
+                    log_file.write(f"- Failed: {info['count']:>3}/{schema_total_tested:<4} | Error: {msg}\n")
+                    global_error_stats[msg]['count'] += info['count']
+                log_file.write(f"\nTOTAL FAILED FOR SCHEMA: {schema_name} {schema_total_failed}/{schema_total_tested}\n")
+                log_file.write("-" * 96 + "\n")
+
+            global_schema_stats[schema_name]['tested'] += schema_total_tested
+            global_schema_stats[schema_name]['failed'] += schema_total_failed
+            total_errors_found += schema_total_failed
+
+        total_tested_overall = sum(s['tested'] for s in global_schema_stats.values())
+        log_file.write("\n" + "+" * 96 + "\n")
+        log_file.write("FULL TEST SUMMARY\n")
+        log_file.write("-" * 96 + "\n")
+        log_file.write("FAILURES BY SCHEMA ACROSS ALL GAMES\n")
+        for schema_name, info in sorted(global_schema_stats.items()):
+            if info['failed'] > 0:
+                log_file.write(f"- Failed: {info['failed']:>4}/{info['tested']:<4} {schema_name}\n")
+        log_file.write("-" * 96 + "\n")
+        log_file.write("FAILURES BY ERROR ACROSS ALL GAMES\n")
+        for msg, info in global_error_stats.items():
+            log_file.write(f"  - Failed: {info['count']:>4}/{total_tested_overall:<4} | Error: {msg}\n")
+        log_file.write("+" * 96 + "\n")
+        log_file.write("TOTAL ERRORS FOUND\n")
+        log_file.write(f"- {total_errors_found}/{total_tested_overall}\n")
+        log_file.write("+" * 96 + "\n")
+
+    @staticmethod
+    def _format_byte_context(data, offset, width=8):
+        start = max(0, offset - width)
+        end = min(len(data), offset + width + 1)
+        
+        pre_context = ' '.join(f'{b:02x}' for b in data[start:offset])
+        post_context = ' '.join(f'{b:02x}' for b in data[offset+1:end])
+        
+        offending_byte = f'{data[offset]:02x}'
+        
+        return f"{pre_context} | {offending_byte.upper()} | {post_context}"
 
     def test_01_biff_parsing_and_decompression(self):
         if self.skip_all:
@@ -144,11 +248,12 @@ class TestPlanarForge(unittest.TestCase):
             self.skipTest("No game installation found")
 
         # Data structure for collecting results
-        # stats[schema][game] = {'tested': int, 'errors': {msg: [resrefs]}}
-        stats = defaultdict(lambda: defaultdict(lambda: {
+        # Use a class member to store stats for tearDownClass
+        self.__class__.fidelity_stats = defaultdict(lambda: defaultdict(lambda: {
             'tested': 0,
             'errors': defaultdict(list)
         }))
+        stats = self.__class__.fidelity_stats # local alias
         any_tests_run = False
 
         for game in self.games_to_test:
@@ -199,7 +304,19 @@ class TestPlanarForge(unittest.TestCase):
                             try:
                                 resource = self.loader.load(resref, restype=schema_name, game=game)
                             except Exception as e:
-                                stats[schema_name][game]['errors'][f"CRASH loading: {e}"].append(resref)
+                                error_msg = f"CRASH loading: {e}"
+                                stats[schema_name][game]['errors'][error_msg].append(resref)
+                                if self.log_file:
+                                    self.log_file.write(f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> CRASH loading\n")
+                                    self.log_file.write(f"  - Exception: {e}\n")
+                                    try:
+                                        raw_bytes, _, _ = self.loader.get_raw_bytes(resref, game=game)
+                                        if raw_bytes: self.log_file.write(f"  - Resource Size: {len(raw_bytes)} bytes\n")
+                                    except: pass # Ignore if getting raw bytes also fails
+                                    self.log_file.write("  - Traceback:\n")
+                                    for line in traceback.format_exc().splitlines():
+                                        self.log_file.write(f"    {line}\n")
+                                    self.log_file.write("\n")
                                 continue
                         if resource is None:
                             continue
@@ -209,7 +326,13 @@ class TestPlanarForge(unittest.TestCase):
                             if not original_bytes:
                                 continue
                         except Exception as e:
-                            stats[schema_name][game]['errors'][f"Error reading raw bytes: {e}"].append(resref)
+                            error_msg = f"Error reading raw bytes: {e}"
+                            stats[schema_name][game]['errors'][error_msg].append(resref)
+                            if self.log_file:
+                                self.log_file.write(f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> {error_msg}\n")
+                                for line in traceback.format_exc().splitlines():
+                                    self.log_file.write(f"    {line}\n")
+                                self.log_file.write("\n")
                             continue
 
                         try:
@@ -219,14 +342,38 @@ class TestPlanarForge(unittest.TestCase):
                             parser.write(writer, resource)
                             saved_bytes = output.getvalue()
                         except Exception as e:
-                            stats[schema_name][game]['errors'][f"Error writing: {e}"].append(resref)
+                            error_msg = f"Error writing: {e}"
+                            stats[schema_name][game]['errors'][error_msg].append(resref)
+                            if self.log_file:
+                                self.log_file.write(f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> {error_msg}\n")
+                                for line in traceback.format_exc().splitlines():
+                                    self.log_file.write(f"    {line}\n")
+                                self.log_file.write("\n")
                             continue
 
                         orig_hash = hashlib.md5(original_bytes).hexdigest()
                         saved_hash = hashlib.md5(saved_bytes).hexdigest()
 
                         if orig_hash != saved_hash:
-                            stats[schema_name][game]['errors']["Fidelity mismatch"].append(resref)
+                            error_msg = "Fidelity mismatch"
+                            stats[schema_name][game]['errors'][error_msg].append(resref)
+                            if self.log_file:
+                                self.log_file.write(f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> {error_msg}\n")
+                                self.log_file.write(f"  - Version: {resource.get('version', 'N/A')}\n")
+                                self.log_file.write(f"  - Hashes:  Original={orig_hash}, Saved={saved_hash}\n")
+                                self.log_file.write(f"  - Sizes:   Original={len(original_bytes)}, Saved={len(saved_bytes)}\n")
+                                
+                                limit = min(len(original_bytes), len(saved_bytes))
+                                diff_idx = next((i for i in range(limit) if original_bytes[i] != saved_bytes[i]), -1)
+
+                                if diff_idx != -1:
+                                    self.log_file.write(f"  - Details: Mismatch at offset {hex(diff_idx)} ({diff_idx}). Original byte: {hex(original_bytes[diff_idx])}, Saved byte: {hex(saved_bytes[diff_idx])}.\n")
+                                    self.log_file.write("  - Context:\n")
+                                    self.log_file.write(f"    - Original: {self._format_byte_context(original_bytes, diff_idx)}\n")
+                                    self.log_file.write(f"    - Saved:    {self._format_byte_context(saved_bytes, diff_idx)}\n")
+                                elif len(original_bytes) != len(saved_bytes):
+                                    self.log_file.write(f"  - Details: Files differ in size but match up to the length of the shorter file.\n")
+                                self.log_file.write("\n")
 
         # --- SUMMARY GENERATION ---
         if not any_tests_run:
@@ -318,7 +465,10 @@ class TestPlanarForge(unittest.TestCase):
         print(f"- {Colors.FAILURE_COUNT}{total_errors_found}{Colors.ENDC}/{Colors.TOTAL_COUNT}{total_tested_overall}{Colors.ENDC}")
         print(Colors.HEADER + "+" * 96 + Colors.ENDC)
 
-    def test_03_bif_caching(self):
+        if total_errors_found > 0:
+            sys.exit(1)
+
+    def test_04_bif_caching(self):
         """
         Tests that compressed BIF files are decompressed only once and then cached.
         Uses a generated BIF file to ensure the test runs even if game data is uncompressed.
@@ -400,7 +550,7 @@ Examples:
 Available Tests:
   1: BIF Parsing & Decompression
   2: Resource Fidelity Round-trip
-  3: BIF Caching
+  4: BIF Caching
 """
     )
     parser.add_argument('--test', type=int, help='Run a specific test by number (1, 2, or 3).')
@@ -420,7 +570,7 @@ Available Tests:
         test_map = {
             1: 'test_01_biff_parsing_and_decompression',
             2: 'test_02_resource_fidelity_roundtrip',
-            3: 'test_03_bif_caching',
+            4: 'test_04_bif_caching',
         }
         test_name = test_map.get(args.test)
         if test_name:

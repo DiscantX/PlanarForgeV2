@@ -69,9 +69,15 @@ class BinaryParser:
         section_data = {}
 
         for field in section.fields:
-
-            # Pass the currently parsed section data for context-aware fields
-            value = field.type.read(reader, field, section_data)
+            current_offset = reader.tell()
+            try:
+                # Pass the currently parsed section data for context-aware fields
+                value = field.type.read(reader, field, section_data)
+            except Exception as e:
+                # Re-raise with more context for better error reporting
+                error_message = f"Parsing field '{field.name}' at offset {hex(current_offset)} failed: {e}"
+                # Create a new exception of the same type to preserve the original error type
+                raise type(e)(error_message) from e
 
             section_data[field.name] = value
             resource.values[field.name] = value

@@ -4,6 +4,7 @@ from core.binary.parser import BinaryParser
 from core.schema_loader import SchemaLoader
 from core.field_types import FieldTypes
 from core.game.resource_loader import ResourceLoader
+import sys
 
 # Load schema
 schema_loader = SchemaLoader("schemas")
@@ -13,7 +14,12 @@ schema_loader.resolve_types(FieldTypes)
 resource_loader = ResourceLoader(schema_loader=schema_loader)
 
 # --- Round-trip Test ---
-resref_to_test = "BAG29"  # Example resource reference to test (an item)
+if len(sys.argv) > 1:
+    resref_to_test = sys.argv[1].upper()
+else:
+    resref_to_test = "BAG29"  # Default example
+
+
 output_path = Path(f"./{resref_to_test}.saved.itm")
 
 print(f"--- Running Round-Trip Test for {resref_to_test} ---")
