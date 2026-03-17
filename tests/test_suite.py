@@ -366,13 +366,28 @@ class TestPlanarForge(unittest.TestCase):
                                 limit = min(len(original_bytes), len(saved_bytes))
                                 diff_idx = next((i for i in range(limit) if original_bytes[i] != saved_bytes[i]), -1)
 
+                                # If no difference was found within the common part, but sizes differ,
+                                # the first difference is at the end of the shorter file.
+                                if diff_idx == -1 and len(original_bytes) != len(saved_bytes):
+                                    diff_idx = limit
+
                                 if diff_idx != -1:
-                                    self.log_file.write(f"  - Details: Mismatch at offset {hex(diff_idx)} ({diff_idx}). Original byte: {hex(original_bytes[diff_idx])}, Saved byte: {hex(saved_bytes[diff_idx])}.\n")
+                                    # Safely get byte values and their hex representation
+                                    original_byte = original_bytes[diff_idx] if diff_idx < len(original_bytes) else None
+                                    saved_byte = saved_bytes[diff_idx] if diff_idx < len(saved_bytes) else None
+                                    original_byte_hex = hex(original_byte) if original_byte is not None else "EOF"
+                                    saved_byte_hex = hex(saved_byte) if saved_byte is not None else "EOF"
+
+                                    self.log_file.write(f"  - Details: Mismatch at offset {hex(diff_idx)} ({diff_idx}). Original byte: {original_byte_hex}, Saved byte: {saved_byte_hex}.\n")
                                     self.log_file.write("  - Context:\n")
-                                    self.log_file.write(f"    - Original: {self._format_byte_context(original_bytes, diff_idx)}\n")
-                                    self.log_file.write(f"    - Saved:    {self._format_byte_context(saved_bytes, diff_idx)}\n")
-                                elif len(original_bytes) != len(saved_bytes):
-                                    self.log_file.write(f"  - Details: Files differ in size but match up to the length of the shorter file.\n")
+                                    if original_byte is not None:
+                                        self.log_file.write(f"    - Original: {self._format_byte_context(original_bytes, diff_idx)}\n")
+                                    else:
+                                        self.log_file.write(f"    - Original: (file ends before this offset)\n")
+                                    if saved_byte is not None:
+                                        self.log_file.write(f"    - Saved:    {self._format_byte_context(saved_bytes, diff_idx)}\n")
+                                    else:
+                                        self.log_file.write(f"    - Saved:    (file ends before this offset)\n")
                                 self.log_file.write("\n")
 
         # --- SUMMARY GENERATION ---
@@ -563,6 +578,26 @@ Available Tests:
 
     TestPlanarForge.schema_filter = args.schema
     TestPlanarForge.resref_filter = args.resref
+    TestPlanarForge.game_filter = args.game
+
+    # If --test is used, it overrides any other test specifications.
+    if args.test:
+        test_map = {
+            1: 'test_01_biff_parsing_and_decompression',
+            2: 'test_02_resource_fidelity_roundtrip',
+            4: 'test_04_bif_caching',
+        }
+        test_name = test_map.get(args.test)
+        if test_name:
+            sys.argv = [sys.argv[0], f'TestPlanarForge.{test_name}']
+        else:
+            print(f"Error: Invalid test number '{args.test}'. Available tests are: {', '.join(map(str, test_map.keys()))}.")
+            sys.exit(1)
+    else:
+        # Reconstruct sys.argv for unittest.main() to allow running tests by full name
+        sys.argv = [sys.argv[0]] + unknown
+
+    unittest.main(verbosity=2)
     TestPlanarForge.game_filter = args.game
 
     # If --test is used, it overrides any other test specifications.
