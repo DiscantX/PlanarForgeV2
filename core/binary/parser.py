@@ -61,7 +61,7 @@ class BinaryParser:
                 reader.seek(offset)
 
             # Determine entry count
-            count = self._determine_section_count(section, resource)
+            count = self._determine_section_count(section, resource, reader)
             entries = []
 
             for _ in range(count):
@@ -72,7 +72,7 @@ class BinaryParser:
 
         return resource
 
-    def _determine_section_count(self, section, resource):
+    def _determine_section_count(self, section, resource, reader=None):
         """
         Calculates the number of entries to read for a section.
         Handles logic for 'orphaned' data (e.g. Feature Blocks referenced by Abilities
@@ -95,6 +95,28 @@ class BinaryParser:
                     if needed > max_needed:
                         max_needed = needed
             
+            # Heuristic: Check for unreferenced "zombie" blocks at the end of the file.
+            # Some files (e.g., BGEE PTION41) have valid effect structures physically present
+            # but not referenced by any header or ability.
+            if reader:
+                current_offset = reader.tell()
+                # Check if this is physically the last section
+                is_last_section = True
+                for s in self.schema.sections:
+                    if s.name != section.name and s.offset_field:
+                        off = resource.values.get(s.offset_field, 0)
+                        if off > current_offset:
+                            is_last_section = False
+                            break
+                
+                if is_last_section:
+                    entry_size = sum(f.attributes.get("size", 0) for f in section.fields)
+                    if entry_size > 0:
+                        remaining_bytes = reader.size() - current_offset
+                        physical_count = remaining_bytes // entry_size
+                        if physical_count > max_needed:
+                            return physical_count
+
             return max_needed
 
         # Default behavior for all other sections

@@ -137,7 +137,36 @@ We will start by addressing **Bitmask Fidelity** as it requires a targeted fix i
 *   If `False` (unmodified), the writer now sorts sections based on their original offsets found in `resource.values` and writes them in that physical order.
 *   The writer inserts `\x00` padding to align sections with their original offsets.
 **Status:** Implemented. Verification needed via test suite run.
+
+### 2026-03-17: Reverted "Defensive" Parser Check
+
+**Problem:** A defensive check was added to `BinaryParser.read` to prevent it from reading past the end of a file if the header's count fields were erroneously large. This successfully stopped all `CRASH loading` errors.
+**Why It Was Wrong:** The fix treated the symptom, not the cause. By preventing the crash, it masked the true underlying issue: the parser was being fed entirely incorrect data from the wrong file type. The crashes were a vital clue that the data source was corrupt, and silencing them made the root cause harder to find.
+**Solution:** The defensive check was removed from `BinaryParser.read`. This allowed the crashes to resurface, correctly pointing the investigation toward the `ResourceLoader` and away from the `BinaryParser`.
+
+### 2026-03-17: Resource Loader Name Collision (Root Cause of Crashes)
+
+**Problem:** A huge number of files were crashing the parser or loading as "garbage data". This was traced back to how `ResourceLoader` handled `CHITIN.KEY`.
+1.  **The Flaw:** The loader used a simple dictionary mapping a `ResRef` string (e.g., "CARRIO") to a single resource entry. However, Infinity Engine games frequently have multiple resources with the same name but different types (e.g., `CARRIO.ITM` and `CARRIO.CRE`). The dictionary would overwrite entries, only remembering the last one it found.
+2.  **The Symptom:** When `load("CARRIO", restype="ITM")` was called, the loader might have only stored the entry for `CARRIO.CRE`. It would then fetch the raw bytes of the **Creature** file and pass them to the **Item** parser. The parser would interpret the file's signature (`CRE `) as garbage integer values, leading to nonsensical counts and offsets, which ultimately caused the crashes.
+
+**Solution:**
+1.  **Refactor `ResourceLoader`:** The internal resource map was changed from `Dict[str, Entry]` to `Dict[str, List[Entry]]` to handle name collisions.
+2.  **Update Lookup Logic:** The `_find_resource_location` method was updated to accept a `restype`. When provided, it now filters the list of entries for the one with the matching resource type code.
+3.  **Propagate `restype`:** The `restype` argument was passed down through the `load` and `get_raw_bytes` call chain to enable this specific lookup.
+
+### 2026-03-17: Test Suite False Negatives
+
+**Problem:** After fixing the `ResourceLoader`, a massive number of fidelity tests were still failing, often at the very first byte (`0x53` vs `0x49`, i.e., 'S' vs 'I').
+**The Flaw:** The test suite itself had the same bug as the original loader. When fetching the original file for comparison, the test called `loader.get_raw_bytes(resref)` **without** specifying the `restype`. It was therefore comparing the correctly saved `ITM` file against the raw bytes of a `STO` or `SPL` file with the same name.
+**Solution:** The call to `get_raw_bytes` inside `tests/test_suite.py` was updated to `get_raw_bytes(resref, restype=schema_name)`, ensuring the test compares the correct files. This resolved the vast majority of the remaining fidelity errors.
+
+### 2026-03-17: Unreferenced "Zombie" Data (PTION41)
+
+**Problem:** `PTION41.ITM` in `BGEE` failed fidelity tests with a size mismatch (Saved file was 96 bytes smaller).
+**Analysis:** The original file contains 10 Feature Block structures physically, but the header and abilities only reference the first 8. The last 2 blocks (96 bytes) are technically "orphaned" or "zombie" data—valid structures that are never used by the game. Our parser, being logic-driven, ignored them.
+**Solution:**
+*   Updated `BinaryParser._determine_section_count` to accept the `reader` instance.
+*   Added a heuristic: If parsing `feature_block` (which is typically the last section), check if there are physically more blocks remaining in the file than the logical count suggests.
+*   If extra blocks exist, read them. This preserves the "zombie" data in unmodified round-trips.
 ```
-<!--
-[PROMPT_SUGGESTION]Let's start by addressing the Bitmask Fidelity Loss. How can we modify the `Bitmask` class in `core/field_types.py` to preserve unknown bits during the read and write operations?[/PROMPT_SUGGESTION]
-[PROMPT_SUGGESTION]Can you provide a more detailed explanation of the "Orphaned Data Loss" problem, specifically how it relates to ITM/SPL schemas and how we might identify these orphaned sections in the schema definition?[/PROMPT_SUGGESTION]

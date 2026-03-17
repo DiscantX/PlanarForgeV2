@@ -17,7 +17,7 @@ resource_loader = ResourceLoader(schema_loader=schema_loader)
 if len(sys.argv) > 1:
     resref_to_test = sys.argv[1].upper()
 else:
-    resref_to_test = "CARRIO"  # Default example
+    resref_to_test = "PTION41"  # Default example
 
 
 output_path = Path(f"./{resref_to_test}.saved.itm")
@@ -45,7 +45,7 @@ resource_loader.save_file(resource, output_path)
 print(f"Saved resource to '{output_path}'")
 
 # 3. Get the original bytes from the BIF for comparison
-original_bytes, _, _ = resource_loader.get_raw_bytes(resref_to_test)
+original_bytes, _, _ = resource_loader.get_raw_bytes(resref_to_test, restype="ITM")
 if not original_bytes:
     raise SystemExit("Failed to get original bytes for comparison.")
 
