@@ -53,6 +53,15 @@ To fix these issues, we should prioritize them in this order:
 3.  **Repacking/Padding/Stale Header Data:** These are mostly harmless in terms of game functionality but prevent us from verifying the correctness of the other two. Addressing these will allow our fidelity tests to pass for semantically identical files, making it easier to detect true data loss.
 
 We will start by addressing **Bitmask Fidelity** as it requires a targeted fix in `field_types.py` and directly relates to data integrity.
+
+### 2026-03-17: Bitmask Fidelity Fix
+
+**Problem:** `Bitmask` fields drop bits not defined in the schema, causing checksum mismatches on round-trip.
+**Solution:**
+*   Modify `Bitmask.read` to calculate `unknown_bits = value & ~known_mask`.
+*   Store these bits in the result dictionary under the reserved key `_unknown`.
+*   Modify `Bitmask.write` to look for `_unknown` and merge it back into the integer to be written.
+**Architecture Note:** This adds a reserved key `_unknown` to the dictionary representation of Bitmasks.
 ```
 <!--
 [PROMPT_SUGGESTION]Let's start by addressing the Bitmask Fidelity Loss. How can we modify the `Bitmask` class in `core/field_types.py` to preserve unknown bits during the read and write operations?[/PROMPT_SUGGESTION]

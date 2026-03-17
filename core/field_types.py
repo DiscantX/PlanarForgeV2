@@ -87,7 +87,19 @@ class Bitmask(BaseIntField):
 
         flags = field.attributes.get("flags")
         if flags:
-            return {name: bool(value & mask) for mask, name in flags.items()}
+            result = {name: bool(value & mask) for mask, name in flags.items()}
+            
+            # Calculate mask of all known flags
+            known_mask = 0
+            for mask in flags:
+                known_mask |= mask
+            
+            # Preserve unknown bits
+            unknown_bits = value & ~known_mask
+            if unknown_bits:
+                result["_unknown"] = unknown_bits
+                
+            return result
         
         return value
 
@@ -98,6 +110,10 @@ class Bitmask(BaseIntField):
             for mask, name in flags.items():
                 if value.get(name):
                     int_value |= mask
+            
+            # Restore unknown bits if present
+            int_value |= value.get("_unknown", 0)
+            
             super().write(writer, int_value, field)
         else:
             super().write(writer, value, field)
