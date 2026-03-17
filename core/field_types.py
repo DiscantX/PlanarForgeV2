@@ -77,6 +77,34 @@ class UInt16(BaseIntField):
 class UInt32(BaseIntField):
     names = ["dword"]
     default_size = 4
+    
+class Bitfield(BaseIntField):
+    names = ["bitfield"]
+    default_size = 4
+
+    def read(self, reader, field, context=None):
+        value = super().read(reader, field, context)
+            
+        bitfields = field.attributes.get("bitfields")
+        if not bitfields:
+            return value
+
+        result = {}
+        known_mask = 0
+        for name, params in bitfields.items():
+            shift = params.get("shift", 0)
+            mask = params.get("mask", 0xFFFFFFFF)
+            # Add this field's mask to the total known mask
+            known_mask |= (mask << shift)
+            # Extract the value for this field
+            result[name] = (value >> shift) & mask
+        
+        # Preserve any bits not covered by the known bitfields
+        unknown_bits = value & ~known_mask
+        if unknown_bits:
+            result["_unknown"] = unknown_bits
+            
+        return result
         
 class Bitmask(BaseIntField):
     names = ["bitmask"]
@@ -209,26 +237,6 @@ class PointerString(FieldType):
         # Writing does not happen in-line with the struct; string data management is handled externally.
         pass
 
-class Bitfield(BaseIntField):
-    names = ["bitfield"]
-    default_size = 4
-
-    def read(self, reader, field, context=None):
-        value = super().read(reader, field, context)
-            
-        bitfields = field.attributes.get("bitfields")
-        if not bitfields:
-            return value
-
-        result = {}
-        for name, params in bitfields.items():
-            shift = params.get("shift", 0)
-            mask = params.get("mask", 0xFFFFFFFF)
-            # Shift first, then mask (logic: (val >> shift) & mask)
-            result[name] = (value >> shift) & mask
-        
-        return result
-
     def write(self, writer, value, field):
         bitfields = field.attributes.get("bitfields")
         if bitfields and isinstance(value, dict):
@@ -236,9 +244,11 @@ class Bitfield(BaseIntField):
             for name, params in bitfields.items():
                 shift = params.get("shift", 0)
                 mask = params.get("mask", 0xFFFFFFFF)
-                
                 val = value.get(name, 0)
                 int_value |= (val & mask) << shift
+            
+            # Restore unknown bits if present
+            int_value |= value.get("_unknown", 0)
             
             super().write(writer, int_value, field)
         else:
