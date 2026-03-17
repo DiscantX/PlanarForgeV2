@@ -60,6 +60,7 @@ file_entries:
     offset: 0x000e
 
 tileset_entries:
+  count_field: tileset_entries
   fields:
 
   - name: resource_locator
