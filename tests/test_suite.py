@@ -246,11 +246,11 @@ class TestPlanarForge(unittest.TestCase):
 
                         with patch('zlib.decompress', side_effect=zlib.decompress) as mock_decompress:
                             # First read: should decompress
-                            with self.loader._get_bif_stream(bif_path) as _:
+                            with self.loader.biff_handler.get_stream(bif_path) as _:
                                 pass
                             
                             # Second read: should be cached (no new decompress calls)
-                            with self.loader._get_bif_stream(bif_path) as _:
+                            with self.loader.biff_handler.get_stream(bif_path) as _:
                                 pass
                             
                             # We can't strictly assert call_count >= 1 because _get_bif_stream might 
@@ -308,7 +308,7 @@ class TestPlanarForge(unittest.TestCase):
                 for file_path in all_bifs:
                     filename = os.path.basename(file_path)
                     try:
-                        with self.loader._get_bif_stream(file_path) as bif_stream:
+                        with self.loader.biff_handler.get_stream(file_path) as bif_stream:
                             reader = BinaryReader(bif_stream)
                             parser = BinaryParser(biff_schema)
                             resource = parser.read(reader, name=filename, source=file_path)
@@ -607,7 +607,7 @@ class TestPlanarForge(unittest.TestCase):
             
             with patch('zlib.decompress', wraps=zlib.decompress) as mock_decompress:
                 # First Access: Should trigger decompression
-                with self.loader._get_bif_stream(tmp_path) as stream:
+                with self.loader.biff_handler.get_stream(tmp_path) as stream:
                     content = stream.read()
                     self.assertEqual(content, uncompressed_data, "Decompressed content mismatch")
                 
@@ -615,7 +615,7 @@ class TestPlanarForge(unittest.TestCase):
                 initial_call_count = mock_decompress.call_count
 
                 # Second Access: Should use cache
-                with self.loader._get_bif_stream(tmp_path) as stream:
+                with self.loader.biff_handler.get_stream(tmp_path) as stream:
                     content = stream.read()
                     self.assertEqual(content, uncompressed_data, "Cached content mismatch")
 
