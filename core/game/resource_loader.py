@@ -8,7 +8,7 @@ from core.binary.writer import BinaryWriter
 from core.game.installation_finder import InstallationFinder
 from core.schema_loader import SchemaLoader
 from core.field_types import FieldTypes
-from core.game.resource_types import RESOURCE_TYPE_MAP
+from core.game.resource_types import RESOURCE_TYPE_MAP, RESOURCE_TYPE_MAP_REV
 
 class ResourceLoader:
     default_resref = "CHITIN"
@@ -135,12 +135,12 @@ class ResourceLoader:
                 decompressed_stream.seek(0)
                 yield decompressed_stream
 
-    def get_raw_bytes(self, resref, game=default_game):
+    def get_raw_bytes(self, resref, restype=None, game=default_game):
         """
         Finds a resource and extracts its raw byte data from its source BIF.
         Returns a tuple of (raw_bytes, source_path, resource_type_code).
         """
-        res_entry = self._find_resource_location(resref, game)
+        res_entry = self._find_resource_location(resref, restype=restype, game=game)
         if not res_entry:
             return None, None, None
 
@@ -193,7 +193,7 @@ class ResourceLoader:
                 print(f"No installation found for game {game}.")
                 return None
 
-            raw_bytes, source_path, res_type_code = self.get_raw_bytes(resref, game)
+            raw_bytes, source_path, res_type_code = self.get_raw_bytes(resref, restype=restype, game=game)
             if raw_bytes is None:
                 return None
             
@@ -233,7 +233,7 @@ class ResourceLoader:
         file_path = Path(f"{install_path}/{filename}")
         return file_path
     
-    def _find_resource_location(self, resref, game=default_game):
+    def _find_resource_location(self, resref, restype=None, game=default_game):
         if game not in self.chitins:
             self._load_chitin(game)
             
@@ -242,11 +242,25 @@ class ResourceLoader:
             print(f"CHITIN.KEY map not found for game {game}.")
             return None
         
-        entry = resource_map.get(resref.upper())
-        if not entry:
+        entries = resource_map.get(resref.upper())
+        if not entries:
             print(f"Resource {resref} not found in CHITIN.KEY for {game}.")
+            return None
+
+        # If restype is provided, try to find the specific match
+        # We need to resolve the string type (e.g. "ITM") to the int code (e.g. 2055)
+        # If the input restype is already an int code (rare but possible), use it directly.
+        if restype:
+            target_code = RESOURCE_TYPE_MAP_REV.get(restype, restype)
+
+            for entry in entries:
+                if entry.get("resource_type") == target_code:
+                    return entry
             
-        return entry
+        # Fallback: return the first entry if no type match (or if type wasn't crucial)
+        if restype:
+            print(f"Warning: Resource {resref} found, but type '{restype}' mismatch. Returning first match ({RESOURCE_TYPE_MAP.get(entries[0].get('resource_type'))}).")
+        return entries[0]
     
     def _get_install_path(self, game):
         if game in self.install_paths:
@@ -273,11 +287,16 @@ class ResourceLoader:
             return None
             
         self.chitins[game] = chitin
-        self.resource_maps[game] = {
-            entry.get("resource_name").upper(): entry 
-            for entry in chitin.sections.get("resource_entries", [])
-            if entry.get("resource_name")
-        }
+        
+        # Build map: ResRef -> [Entry, Entry, ...]
+        res_map = {}
+        for entry in chitin.sections.get("resource_entries", []):
+            res_name = entry.get("resource_name", "").upper()
+            if res_name:
+                if res_name not in res_map:
+                    res_map[res_name] = []
+                res_map[res_name].append(entry)
+        self.resource_maps[game] = res_map
         
         return chitin
                 

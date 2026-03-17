@@ -44,3 +44,6 @@ RESOURCE_TYPE_MAP = {
     0x0802: "INI",
     0x0803: "SRC",
 }
+
+# Reverse mapping for lookups (String -> Int)
+RESOURCE_TYPE_MAP_REV = {v: k for k, v in RESOURCE_TYPE_MAP.items()}

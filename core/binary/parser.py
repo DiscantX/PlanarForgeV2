@@ -65,11 +65,6 @@ class BinaryParser:
             entries = []
 
             for _ in range(count):
-
-                # Safety guard: prevent reading past EOF
-                if reader.tell() >= filesize:
-                    break
-
                 entry = self._read_section(reader, section, resource)
                 entries.append(entry)
 

@@ -128,6 +128,15 @@ We will start by addressing **Bitmask Fidelity** as it requires a targeted fix i
 **Status:** **FIXED**
 **Verification:** The fidelity test for `SW2H10` (a complex item with both global and ability-based effects) now passes. The `MD5` hashes match, indicating that all 16 feature blocks are being correctly read and written back to the file.
 **Note:** This fix involved hardcoding specific logic for `feature_block` sections into the `BinaryParser`. While slightly coupled, this is necessary to handle the unique "max extent" logic of IE formats without over-complicating the schema system.
+
+### 2026-03-17: Binary Repacking & Offset Shifts
+
+**Problem:** `BinaryParser.write` was always repacking the file tightly. This meant that valid files with gaps (alignment padding) or sections in non-standard orders would result in a different binary layout, causing MD5 mismatches even if the data was semantically identical.
+**Solution:**
+*   Modified `BinaryParser.write` to check `resource.modified`.
+*   If `False` (unmodified), the writer now sorts sections based on their original offsets found in `resource.values` and writes them in that physical order.
+*   The writer inserts `\x00` padding to align sections with their original offsets.
+**Status:** Implemented. Verification needed via test suite run.
 ```
 <!--
 [PROMPT_SUGGESTION]Let's start by addressing the Bitmask Fidelity Loss. How can we modify the `Bitmask` class in `core/field_types.py` to preserve unknown bits during the read and write operations?[/PROMPT_SUGGESTION]
