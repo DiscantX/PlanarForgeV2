@@ -283,13 +283,13 @@ class TestPlanarForge(unittest.TestCase):
         if self.skip_all:
             self.skipTest("No game installation found")
             
-        biff_schema = self.schema_loader.get("BIFF")
-        if not biff_schema:
-            self.fail("BIFF schema is missing from schemas/ directory.")
-        
         failures = []
         for game in self.games_to_test:
             with self.subTest(game=game):
+                biff_schema = self.schema_loader.get("BIFF", game=game)
+                if not biff_schema:
+                    self.fail(f"BIFF schema is missing for {game}")
+
                 install_path = self.loader._get_install_path(game)
                 if not install_path:
                     self.fail(f"Could not get install path for {game}")
@@ -365,8 +365,13 @@ class TestPlanarForge(unittest.TestCase):
                 elif self.schema_filter:
                     print(f"\n--- [{game}] Filtering fidelity test to schema: {self.schema_filter.upper()} ---")
                 
+                # Get list of all available schema types for this run
+                all_types = set(self.schema_loader.schemas.keys())
+                for g_map in self.schema_loader.game_schemas.values():
+                    all_types.update(g_map.keys())
+                
                 # Iterate schemas in sorted order for consistent reporting
-                for schema_name, schema in sorted(self.schema_loader.schemas.items()):
+                for schema_name in sorted(all_types):
                     if self.schema_filter and schema_name != self.schema_filter.upper():
                         continue
                     if schema_name not in resources_by_schema:
@@ -406,6 +411,11 @@ class TestPlanarForge(unittest.TestCase):
                                     self.log_file.write("\n")
                                 continue
                         if resource is None:
+                            error_msg = "Loader returned None (Missing Schema?)"
+                            stats[schema_name][game]['errors'][error_msg].append(resref)
+                            if self.log_file:
+                                self.log_file.write(f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> {error_msg}\n")
+                                self.log_file.write(f"  - Output: {f.getvalue().strip()}\n\n")
                             continue
 
                         try:

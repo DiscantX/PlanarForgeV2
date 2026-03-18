@@ -13,7 +13,7 @@ resource_loader = ResourceLoader()
 if len(sys.argv) > 1:
     resref_to_test = sys.argv[1].upper()
 else:
-    resref_to_test = "MUMGREW"  # Default example
+    resref_to_test = "AX"  # Default example
 
 
 output_path = Path(f"./{resref_to_test}.saved.itm")
@@ -21,7 +21,7 @@ output_path = Path(f"./{resref_to_test}.saved.itm")
 print(f"--- Running Round-Trip Test for {resref_to_test} ---")
 
 # 1. Load the resource from the game files
-resource = resource_loader.load(resref_to_test, restype="ITM")
+resource = resource_loader.load(resref_to_test, restype="ITM", game="PSTEE")
 if not resource:
     raise SystemExit(f"Failed to load {resref_to_test}")
 

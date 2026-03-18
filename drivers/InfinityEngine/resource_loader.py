@@ -17,7 +17,6 @@ from .definitions import types
 class ResourceLoader:
     default_resref = "CHITIN"
     default_restype = "KEY"
-    default_game = "BG2EE"
      
     def __init__(self, install_finder=None, schema_loader=None):
         self.install_finder = install_finder or InstallationFinder()
@@ -35,11 +34,20 @@ class ResourceLoader:
         self.resource_maps = {}
         self.install_paths = {}
         self.biff_handler = BiffHandler()
-        self._load_chitin(self.default_game)
         
-    def load_file(self, resref = default_resref, restype = default_restype, game = default_game, file_path=None, schema=None):
+        # Determine default game from available installations
+        found_games = self.install_finder.find_all()
+        if found_games:
+            self.default_game = found_games[0].game_id
+            self._load_chitin(self.default_game)
+        else:
+            self.default_game = None
+            print("Warning: No Infinity Engine game installations found.")
+        
+    def load_file(self, resref = default_resref, restype = default_restype, game = None, file_path=None, schema=None):
+        game = game or self.default_game
         if schema is None:
-            schema = self.schema_loader.get(restype)
+            schema = self.schema_loader.get(restype, game=game)
 
         if schema is None:
             print(f"Error: No schema found for type '{restype}' (resref: {resref}).")
@@ -72,7 +80,8 @@ class ResourceLoader:
         except Exception as e:
             print(f"Error saving resource to {file_path}: {e}")
 
-    def get_raw_bytes(self, resref, restype=None, game=default_game):
+    def get_raw_bytes(self, resref, restype=None, game=None):
+        game = game or self.default_game
         """
         Finds a resource and extracts its raw byte data from its source BIF.
         Returns a tuple of (raw_bytes, source_path, resource_type_code).
@@ -98,7 +107,8 @@ class ResourceLoader:
             print(f"Error processing BIF/resource for {resref} in {bif_file_path}: {e}")
             return None, None, None
 
-    def load(self, resref=default_resref, restype=default_restype, game=default_game, file_path=None, schema=None):
+    def load(self, resref=default_resref, restype=default_restype, game=None, file_path=None, schema=None):
+        game = game or self.default_game
         if file_path:
             return self.load_file(resref=resref, restype=restype, game=game, file_path=file_path, schema=schema)
         else:
@@ -115,7 +125,7 @@ class ResourceLoader:
                 restype = RESOURCE_TYPE_MAP[res_type_code]
 
             # Get the schema for the actual resource type (e.g., ITM, CRE).
-            resource_schema = schema or self.schema_loader.get(restype)
+            resource_schema = schema or self.schema_loader.get(restype, game=game)
             if resource_schema is None:
                 print(f"No schema found for resource type '{restype}'. Cannot parse {resref}.")
                 return None
@@ -127,7 +137,8 @@ class ResourceLoader:
             # Parse the final resource and return it.
             return parser.read(bytes_reader, name=resref, source=f"BIF: {source_path}")
             
-    def _find_bif_file(self, res_entry, game=default_game):
+    def _find_bif_file(self, res_entry, game=None):
+        game = game or self.default_game
         chitin = self.chitins.get(game)
         if not chitin:
             return None
@@ -147,7 +158,8 @@ class ResourceLoader:
         file_path = Path(f"{install_path}/{filename}")
         return file_path
     
-    def _find_resource_location(self, resref, restype=None, game=default_game):
+    def _find_resource_location(self, resref, restype=None, game=None):
+        game = game or self.default_game
         if game not in self.chitins:
             self._load_chitin(game)
             
@@ -190,7 +202,7 @@ class ResourceLoader:
         if chitin_path is None:
             print(f"Failed to find CHITIN.KEY for game {game}.")
             return None
-        chitin_schema = self.schema_loader.get("CHITIN")
+        chitin_schema = self.schema_loader.get("CHITIN", game=game)
         chitin = self.load_file(resref="CHITIN", restype="KEY", game=game, file_path=chitin_path, schema=chitin_schema)
         if chitin is None:
             print(f"Failed to load CHITIN.KEY for game {game}.")

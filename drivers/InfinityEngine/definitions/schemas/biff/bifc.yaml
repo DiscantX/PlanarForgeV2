@@ -1,4 +1,5 @@
 name: BIF_COMPRESSION
+games: [BG1, BG2, IWD, IWD2, PST, BGEE, BG2EE, IWDEE, PSTEE]
 
 # Wrapper for "BIF " files (Single zlib blob)
 # The data, once uncompressed, is formatted as a normal BIF file.
