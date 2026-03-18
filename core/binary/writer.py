@@ -10,6 +10,8 @@ class BinaryWriter:
         self.file.write(data)
 
     def write_uint(self, value, size):
+        if value is None:
+            value = 0
         fmt = self._int_formats.get(size)
         if fmt:
             self.write(struct.pack(fmt, value))

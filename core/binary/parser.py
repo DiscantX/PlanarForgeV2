@@ -203,8 +203,8 @@ class BinaryParser:
         if header_section:
             header_entry = resource.sections.get("header", [{}])[0]
             for field in header_section.fields:
-                # For header fields, always pull from the definitive 'values' map
-                val = resource.values.get(field.name, header_entry.get(field.name))
+                # For header fields, always pull from the definitive 'values' map.
+                val = resource.values.get(field.name)
                 field.type.write(writer, val, field)
 
         # Write remaining sections in their physical order
