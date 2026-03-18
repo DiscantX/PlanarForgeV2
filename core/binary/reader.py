@@ -11,9 +11,11 @@ class BinaryReader:
 
     def read_uint(self, size):
         fmt = self._int_formats.get(size)
-        if not fmt:
-            raise ValueError(f"Unsupported integer size: {size}")
-        return struct.unpack(fmt, self.read(size))[0]
+        if fmt:
+            return struct.unpack(fmt, self.read(size))[0]
+        
+        # Fallback for non-standard sizes (3, 16, etc.)
+        return int.from_bytes(self.read(size), byteorder="little", signed=False)
 
     def read_uint8(self):
         return self.read_uint(1)

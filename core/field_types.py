@@ -182,6 +182,24 @@ class CharArray(FieldType):
         size = field.attributes["size"]
         writer.write_string(value, size)
 
+class Bytes(FieldType):
+    names = ["bytes"]
+
+    def read(self, reader, field, context=None):
+        size = field.attributes.get("size")
+        if size is None:
+             raise ValueError(f"Bytes field '{field.name}' requires a 'size' attribute.")
+        return reader.read(size)
+
+    def write(self, writer, value, field):
+        size = field.attributes.get("size")
+        if size is None:
+             raise ValueError(f"Bytes field '{field.name}' requires a 'size' attribute.")
+        
+        if value is None:
+            value = b'\x00' * size
+        writer.write(value)
+
 class Enum(BaseIntField):
     names = ["enum"]
     default_size = 2

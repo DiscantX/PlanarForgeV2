@@ -11,9 +11,11 @@ class BinaryWriter:
 
     def write_uint(self, value, size):
         fmt = self._int_formats.get(size)
-        if not fmt:
-            raise ValueError(f"Unsupported integer size: {size}")
-        self.write(struct.pack(fmt, value))
+        if fmt:
+            self.write(struct.pack(fmt, value))
+        else:
+            # Fallback for non-standard sizes
+            self.write(value.to_bytes(size, byteorder="little", signed=False))
 
     def write_uint8(self, value):
         self.write_uint(value, 1)

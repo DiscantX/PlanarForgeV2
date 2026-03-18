@@ -178,4 +178,23 @@ We will start by addressing **Bitmask Fidelity** as it requires a targeted fix i
 *   A `ResRefString` wrapper class was created that inherits from `str`.
 *   `ResRef.read` now returns an instance of this wrapper, which stores the full, raw string data.
 *   `ResRefString` overrides the `__str__` and `__repr__` methods to display only the content up to the first null byte (`\x00`), providing a clean representation without losing the underlying data required for fidelity.
+
+### 2026-03-18: PSTEE Fidelity Errors (Schema Mismatch)
+
+**Problem:** All PSTEE ITM files failed fidelity tests with offset shifts and massive mismatches.
+**Analysis:** PSTEE was incorrectly assigned to the `ITM V1.1` schema (original PST), but the Enhanced Edition uses a hybrid `V1` format (114-byte header). This caused the parser to read 40 bytes of the first Extended Header as part of the main Header, corrupting the file structure.
+**Solution:**
+*   Removed `PSTEE` from `itm_v1_1.yaml`.
+*   Created a dedicated `itm_pstee.yaml` schema that uses the V1 structure (114-byte header) but retains PST-specific fields like `drop_sound`.
+**Status:** **FIXED**
+
+### 2026-03-18: IWD2 Crash (Unknown Padding)
+
+**Problem:** IWD2 ITM files caused a crash: `Error: CRASH loading: Parsing field 'unknown' at offset 0x72 failed: Unsupported integer size: 16`.
+**Analysis:** IWD2 uses ITM V2.0, which includes a 16-byte unknown padding field at the end of the header. The parser attempted to read this using standard integer types which were not configured for 16-byte values.
+**Solution:**
+*   Implemented a new `Bytes` field type in `core/field_types.py` to handle raw binary blobs of arbitrary size.
+*   Created `itm_v2.yaml` schema for IWD2, defining the field at `0x72` as `type: bytes` with `size: 16`.
+*   Updated `BinaryReader` and `BinaryWriter` to support arbitrary integer sizes as a robustness fallback.
+**Status:** **FIXED**
 ```
