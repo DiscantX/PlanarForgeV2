@@ -25,7 +25,7 @@ The brain of the application. It contains all Python logic required to read, wri
 - `InstallationFinder`: Locates games on disk.
 - `schemas/`: Engine-specific YAML definitions (ITM, BIFF, etc.).
 - `types.py`: Engine-specific field types (ResRef, StrRef).
-- `ResourceTypes`: mappings between integer type codes and string extensions (e.g., `2012` -> `ITM`).
+- `extensions.py`: mappings between integer type codes and string extensions (e.g., `2012` -> `ITM`).
 
 #### `core/` (Shared/Root)
 **Purpose:** Fundamental components that bridge Infrastructure and Domain.

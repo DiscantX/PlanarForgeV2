@@ -1,0 +1,1 @@
+# Namespace for Infinity Engine I/O handlers (archives, path discovery)

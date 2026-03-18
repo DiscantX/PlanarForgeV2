@@ -17,14 +17,14 @@ import re
 # Ensure core modules can be imported
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from drivers.InfinityEngine.installation_finder import InstallationFinder
+from drivers.InfinityEngine.io.installation_finder import InstallationFinder
 from drivers.InfinityEngine.resource_loader import ResourceLoader
 from core.schema_loader import SchemaLoader
 from core.field_types import FieldTypes
 from core.binary.writer import BinaryWriter
 from core.binary.reader import BinaryReader
 from core.binary.parser import BinaryParser
-from drivers.InfinityEngine.resource_types import RESOURCE_TYPE_MAP
+from drivers.InfinityEngine.definitions.extensions import RESOURCE_TYPE_MAP
 
 # A palette of available ANSI color codes.
 # Use these to define the theme below.
@@ -97,9 +97,12 @@ class TestPlanarForge(unittest.TestCase):
             print(f"Warning: Could not open log file {log_filename}: {e}")
             cls.log_file = None
         
-        # Initialize Loader (which loads schemas from drivers/InfinityEngine/schemas)
-        cls.loader = ResourceLoader()
-        cls.schema_loader = cls.loader.schema_loader
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+        schema_path = os.path.join(project_root, "drivers", "InfinityEngine", "definitions", "schemas")
+        cls.schema_loader = SchemaLoader(schema_path)
+        cls.schema_loader.load_all()
+        cls.schema_loader.resolve_types(FieldTypes)
+        cls.loader = ResourceLoader(schema_loader=cls.schema_loader)
         
         # Find all installed games
         all_found_games = [inst.game_id for inst in cls.loader.install_finder.find_all()]

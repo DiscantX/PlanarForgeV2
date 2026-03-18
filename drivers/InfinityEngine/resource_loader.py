@@ -8,11 +8,11 @@ from core.field_types import FieldTypes
 from core.resource import Resource
 
 # Import internal driver components
-from .installation_finder import InstallationFinder
-from .resource_types import RESOURCE_TYPE_MAP, RESOURCE_TYPE_MAP_REV
-from .biff_handler import BiffHandler
-# Import types to ensure they register themselves with FieldTypes
-from . import types
+from .io.installation_finder import InstallationFinder
+from .definitions.extensions import RESOURCE_TYPE_MAP, RESOURCE_TYPE_MAP_REV
+from .io.biff_handler import BiffHandler
+# Import definitions to ensure types register themselves with FieldTypes
+from .definitions import types
 
 class ResourceLoader:
     default_resref = "CHITIN"
@@ -25,7 +25,7 @@ class ResourceLoader:
         if schema_loader:
             self.schema_loader = schema_loader
         else:
-            schema_path = Path(__file__).parent / "schemas"
+            schema_path = Path(__file__).parent / "definitions" / "schemas"
             self.schema_loader = SchemaLoader(schema_path)
 
         self.schema_loader.load_all()
@@ -40,6 +40,11 @@ class ResourceLoader:
     def load_file(self, resref = default_resref, restype = default_restype, game = default_game, file_path=None, schema=None):
         if schema is None:
             schema = self.schema_loader.get(restype)
+
+        if schema is None:
+            print(f"Error: No schema found for type '{restype}' (resref: {resref}).")
+            return None
+
         if file_path is None:
             print(f"No file path provided when loading resource {resref} of type {restype}.")
             return None

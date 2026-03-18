@@ -1,0 +1,49 @@
+"""
+Mapping of Infinity Engine resource type constants to file extensions/schema names.
+"""
+
+RESOURCE_TYPE_MAP = {
+    0x0001: "BMP",
+    0x0002: "MVE",
+    0x0004: "WAV",
+    0x0005: "WFX",
+    0x0006: "PLT",
+    0x03E8: "BAM",
+    0x03E9: "WED",
+    0x03EA: "CHU",
+    0x03EB: "TIS",
+    0x03EC: "MOS",
+    0x03ED: "ITM",
+    0x03EE: "SPL",
+    0x03EF: "BCS",
+    0x03F0: "IDS",
+    0x03F1: "CRE",
+    0x03F2: "ARE",
+    0x03F3: "DLG",
+    0x03F4: "2DA",
+    0x03F5: "GAM",
+    0x03F6: "STO",
+    0x03F7: "WMP",
+    0x03F8: "CHR",
+    0x03F9: "BS",
+    0x03FB: "VVC",
+    0x03FC: "VEF",
+    0x03FD: "PRO",
+    0x03FE: "BIO",
+    0x03FF: "WBM",
+    0x0400: "FNT",
+    0x0402: "GUI",
+    0x0403: "SQL",
+    0x0404: "PVRZ",
+    0x0405: "GLSL",
+    0x0408: "MENU",
+    0x0409: "LUA",
+    0x040A: "TTF",
+    0x040B: "PNG",
+    0x044C: "BAH",
+    0x0802: "INI",
+    0x0803: "SRC",
+}
+
+# Reverse mapping for lookups (String -> Int)
+RESOURCE_TYPE_MAP_REV = {v: k for k, v in RESOURCE_TYPE_MAP.items()}
