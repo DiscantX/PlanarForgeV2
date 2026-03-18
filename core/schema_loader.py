@@ -120,6 +120,13 @@ class SchemaLoader:
             if isinstance(value, dict):
                 fields_data = value.get("fields", [])
                 fields = [self._parse_field(f) for f in fields_data]
+                
+                # Validate for duplicate field names within the section
+                seen_names = set()
+                for field in fields:
+                    if field.name in seen_names:
+                        raise ValueError(f"Schema validation error in '{filepath.name}': Duplicate field name '{field.name}' found in section '{key}'.")
+                    seen_names.add(field.name)
 
                 section = Section(
                     key,
