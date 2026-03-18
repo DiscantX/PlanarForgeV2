@@ -60,37 +60,3 @@ file_entries:
     type: word
     size: 2
     offset: 0x000e
-
-tileset_entries:
-  count_field: tileset_entries
-  fields:
-
-  - name: resource_locator
-    type: dword
-    size: 4
-    offset: 0x0000
-
-  - name: offset
-    type: dword
-    size: 4
-    offset: 0x0004
-
-  - name: count_of_tiles_in_this_resource
-    type: dword
-    size: 4
-    offset: 0x0008
-
-  - name: size_of_each_tile_in_this_resource
-    type: dword
-    size: 4
-    offset: 0x000c
-
-  - name: type_of_this_resource
-    type: word
-    size: 2
-    offset: 0x0010
-
-  - name: unknown
-    type: word
-    size: 2
-    offset: 0x0012

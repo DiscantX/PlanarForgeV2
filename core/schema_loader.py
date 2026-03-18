@@ -138,6 +138,26 @@ class SchemaLoader:
             else:
                 metadata[key] = value
 
+        # Post-validation for inter-section references to the header
+        header_section = next((s for s in sections if s.name == 'header'), None)
+        if header_section:
+            header_field_names = {f.name for f in header_section.fields}
+            for section in sections:
+                if section.name == 'header':
+                    continue
+
+                if not section.offset_field:
+                    raise ValueError(
+                        f"Schema validation error in '{filepath.name}': "
+                        f"Section '{section.name}' is missing required 'offset_field'."
+                    )
+
+                if section.offset_field not in header_field_names:
+                    raise ValueError(
+                        f"Schema validation error in '{filepath.name}': "
+                        f"Section '{section.name}' references non-existent offset_field '{section.offset_field}' in header."
+                    )
+
         return Schema(metadata, sections)
 
     def _parse_field(self, field_data):
