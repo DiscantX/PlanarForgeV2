@@ -1,6 +1,6 @@
-name: ITM
-version: V2.0
-games: [IWD2]
+name: SPL
+version: V1
+games: [BG1, BG2, BG2EE, BGEE, IWD, IWDEE, PST, PSTEE]
 
 header:
   fields:
@@ -16,16 +16,16 @@ header:
     offset: 0x0004
 
   - name: unidentified_name
-    type: strref
+    type: dword
     size: 4
     offset: 0x0008
 
   - name: identified_name
-    type: strref
+    type: dword
     size: 4
     offset: 0x000c
 
-  - name: replacement_item
+  - name: completion_sound
     type: resref
     size: 8
     offset: 0x0010
@@ -35,87 +35,92 @@ header:
     size: 4
     offset: 0x0018
 
-  - name: item_type
+  - name: spell_type
     type: word
     size: 2
     offset: 0x001c
 
-  - name: usability_bitmask
-    type: bitmask
+  - name: exclusion_flags
+    type: dword
     size: 4
     offset: 0x001e
 
-  - name: weapon_animation
-    type: char_array
+  - name: casting_graphics
+    type: word
     size: 2
     offset: 0x0022
 
   - name: min_level
-    type: word
-    size: 2
+    type: char
+    size: 1
     offset: 0x0024
 
+  - name: primary_type
+    type: byte
+    size: 1
+    offset: 0x0025
+
   - name: min_strength
-    type: word
-    size: 2
+    type: byte
+    size: 1
     offset: 0x0026
+
+  - name: secondary_type
+    type: char
+    size: 1
+    offset: 0x0027
 
   - name: min_strength_bonus
     type: byte
     size: 1
     offset: 0x0028
 
-  - name: kit_usability_1
+  - name: usability_1
     type: byte
     size: 1
     offset: 0x0029
 
-  - name: min_intelligence
+  - name: min_int
     type: byte
     size: 1
     offset: 0x002a
 
-  - name: kit_usability_2
+  - name: usability_2
     type: byte
     size: 1
     offset: 0x002b
 
-  - name: min_dexterity
+  - name: min_dex
     type: byte
     size: 1
     offset: 0x002c
 
-  - name: kit_usability_3
+  - name: usability_3
     type: byte
     size: 1
     offset: 0x002d
 
-  - name: min_wisdom
+  - name: min_wis
     type: byte
     size: 1
     offset: 0x002e
 
-  - name: kit_usability_4
+  - name: usability_4
     type: byte
     size: 1
     offset: 0x002f
 
-  - name: min_constitution
-    type: byte
-    size: 1
+  - name: min_con
+    type: word
+    size: 2
     offset: 0x0030
 
-  - name: weapon_proficiency
-    type: byte
-    size: 1
-    offset: 0x0031
-
-  - name: min_charisma
+  - name: min_cha
     type: word
     size: 2
     offset: 0x0032
 
-  - name: price
+  - name: spell_level
     type: dword
     size: 4
     offset: 0x0034
@@ -125,7 +130,7 @@ header:
     size: 2
     offset: 0x0038
 
-  - name: inventory_icon
+  - name: spellbook_icon
     type: resref
     size: 8
     offset: 0x003a
@@ -146,12 +151,12 @@ header:
     offset: 0x004c
 
   - name: unidentified_description
-    type: strref
+    type: dword
     size: 4
     offset: 0x0050
 
   - name: identified_description
-    type: strref
+    type: dword
     size: 4
     offset: 0x0054
 
@@ -165,68 +170,57 @@ header:
     size: 4
     offset: 0x0060
 
-  - name: offset_to_extended_headers
+  - name: extended_header_offset
     type: dword
     size: 4
     offset: 0x0064
 
-  - name: count_of_extended_headers
+  - name: extended_header_count
     type: word
     size: 2
     offset: 0x0068
 
-  - name: offset_to_feature_blocks
+  - name: feature_block_table_offset
     type: dword
     size: 4
     offset: 0x006a
 
-  - name: index_into_equipping_feature_blocks
+  - name: index_into_casting_feature_blocks
     type: word
     size: 2
     offset: 0x006e
 
-  - name: count_of_equipping_feature_blocks
+  - name: casting_feature_block_count
     type: word
     size: 2
     offset: 0x0070
 
-  - name: unknown
-    type: byte
-    size: 16
-    offset: 0x0072
-    hidden: true
-
 extended_header:
-  offset_field: offset_to_extended_headers
-  count_field: count_of_extended_headers
+  offset_field: extended_header_offset
+  count_field: extended_header_count
   fields:
 
-  - name: attack_type
+  - name: itm
     type: char
     size: 1
     offset: 0x0000
 
-  - name: id_req
+  - name: bit_2
     type: char
     size: 1
     offset: 0x0001
 
   - name: location
-    type: char
-    size: 1
+    type: word
+    size: 2
     offset: 0x0002
 
-  - name: alternative_dice_sides
-    type: char
-    size: 1
-    offset: 0x0003
-
-  - name: use_icon
+  - name: memorised_icon
     type: resref
     size: 8
     offset: 0x0004
 
-  - name: target_type
+  - name: target
     type: char
     size: 1
     offset: 0x000c
@@ -241,52 +235,32 @@ extended_header:
     size: 2
     offset: 0x000e
 
-  - name: projectile_type
-    type: byte
-    size: 1
+  - name: level_required
+    type: word
+    size: 2
     offset: 0x0010
 
-  - name: alternative_dice_thrown
-    type: byte
-    size: 1
-    offset: 0x0011
-
-  - name: speed
-    type: byte
-    size: 1
+  - name: casting_time
+    type: word
+    size: 2
     offset: 0x0012
 
-  - name: alternative_damage_bonus
-    type: byte
-    size: 1
-    offset: 0x0013
-
-  - name: thac0_bonus
+  - name: times_per_day
     type: word
     size: 2
     offset: 0x0014
 
   - name: dice_sides
-    type: byte
-    size: 1
+    type: word
+    size: 2
     offset: 0x0016
 
-  - name: primary_type
-    type: byte
-    size: 1
-    offset: 0x0017
-
   - name: dice_thrown
-    type: byte
-    size: 1
+    type: word
+    size: 2
     offset: 0x0018
 
-  - name: secondary_type
-    type: byte
-    size: 1
-    offset: 0x0019
-
-  - name: damage_bonus
+  - name: enchanted
     type: word
     size: 2
     offset: 0x001a
@@ -316,44 +290,14 @@ extended_header:
     size: 2
     offset: 0x0024
 
-  - name: flags
+  - name: projectile
     type: word
     size: 2
     offset: 0x0026
 
-  - name: attack_type_special
-    type: word
-    size: 2
-    offset: 0x0028
-
-  - name: projectile_animation
-    type: word
-    size: 2
-    offset: 0x002a
-
-  - name: melee_animation
-    type: word
-    size: 6
-    offset: 0x002c
-
-  - name: bow
-    type: word
-    size: 2
-    offset: 0x0032
-
-  - name: crossbow
-    type: word
-    size: 2
-    offset: 0x0034
-
-  - name: misc
-    type: word
-    size: 2
-    offset: 0x0036
-
 feature_block:
-  offset_field: offset_to_feature_blocks
-  count_field: count_of_feature_blocks
+  offset_field: feature_block_table_offset
+  count_field: casting_feature_block_count
   fields:
 
   - name: opcode_number
@@ -386,7 +330,7 @@ feature_block:
     size: 1
     offset: 0x000c
 
-  - name: resistance
+  - name: dispel
     type: char
     size: 1
     offset: 0x000d
@@ -431,7 +375,7 @@ feature_block:
     size: 4
     offset: 0x0028
 
-  - name: special
+  - name: tobex
     type: dword
     size: 4
     offset: 0x002c

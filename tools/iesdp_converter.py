@@ -181,20 +181,61 @@ def parse_itm_tables_to_yaml(url, output_file=None):
 
                     temp_data['name'] = clean_name.lower().replace(' ', '_')
 
-                    field_name = temp_data['name']
-                    match = re.match(r'(offset_to|count_of)_(.*)', field_name)
-                    if match:
-                        field_type = match.group(1)
-                        target_section_plural = match.group(2)
-                        target_section_singular = target_section_plural.removesuffix('s')
-
-                        if target_section_singular not in control_fields:
-                            control_fields[target_section_singular] = {}
+                    # --- Field Renaming Heuristics ---
+                    # Ensure naming conventions match BinaryParser expectations (e.g. index vs offset)
+                    
+                    f_name = temp_data['name']
+                    f_size = temp_data.get('size')
+                    
+                    # Rule: 2-byte "offsets" are usually indices (e.g. index_into_feature_blocks)
+                    if f_size == 2 and ('offset' in f_name or 'index' in f_name):
+                        # Identify the target (e.g. "feature_blocks")
+                        # Remove 'offset_to_', 'index_to_', '_offset', etc.
+                        target = f_name.replace('offset_to_', '').replace('index_to_', '').replace('_offset', '').replace('index_into_', '')
+                        # Ensure plural target for consistency
+                        if not target.endswith('s'): 
+                            target += 's'
                         
-                        if field_type == 'offset_to':
-                            control_fields[target_section_singular]['offset_field'] = field_name
-                        elif field_type == 'count_of':
-                            control_fields[target_section_singular]['count_field'] = field_name
+                        # Standardize to "index_into_{target}"
+                        temp_data['name'] = f"index_into_{target}"
+                    
+                    field_name = temp_data['name']
+                    
+                    # --- Control Field Linking ---
+                    # Detect offset/count fields and link them to their target sections
+                    
+                    # Matches: offset_to_X, count_of_X, X_offset, X_count
+                    match_prefix = re.match(r'(offset_to|count_of)_(.*)', field_name)
+                    match_suffix = re.match(r'(.*)_(offset|count)$', field_name)
+                    
+                    target_raw = None
+                    attr_type = None
+                    
+                    if match_prefix:
+                        attr_type = 'offset_field' if match_prefix.group(1) == 'offset_to' else 'count_field'
+                        target_raw = match_prefix.group(2)
+                    elif match_suffix:
+                        attr_type = 'offset_field' if match_suffix.group(2) == 'offset' else 'count_field'
+                        target_raw = match_suffix.group(1)
+                        
+                    if target_raw and attr_type:
+                        # Normalize target to canonical section name
+                        # 1. Singularize (extended_headers -> extended_header)
+                        target_singular = target_raw[:-1] if target_raw.endswith('s') else target_raw
+                        
+                        # 2. Canonical mappings (e.g. casting_feature_block -> feature_block)
+                        # This ensures that specific header fields map to the generic section definition
+                        canonical_target = target_singular
+                        if 'feature_block' in target_singular:
+                            canonical_target = 'feature_block'
+                        elif 'extended_header' in target_singular:
+                            canonical_target = 'extended_header'
+                            
+                        if canonical_target not in control_fields:
+                            control_fields[canonical_target] = {}
+                        
+                        control_fields[canonical_target][attr_type] = field_name
+
                 else:
                     temp_data[header] = cell_text
 
