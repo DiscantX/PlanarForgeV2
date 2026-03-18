@@ -270,14 +270,17 @@ class TestPlanarForge(unittest.TestCase):
     @staticmethod
     def _format_byte_context(data, offset, width=8):
         start = max(0, offset - width)
-        end = min(len(data), offset + width + 1)
+        limit_offset = min(offset, len(data))
         
-        pre_context = ' '.join(f'{b:02x}' for b in data[start:offset])
-        post_context = ' '.join(f'{b:02x}' for b in data[offset+1:end])
+        pre_context = ' '.join(f'{b:02x}' for b in data[start:limit_offset])
         
-        offending_byte = f'{data[offset]:02x}'
-        
-        return f"{pre_context} | {offending_byte.upper()} | {post_context}"
+        if offset < len(data):
+            end = min(len(data), offset + width + 1)
+            post_context = ' '.join(f'{b:02x}' for b in data[offset+1:end])
+            offending_byte = f'{data[offset]:02x}'
+            return f"{pre_context} | {offending_byte.upper()} | {post_context}"
+        else:
+            return f"{pre_context} | EOF"
 
     def test_01_biff_parsing_and_decompression(self):
         if self.skip_all:
@@ -400,14 +403,42 @@ class TestPlanarForge(unittest.TestCase):
                                 stats[schema_name][game]['errors'][error_msg].append(resref)
                                 if self.log_file:
                                     self.log_file.write(f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> CRASH loading\n")
-                                    self.log_file.write(f"  - Exception: {e}\n")
+                                    
+                                    raw_bytes = None
                                     try:
                                         raw_bytes, _, _ = self.loader.get_raw_bytes(resref, restype=schema_name, game=game)
-                                        if raw_bytes: self.log_file.write(f"  - Resource Size: {len(raw_bytes)} bytes\n")
                                     except: pass # Ignore if getting raw bytes also fails
-                                    self.log_file.write("  - Traceback:\n")
-                                    for line in traceback.format_exc().splitlines():
-                                        self.log_file.write(f"    {line}\n")
+
+                                    orig_hash = "N/A"
+                                    orig_size = "N/A"
+                                    if raw_bytes:
+                                        orig_hash = hashlib.md5(raw_bytes).hexdigest()
+                                        orig_size = len(raw_bytes)
+                                    
+                                    self.log_file.write(f"  - Hashes:  Original={orig_hash}, Saved=N/A\n")
+                                    self.log_file.write(f"  - Sizes:   Original={orig_size}, Saved=N/A\n")
+                                    self.log_file.write(f"  - Message: {e}\n")
+
+                                    offset_match = re.search(r"at offset\s+(0x[0-9a-fA-F]+)", str(e))
+                                    crash_offset = -1
+                                    if offset_match:
+                                        try:
+                                            crash_offset = int(offset_match.group(1), 16)
+                                        except ValueError:
+                                            pass
+
+                                    if raw_bytes and crash_offset >= 0:
+                                        byte_val_str = "N/A"
+                                        if crash_offset < len(raw_bytes):
+                                            byte_val_str = hex(raw_bytes[crash_offset])
+                                        
+                                        self.log_file.write(f"  - Details: Crash at offset {hex(crash_offset)} ({crash_offset}). Original byte: {byte_val_str}, Saved byte: N/A.\n")
+                                        self.log_file.write(f"  - Context:\n")
+                                        self.log_file.write(f"    - Original: {self._format_byte_context(raw_bytes, crash_offset)}\n")
+                                        self.log_file.write(f"    - Saved:    N/A\n")
+                                    else:
+                                        self.log_file.write(f"  - Details: {e}\n")
+
                                     self.log_file.write("\n")
                                 continue
                         if resource is None:
