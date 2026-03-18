@@ -3,10 +3,11 @@ import yaml
 from collections import defaultdict
 
 class Schema:
-    def __init__(self, name, sections=None, games=None):
-        self.name = name
+    def __init__(self, metadata, sections=None):
+        self.metadata = metadata or {}
+        self.name = self.metadata.get("name")
         self.sections = sections or []
-        self.games = games or []
+        self.games = self.metadata.get("games") or self.metadata.get("Games") or []
         self.section_map = {s.name: s for s in self.sections}
 
         # Flatten all fields across sections for quick lookup
@@ -112,26 +113,25 @@ class SchemaLoader:
         with open(filepath, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
-        name = data.pop("name")  # remove the name from the top-level dict
-        # Check for 'games' (or 'Games') list
-        games = data.pop("games", data.pop("Games", []))
-
+        metadata = {}
         sections = []
-        for section_name, section_data in data.items():
 
-            fields_data = section_data.get("fields", [])
-            fields = [self._parse_field(f) for f in fields_data]
+        for key, value in data.items():
+            if isinstance(value, dict):
+                fields_data = value.get("fields", [])
+                fields = [self._parse_field(f) for f in fields_data]
 
-            section = Section(
-                section_name,
-                fields,
-                offset_field=section_data.get("offset_field"),
-                count_field=section_data.get("count_field")
-            )
+                section = Section(
+                    key,
+                    fields,
+                    offset_field=value.get("offset_field"),
+                    count_field=value.get("count_field")
+                )
+                sections.append(section)
+            else:
+                metadata[key] = value
 
-            sections.append(section)
-
-        return Schema(name, sections, games=games)
+        return Schema(metadata, sections)
 
     def _parse_field(self, field_data):
         """Recursively parse a field and its children from YAML."""

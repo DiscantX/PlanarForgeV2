@@ -1,4 +1,5 @@
 name: KEY
+version: V1
 games: [BG1, BG2, IWD, IWD2, PST, BGEE, BG2EE, IWDEE, PSTEE]
 
 header:
