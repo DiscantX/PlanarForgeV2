@@ -1,6 +1,6 @@
 name: ITM
-version: V1.1
-games: [PST]
+version: V2.0
+games: [IWD2]
 
 header:
   fields:
@@ -25,7 +25,7 @@ header:
     size: 4
     offset: 0x000c
 
-  - name: drop_sound
+  - name: replacement_item
     type: resref
     size: 8
     offset: 0x0010
@@ -45,7 +45,7 @@ header:
     size: 4
     offset: 0x001e
 
-  - name: item_animation
+  - name: weapon_animation
     type: char_array
     size: 2
     offset: 0x0022
@@ -55,47 +55,65 @@ header:
     size: 2
     offset: 0x0024
 
-  - name: unused_0x26
+  - name: min_strength
     type: word
     size: 2
     offset: 0x0026
-    hidden: true
 
-  - name: unused_0x28
-    type: word
-    size: 2
+  - name: min_strength_bonus
+    type: byte
+    size: 1
     offset: 0x0028
-    hidden: true
 
-  - name: unused_0x2a
-    type: word
-    size: 2
+  - name: kit_usability
+    type: byte
+    size: 1
+    offset: 0x0029
+
+  - name: min_intelligence
+    type: byte
+    size: 1
     offset: 0x002a
-    hidden: true
 
-  - name: unused_0x2c
-    type: word
-    size: 2
+  - name: kit_usability
+    type: byte
+    size: 1
+    offset: 0x002b
+
+  - name: min_dexterity
+    type: byte
+    size: 1
     offset: 0x002c
-    hidden: true
 
-  - name: unused_0x2e
-    type: word
-    size: 2
+  - name: kit_usability
+    type: byte
+    size: 1
+    offset: 0x002d
+
+  - name: min_wisdom
+    type: byte
+    size: 1
     offset: 0x002e
-    hidden: true
 
-  - name: unused_0x30
-    type: word
-    size: 2
+  - name: kit_usability
+    type: byte
+    size: 1
+    offset: 0x002f
+
+  - name: min_constitution
+    type: byte
+    size: 1
     offset: 0x0030
-    hidden: true
 
-  - name: unused_0x32
+  - name: weapon_proficiency
+    type: byte
+    size: 1
+    offset: 0x0031
+
+  - name: min_charisma
     type: word
     size: 2
     offset: 0x0032
-    hidden: true
 
   - name: price
     type: dword
@@ -137,7 +155,7 @@ header:
     size: 4
     offset: 0x0054
 
-  - name: pickup_sound
+  - name: description_icon
     type: resref
     size: 8
     offset: 0x0058
@@ -172,62 +190,10 @@ header:
     size: 2
     offset: 0x0070
 
-  - name: dialog
-    type: resref
-    size: 8
+  - name: unknown
+    type: byte
+    size: 16
     offset: 0x0072
-
-  - name: conversable_label
-    type: strref
-    size: 4
-    offset: 0x007a
-
-  - name: paperdoll_animation_colour
-    type: word
-    size: 2
-    offset: 0x007e
-
-  - name: unknown_0x80
-    type: word
-    size: 2
-    offset: 0x0080
-    hidden: true
-
-  - name: unknown_0x82
-    type: dword
-    size: 4
-    offset: 0x0082
-    hidden: true
-
-  - name: unknown_0x86
-    type: dword
-    size: 4
-    offset: 0x0086
-    hidden: true
-
-  - name: unknown_0x8a
-    type: dword
-    size: 4
-    offset: 0x008a
-    hidden: true
-
-  - name: unknown_0x8e
-    type: dword
-    size: 4
-    offset: 0x008e
-    hidden: true
-
-  - name: unknown_0x92
-    type: dword
-    size: 4
-    offset: 0x0092
-    hidden: true
-
-  - name: unknown_0x96
-    type: dword
-    size: 4
-    offset: 0x0096
-    hidden: true
 
 extended_header:
   offset_field: offset_to_extended_headers
@@ -284,7 +250,7 @@ extended_header:
     size: 1
     offset: 0x0011
 
-  - name: speed_factor
+  - name: speed
     type: byte
     size: 1
     offset: 0x0012
@@ -339,7 +305,7 @@ extended_header:
     size: 2
     offset: 0x0020
 
-  - name: max_charges
+  - name: charges
     type: word
     size: 2
     offset: 0x0022
@@ -350,51 +316,43 @@ extended_header:
     offset: 0x0024
 
   - name: flags
-    type: dword
-    size: 4
+    type: word
+    size: 2
     offset: 0x0026
+
+  - name: attack_type
+    type: word
+    size: 2
+    offset: 0x0028
 
   - name: projectile_animation
     type: word
     size: 2
     offset: 0x002a
 
-  - name: overhand_animation
+  - name: melee_animation
     type: word
-    size: 2
+    size: 6
     offset: 0x002c
 
-  - name: overhead_animation
-    type: word
-    size: 2
-    offset: 0x002e
-
-  - name: backhand_animation
-    type: word
-    size: 2
-    offset: 0x0030
-
-  - name: unused_0x32
+  - name: bow
     type: word
     size: 2
     offset: 0x0032
-    hidden: true
 
-  - name: unused_0x34
+  - name: crossbow
     type: word
     size: 2
     offset: 0x0034
-    hidden: true
 
-  - name: unused_0x36
+  - name: misc
     type: word
     size: 2
     offset: 0x0036
-    hidden: true
 
 feature_block:
   offset_field: offset_to_feature_blocks
-  count_field: count_of_equipping_feature_blocks
+  count_field: count_of_feature_blocks
   fields:
 
   - name: opcode_number
@@ -427,7 +385,7 @@ feature_block:
     size: 1
     offset: 0x000c
 
-  - name: dispel
+  - name: resistance
     type: char
     size: 1
     offset: 0x000d

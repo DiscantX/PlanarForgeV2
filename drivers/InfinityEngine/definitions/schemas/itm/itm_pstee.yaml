@@ -1,6 +1,6 @@
 name: ITM
-version: V1.1
-games: [PST]
+version: V1_PSTEE
+games: [PSTEE]
 
 header:
   fields:
@@ -55,47 +55,65 @@ header:
     size: 2
     offset: 0x0024
 
-  - name: unused_0x26
+  - name: min_strength
     type: word
     size: 2
     offset: 0x0026
-    hidden: true
 
-  - name: unused_0x28
-    type: word
-    size: 2
+  - name: min_strength_bonus
+    type: byte
+    size: 1
     offset: 0x0028
-    hidden: true
 
-  - name: unused_0x2a
-    type: word
-    size: 2
+  - name: kit_usability_1
+    type: byte
+    size: 1
+    offset: 0x0029
+
+  - name: min_intelligence
+    type: byte
+    size: 1
     offset: 0x002a
-    hidden: true
 
-  - name: unused_0x2c
-    type: word
-    size: 2
+  - name: kit_usability_2
+    type: byte
+    size: 1
+    offset: 0x002b
+
+  - name: min_dexterity
+    type: byte
+    size: 1
     offset: 0x002c
-    hidden: true
 
-  - name: unused_0x2e
-    type: word
-    size: 2
+  - name: kit_usability_3
+    type: byte
+    size: 1
+    offset: 0x002d
+
+  - name: min_wisdom
+    type: byte
+    size: 1
     offset: 0x002e
-    hidden: true
 
-  - name: unused_0x30
-    type: word
-    size: 2
+  - name: kit_usability_4
+    type: byte
+    size: 1
+    offset: 0x002f
+
+  - name: min_constitution
+    type: byte
+    size: 1
     offset: 0x0030
-    hidden: true
 
-  - name: unused_0x32
+  - name: weapon_proficiency
+    type: byte
+    size: 1
+    offset: 0x0031
+
+  - name: min_charisma
     type: word
     size: 2
     offset: 0x0032
-    hidden: true
 
   - name: price
     type: dword
@@ -137,7 +155,7 @@ header:
     size: 4
     offset: 0x0054
 
-  - name: pickup_sound
+  - name: description_icon
     type: resref
     size: 8
     offset: 0x0058
@@ -172,66 +190,10 @@ header:
     size: 2
     offset: 0x0070
 
-  - name: dialog
-    type: resref
-    size: 8
-    offset: 0x0072
-
-  - name: conversable_label
-    type: strref
-    size: 4
-    offset: 0x007a
-
-  - name: paperdoll_animation_colour
-    type: word
-    size: 2
-    offset: 0x007e
-
-  - name: unknown_0x80
-    type: word
-    size: 2
-    offset: 0x0080
-    hidden: true
-
-  - name: unknown_0x82
-    type: dword
-    size: 4
-    offset: 0x0082
-    hidden: true
-
-  - name: unknown_0x86
-    type: dword
-    size: 4
-    offset: 0x0086
-    hidden: true
-
-  - name: unknown_0x8a
-    type: dword
-    size: 4
-    offset: 0x008a
-    hidden: true
-
-  - name: unknown_0x8e
-    type: dword
-    size: 4
-    offset: 0x008e
-    hidden: true
-
-  - name: unknown_0x92
-    type: dword
-    size: 4
-    offset: 0x0092
-    hidden: true
-
-  - name: unknown_0x96
-    type: dword
-    size: 4
-    offset: 0x0096
-    hidden: true
 
 extended_header:
-  offset_field: offset_to_extended_headers
-  count_field: count_of_extended_headers
+  offset_field: offset_to_extended_headers       # read from here
+  count_field: count_of_extended_headers        # read this many entries
   fields:
 
   - name: attack_type
@@ -274,7 +236,7 @@ extended_header:
     size: 2
     offset: 0x000e
 
-  - name: projectile_type
+  - name: launcher_required
     type: byte
     size: 1
     offset: 0x0010
@@ -294,7 +256,7 @@ extended_header:
     size: 1
     offset: 0x0013
 
-  - name: thac0_bonus
+  - name: time_stop
     type: word
     size: 2
     offset: 0x0014
@@ -374,27 +336,25 @@ extended_header:
     size: 2
     offset: 0x0030
 
-  - name: unused_0x32
+  - name: arrow_qualifier
     type: word
     size: 2
     offset: 0x0032
-    hidden: true
 
-  - name: unused_0x34
+  - name: bolt_qualifier
     type: word
     size: 2
     offset: 0x0034
-    hidden: true
 
-  - name: unused_0x36
+  - name: bullet_qualifier
     type: word
     size: 2
     offset: 0x0036
-    hidden: true
+
 
 feature_block:
-  offset_field: offset_to_feature_blocks
-  count_field: count_of_equipping_feature_blocks
+  offset_field: offset_to_feature_blocks        # read from here
+  count_field: count_of_equipping_feature_blocks # read this many entries
   fields:
 
   - name: opcode_number
@@ -472,7 +432,7 @@ feature_block:
     size: 4
     offset: 0x0028
 
-  - name: special
+  - name: tobex
     type: dword
     size: 4
     offset: 0x002c

@@ -2,6 +2,9 @@ import requests
 from bs4 import BeautifulSoup
 import yaml
 import re
+import argparse
+import os
+from urllib.parse import urlparse
 
 class HexInt(int):
     pass
@@ -11,15 +14,87 @@ def represent_hexint(dumper, data):
 
 yaml.add_representer(HexInt, represent_hexint)
 
-def parse_itm_tables_to_yaml(url, output_file):
+class FlowList(list):
+    pass
+
+def represent_flow_list(dumper, data):
+    return dumper.represent_sequence('tag:yaml.org,2002:seq', data, flow_style=True)
+
+yaml.add_representer(FlowList, represent_flow_list)
+
+def parse_itm_tables_to_yaml(url, output_file=None):
     response = requests.get(url)
     response.raise_for_status()
+
+    version_match = re.search(r'v(\d+(?:\.\d+)*)', url)
+    version_str = f"V{version_match.group(1)}" if version_match else "V_UNKNOWN"
     
     soup = BeautifulSoup(response.content, 'html.parser')
+    
+    games = []
+    games_part = ""
+    
+    # Locate the specific text node containing "Applies to:"
+    applies_to_node = soup.find(string=re.compile(r'Applies to:', re.IGNORECASE))
+    
+    if applies_to_node:
+        # Get immediate parent tag
+        curr = applies_to_node.parent
+        
+        # Traverse up if it's an inline element to find the block container
+        while curr.name in ['strong', 'b', 'em', 'span', 'font', 'i', 'u', 'a']:
+            if curr.parent:
+                curr = curr.parent
+            else:
+                break
+        
+        block_container = curr
+        
+        # Check text within the same block first
+        full_text = block_container.get_text(" ", strip=True)
+        match = re.search(r'Applies to:?[\s]*(.*)', full_text, re.IGNORECASE)
+        
+        if match and match.group(1).strip():
+            # Found in same block (e.g. <p>Applies to: BG1</p>)
+            games_part = match.group(1).strip()
+        else:
+            # Not in same block (e.g. <div class="header">Applies to:</div><div class="indent">IWD2</div>)
+            # Search next siblings for content, skipping breaks/lines
+            sibling = block_container.next_sibling
+            while sibling:
+                if sibling.name: # It's a Tag
+                    if sibling.name not in ['br', 'hr']:
+                        text = sibling.get_text(strip=True)
+                        if text:
+                            games_part = text
+                            break
+                else: # It's a NavigableString
+                    text = str(sibling).strip()
+                    if text:
+                        games_part = text
+                        break
+                sibling = sibling.next_sibling
+
+    if games_part:
+        game_texts = [g.strip() for g in games_part.split(',') if g.strip()]
+
+        # BGEE expansion rule
+        if 'BGEE' in game_texts:
+            game_texts.extend(['BGEE', 'BG2EE', 'IWDEE', 'PSTEE'])
+        
+        # Process and deduplicate (moved from inside the 'if' to a shared location)
+        processed_games = []
+        for game_text in game_texts:
+            # Remove version info like (v2.5), take part before ':', uppercase
+            game_id = re.sub(r'\s*\(.*\)', '', game_text).strip().upper().split(':')[0]
+            if game_id and game_id not in processed_games:
+                processed_games.append(game_id)
+        games = sorted(processed_games)
     
     all_tables = soup.find_all('table')
     collected_tables = []
     resource_name = "UNKNOWN"
+    control_fields = {}
 
     for i, table in enumerate(all_tables, start=1):
         headers = [th.get_text(strip=True).lower() for th in table.find_all('th')]
@@ -105,6 +180,21 @@ def parse_itm_tables_to_yaml(url, output_file):
                     clean_name = re.sub(r'\s+', ' ', truncated_name).strip()
 
                     temp_data['name'] = clean_name.lower().replace(' ', '_')
+
+                    field_name = temp_data['name']
+                    match = re.match(r'(offset_to|count_of)_(.*)', field_name)
+                    if match:
+                        field_type = match.group(1)
+                        target_section_plural = match.group(2)
+                        target_section_singular = target_section_plural.removesuffix('s')
+
+                        if target_section_singular not in control_fields:
+                            control_fields[target_section_singular] = {}
+                        
+                        if field_type == 'offset_to':
+                            control_fields[target_section_singular]['offset_field'] = field_name
+                        elif field_type == 'count_of':
+                            control_fields[target_section_singular]['count_field'] = field_name
                 else:
                     temp_data[header] = cell_text
 
@@ -120,20 +210,37 @@ def parse_itm_tables_to_yaml(url, output_file):
     # Construct final YAML structure
     yaml_data = {}
     yaml_data['name'] = resource_name
+    yaml_data['version'] = version_str
+    yaml_data['games'] = FlowList(games)
 
     for t_name, t_rows in collected_tables:
-        yaml_data[t_name] = {'fields': t_rows}
+        section_data = {}
+        if t_name in control_fields:
+            section_data.update(control_fields[t_name])
+        section_data['fields'] = t_rows
+        yaml_data[t_name] = section_data
 
     # Dump to string
     yaml_string = yaml.dump(yaml_data, sort_keys=False, allow_unicode=True)
 
     # Insert newline before each top-level section
     for key in yaml_data:
-        if key != 'name':
-            yaml_string = yaml_string.replace(f'\n{key}:', f'\n\n{key}:')
+        if key not in ['name', 'version', 'games']:
+            yaml_string = yaml_string.replace(f'\n{key}:', f'\n\n{key}:', 1)
 
     # Insert newline between entries
     formatted_yaml = re.sub(r'\n(\s*)- name:', r'\n\n\1- name:', yaml_string)
+
+    if output_file is None:
+        parsed_url = urlparse(url)
+        path = parsed_url.path
+        filename = os.path.basename(path)
+        base, _ = os.path.splitext(filename)
+        if not base:
+            base = "resource"
+        safe_name = base.replace('.', '_')
+        output_file = f"{safe_name}.yaml"
+        print(f"Auto-generating output filename: {output_file}")
 
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(formatted_yaml)
@@ -149,7 +256,18 @@ def parse_itm_tables_to_yaml(url, output_file):
         print(f"YAML validation failed: {e}")
 
 
-# Example usage
-url = 'https://gibberlings3.github.io/iesdp/file_formats/ie_formats/itm_v2.0.htm'  # Replace with actual page
-output_file = 'resource.yaml'
-parse_itm_tables_to_yaml(url, output_file)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Convert IESDP HTML file format pages to PlanarForge YAML schemas.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="""
+Example:
+  python tools/iesdp_converter.py "https://gibberlings3.github.io/iesdp/file_formats/ie_formats/itm_v1.0.htm" -o itm_v1.yaml
+"""
+    )
+    parser.add_argument("url", help="The URL of the IESDP page to parse.")
+    parser.add_argument("-o", "--output", help="The name of the output YAML file. If not provided, it is derived from the URL.")
+    
+    args = parser.parse_args()
+    
+    parse_itm_tables_to_yaml(args.url, args.output)
