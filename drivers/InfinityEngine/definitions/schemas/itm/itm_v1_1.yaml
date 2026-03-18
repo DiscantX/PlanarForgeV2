@@ -45,7 +45,7 @@ header:
     size: 4
     offset: 0x001e
 
-  - name: weapon_animation
+  - name: item_animation
     type: char_array
     size: 2
     offset: 0x0022
@@ -187,40 +187,47 @@ header:
     size: 2
     offset: 0x007e
 
-  - name: unknown
+  - name: unknown_0x80
     type: word
     size: 2
     offset: 0x0080
+    hidden: true
 
-  - name: unknown
+  - name: unknown_0x82
     type: dword
     size: 4
     offset: 0x0082
+    hidden: true
 
-  - name: unknown
+  - name: unknown_0x86
     type: dword
     size: 4
     offset: 0x0086
+    idden: true
 
-  - name: unknown
+  - name: unknown_0x8a
     type: dword
     size: 4
     offset: 0x008a
+    hidden: true
 
-  - name: unknown
+  - name: unknown_0x8e
     type: dword
     size: 4
     offset: 0x008e
+    hidden: true
 
-  - name: unknown
+  - name: unknown_0x92
     type: dword
     size: 4
     offset: 0x0092
+    hidden: true
 
-  - name: unknown
+  - name: unknown_0x96
     type: dword
     size: 4
     offset: 0x0096
+    hidden: true
 
 extended_header:
   offset_field: offset_to_extended_headers
@@ -277,7 +284,7 @@ extended_header:
     size: 1
     offset: 0x0011
 
-  - name: speed
+  - name: speed_factor
     type: byte
     size: 1
     offset: 0x0012
@@ -332,7 +339,7 @@ extended_header:
     size: 2
     offset: 0x0020
 
-  - name: charges
+  - name: max_charges
     type: word
     size: 2
     offset: 0x0022
@@ -352,10 +359,20 @@ extended_header:
     size: 2
     offset: 0x002a
 
-  - name: melee_animation
+  - name: overhand_animation
     type: word
-    size: 6
+    size: 2
     offset: 0x002c
+
+  - name: overhead_animation
+    type: word
+    size: 2
+    offset: 0x002e
+
+  - name: backhand_animation
+    type: word
+    size: 2
+    offset: 0x0030
 
   - name: unused_0x32
     type: word
@@ -410,7 +427,7 @@ feature_block:
     size: 1
     offset: 0x000c
 
-  - name: resistance
+  - name: dispel
     type: char
     size: 1
     offset: 0x000d
