@@ -6,12 +6,8 @@ from core.field_types import FieldTypes
 from drivers.InfinityEngine.resource_loader import ResourceLoader
 import sys
 
-# Load schema
-schema_loader = SchemaLoader("schemas")
-schema_loader.load_all()
-schema_loader.resolve_types(FieldTypes)
-
-resource_loader = ResourceLoader(schema_loader=schema_loader)
+# ResourceLoader now automatically loads schemas from the driver's 'schemas' folder
+resource_loader = ResourceLoader()
 
 # --- Round-trip Test ---
 if len(sys.argv) > 1:

@@ -15,7 +15,7 @@ import datetime
 import re
 
 # Ensure core modules can be imported
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from drivers.InfinityEngine.installation_finder import InstallationFinder
 from drivers.InfinityEngine.resource_loader import ResourceLoader
@@ -97,10 +97,9 @@ class TestPlanarForge(unittest.TestCase):
             print(f"Warning: Could not open log file {log_filename}: {e}")
             cls.log_file = None
         
-        cls.schema_loader = SchemaLoader("schemas")
-        cls.schema_loader.load_all()
-        cls.schema_loader.resolve_types(FieldTypes)
-        cls.loader = ResourceLoader(schema_loader=cls.schema_loader)
+        # Initialize Loader (which loads schemas from drivers/InfinityEngine/schemas)
+        cls.loader = ResourceLoader()
+        cls.schema_loader = cls.loader.schema_loader
         
         # Find all installed games
         all_found_games = [inst.game_id for inst in cls.loader.install_finder.find_all()]

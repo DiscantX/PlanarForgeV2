@@ -20,7 +20,13 @@ class ResourceLoader:
      
     def __init__(self, install_finder=None, schema_loader=None):
         self.install_finder = install_finder or InstallationFinder()
-        self.schema_loader = schema_loader or SchemaLoader("schemas")
+        
+        if schema_loader:
+            self.schema_loader = schema_loader
+        else:
+            schema_path = Path(__file__).parent / "schemas"
+            self.schema_loader = SchemaLoader(schema_path)
+
         self.schema_loader.load_all()
         self.schema_loader.resolve_types(FieldTypes)
         
