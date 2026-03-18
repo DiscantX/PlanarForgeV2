@@ -197,4 +197,12 @@ We will start by addressing **Bitmask Fidelity** as it requires a targeted fix i
 *   Created `itm_v2.yaml` schema for IWD2, defining the field at `0x72` as `type: bytes` with `size: 16`.
 *   Updated `BinaryReader` and `BinaryWriter` to support arbitrary integer sizes as a robustness fallback.
 **Status:** **FIXED**
+
+### 2026-03-18: IWD2 Offset Correction Attempt (Failed)
+
+**Problem:** Fidelity error at offset `0x82` (130) for IWD2 ITM files. `offset_to_extended_headers` points to 130.
+**Hypothesis:** The pointer might technically point to the start of the padding (114) instead of the data (130), causing the parser to read zeros.
+**Experiment:** Implemented `offset_correction` in `Schema` and `BinaryParser` to adjust the read offset by +16 bytes.
+**Result:** **FAILED**. Inspection confirmed the pointer in the file is indeed 130. The correction caused the parser to read garbage further down the file. The changes were reverted.
+**Current Status:** Back to investigating why valid data at 130 is being read/written as 0x00.
 ```
