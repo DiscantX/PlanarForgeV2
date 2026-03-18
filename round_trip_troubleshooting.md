@@ -205,4 +205,71 @@ We will start by addressing **Bitmask Fidelity** as it requires a targeted fix i
 **Experiment:** Implemented `offset_correction` in `Schema` and `BinaryParser` to adjust the read offset by +16 bytes.
 **Result:** **FAILED**. Inspection confirmed the pointer in the file is indeed 130. The correction caused the parser to read garbage further down the file. The changes were reverted.
 **Current Status:** Back to investigating why valid data at 130 is being read/written as 0x00.
+
+### 2026-03-18: IWD2 Fidelity Errors Resolved (Duplicate Fields)
+
+**Problem:** All IWD2 ITM files failed fidelity tests, consistently writing a `0x00` byte where data should exist (e.g., at offset `0x82`).
+**Analysis:** The root cause was a series of schema errors that led to data being overwritten in memory during the parsing stage.
+1.  **Duplicate Schema File:** An extra, incorrect schema file (`itm_v2_0.yaml`) existed alongside the correct `itm_v2.yaml`.
+2.  **Duplicate Header Fields:** The schema defined four separate `kit_usability` fields, but they were not uniquely named. This caused each field's value to overwrite the last in the resource's data map.
+3.  **Duplicate Extended Header Fields:** A similar issue existed in the `extended_header`, where two distinct fields were both named `attack_type`. The value of the second field would overwrite the first. During the write process, this incorrect, overwritten value was written back to the first field's offset, causing the fidelity mismatch.
+
+**Solution:**
+*   The duplicate schema file (`itm_v2_0.yaml`) was deleted.
+*   The duplicate `kit_usability` and `attack_type` fields in `itm_v2.yaml` were renamed to be unique (e.g., `kit_usability_1`, `attack_type_special`).
+
+**Status:** **FIXED**. With these corrections, all ITM files for all supported games now pass round-trip fidelity tests.
+
+## Postmortem: Achieving ITM Round-Trip Fidelity
+
+### 1. Summary of Error Categories
+
+The errors encountered can be grouped into three main categories:
+
+*   **Schema Definition Errors:** These were issues where the YAML schemas did not accurately represent the binary file structure.
+    *   **PSTEE Version Mismatch:** `PSTEE` was incorrectly assigned to the `ITM v1.1` schema, which has a 154-byte header. The Enhanced Edition actually uses a 114-byte header, causing the parser to read 40 bytes of ability data as if it were part of the header, corrupting the entire file structure on write.
+    *   **IWD2 Duplicate Fields:** The `itm_v2.yaml` schema contained multiple fields with the same name (e.g., four fields named `kit_usability`, two named `attack_type`). This caused the parser to overwrite the value of the first field with the value of the second during the read process, leading to data corruption when the file was written back.
+
+*   **Parser & I/O Logic Flaws:** These were bugs in the core `BinaryParser` and `BinaryReader`/`Writer` that affected how data was interpreted or written.
+    *   **Orphaned Data:** The parser initially only read the number of effects specified in the main header, ignoring additional "orphaned" effects referenced by item abilities. This required a significant re-architecture of the parser's counting logic to scan all abilities and determine the true extent of the effect data.
+    *   **Bit-level Data Loss:** The `Bitmask` and `Bitfield` types were initially written to discard any bits from the source file that weren't explicitly defined in the schema. This was fixed by adding logic to preserve these "unknown" bits under a reserved `_unknown` key.
+    *   **Repacking vs. Fidelity:** The writer was initially designed to always "repack" files, creating a clean, compact binary. This broke fidelity for original files that contained legitimate padding or non-standard section ordering. The writer had to be updated to detect unmodified resources and preserve their exact original layout.
+
+*   **Toolchain & Test Suite Errors:** These were bugs in the surrounding infrastructure that produced misleading results and sent the investigation down the wrong path.
+    *   **Resource Loader Name Collisions:** This was the root cause of many crashes. The `ResourceLoader` used a dictionary that could only hold one resource per name, failing to account for files like `CARRIO.ITM` and `CARRIO.CRE` existing simultaneously. This led to the loader feeding creature data to the item parser, causing it to crash on invalid data.
+    *   **Test Suite Mismatches:** The test suite itself suffered from the same name collision bug, causing it to compare a saved `.ITM` file against the original bytes of a `.STO` or `.SPL` file with the same name, leading to a cascade of false-positive fidelity errors.
+
+### 2. Analysis of the Troubleshooting Process
+
+#### Inefficiencies and Missteps
+
+Our path to a solution was not always direct. Several key moments highlight areas where we could have been more efficient:
+
+1.  **Treating the Symptom, Not the Cause:** The `Unsupported integer size: 16` crash in IWD2 is a prime example. Our first reaction was to make the `BinaryReader` more robust to handle 16-byte integers. While this made the I/O layer stronger, it didn't address *why* the parser was attempting to read a 16-byte field as an integer in the first place. This was a symptom of an incorrect schema definition, and focusing on the crash itself delayed the discovery of the true schema error.
+
+2.  **Fixing the Wrong Layer:** The most significant detour was when we added a "defensive check" to the `BinaryParser` to prevent it from crashing when reading past the end of a file. This successfully stopped the crashes but completely masked the underlying problem: the `ResourceLoader` was feeding the parser data from the wrong file type. By silencing the crash, we lost our most important clue. The lesson here is that **crashes are often valuable signals**. A robust system shouldn't just avoid crashing; it should crash with a clear error when given fundamentally invalid input.
+
+3.  **Building on a Faulty Premise:** The `offset_correction` hypothesis for the IWD2 fidelity error was based on the idea that the file format itself was quirky. We invested a full development cycle implementing and then reverting this feature, only to find out through direct inspection that the premise was wrong—the offset pointer in the file was correct all along.
+
+#### Successes and Efficient Solutions
+
+Conversely, several approaches were highly effective and led to rapid solutions:
+
+1.  **Targeted Diagnostics:** The turning point for the final, stubborn IWD2 fidelity error was when we stopped theorizing and added a simple `print()` statement to the test suite. This allowed us to inspect the `Resource` object in memory and definitively prove the issue was a **read error**, not a write error. This single piece of information immediately invalidated several hypotheses and focused our attention correctly on the parsing logic.
+
+2.  **Schema-First Analysis:** The initial PSTEE fidelity error was solved quickly because the analysis started at the right place. By comparing the known structures of original `PST` and the Enhanced Editions, we immediately identified the header size discrepancy, pointing directly to a schema versioning problem.
+
+### 3. Future Prevention and Lessons Learned
+
+This troubleshooting journey provides several key takeaways for future development:
+
+1.  **Implement Schema Validation:** The final IWD2 bug was caused by duplicate field names in the YAML file. This is an error that can be caught automatically. The `SchemaLoader` should be enhanced with a validation step that detects and raises an error if a section contains multiple fields with the same name. This would have prevented the issue entirely.
+
+2.  **Trust, but Verify with Data:** Before building a complex feature around a hypothesis (like `offset_correction`), write the smallest possible piece of code to verify the premise. A tiny script to read and print a single integer from a specific offset in the file would have saved an entire development cycle.
+
+3.  **Isolate Layers for Testing:** When a low-level component like the `BinaryParser` fails, the investigation must include its inputs. Unit tests for the parser using known-good, static byte arrays would have confirmed its correctness, forcing us to look at the `ResourceLoader` (the component feeding it data) much sooner.
+
+4.  **Embrace Simple, Directed Debugging:** In a complex system, a full step-through debugger can sometimes be less efficient than adding a single, well-placed print statement to inspect the state of data at a critical boundary between components. This was the key to solving our most persistent bug.
+
+By internalizing these lessons, we can approach future troubleshooting with greater efficiency, avoiding common pitfalls and more quickly identifying the true root cause of complex issues.
 ```

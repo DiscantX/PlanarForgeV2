@@ -65,7 +65,7 @@ header:
     size: 1
     offset: 0x0028
 
-  - name: kit_usability
+  - name: kit_usability_1
     type: byte
     size: 1
     offset: 0x0029
@@ -75,7 +75,7 @@ header:
     size: 1
     offset: 0x002a
 
-  - name: kit_usability
+  - name: kit_usability_2
     type: byte
     size: 1
     offset: 0x002b
@@ -85,7 +85,7 @@ header:
     size: 1
     offset: 0x002c
 
-  - name: kit_usability
+  - name: kit_usability_3
     type: byte
     size: 1
     offset: 0x002d
@@ -95,7 +95,7 @@ header:
     size: 1
     offset: 0x002e
 
-  - name: kit_usability
+  - name: kit_usability_4
     type: byte
     size: 1
     offset: 0x002f
@@ -320,7 +320,7 @@ extended_header:
     size: 2
     offset: 0x0026
 
-  - name: attack_type
+  - name: attack_type_special
     type: word
     size: 2
     offset: 0x0028
