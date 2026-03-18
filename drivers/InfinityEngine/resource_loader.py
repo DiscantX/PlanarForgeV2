@@ -5,6 +5,7 @@ from core.binary.parser import BinaryParser
 from core.binary.writer import BinaryWriter
 from core.schema_loader import SchemaLoader
 from core.field_types import FieldTypes
+from core.resource import Resource
 
 # Import internal driver components
 from .installation_finder import InstallationFinder
@@ -45,7 +46,7 @@ class ResourceLoader:
         
         with open(file_path, "rb") as f:
             reader = BinaryReader(f)
-            parser = BinaryParser(schema)
+            parser = BinaryParser(schema, resource_class=Resource)
             resource = parser.read(reader, name=resref, source=file_path)
         return resource
 
@@ -116,7 +117,7 @@ class ResourceLoader:
 
             # Use a BytesIO stream to treat the raw bytes as a file for the parser.
             bytes_reader = BinaryReader(io.BytesIO(raw_bytes))
-            parser = BinaryParser(resource_schema)
+            parser = BinaryParser(resource_schema, resource_class=Resource)
             
             # Parse the final resource and return it.
             return parser.read(bytes_reader, name=resref, source=f"BIF: {source_path}")

@@ -23,17 +23,16 @@ The brain of the application. It contains all Python logic required to read, wri
 - `ResourceLoader`: The driver entry point.
 - `BiffHandler`: Handles BIF/BIFC container logic.
 - `InstallationFinder`: Locates games on disk.
+- `schemas/`: Engine-specific YAML definitions (ITM, BIFF, etc.).
+- `types.py`: Engine-specific field types (ResRef, StrRef).
 - `ResourceTypes`: mappings between integer type codes and string extensions (e.g., `2012` -> `ITM`).
 
 #### `core/` (Shared/Root)
 **Purpose:** Fundamental components that bridge Infrastructure and Domain.
 **Contents:**
-- `field_types.py`: Defines how specific data types (Bits, ResRefs, StrRefs) are read/written. While some are generic, many are engine-specific, making this a shared space.
+- `resource.py`: The generic data container class.
+- `field_types.py`: Defines generic data types (UInt, Bitmask, Enum). Engine-specific types are delegated to drivers.
 - `schema_loader.py`: Handles loading and resolving the YAML schemas.
-
-### `schemas/`
-**Purpose:** Declarative definitions of file formats.
-**Philosophy:** Logic should be kept out of Python classes where possible. If a file format changes or a new one is added, it should ideally be handled by adding a YAML file, not writing new Python code.
 
 ### `tests/`
 **Purpose:** Automated testing.
@@ -60,11 +59,11 @@ The brain of the application. It contains all Python logic required to read, wri
 *Decision Reference:* `BiffHandler` was placed here because it encapsulates domain knowledge (Signature detection, Decompression algorithms specific to BIFF) rather than generic binary parsing.
 
 #### 3. "I need to fix a bug where a specific file type isn't parsing correctly."
-**Location:** `schemas/*.yaml`.
+**Location:** `drivers/<EngineName>/schemas/*.yaml`.
 **Why:** We prefer fixing the data definition over hardcoding exceptions in the parser.
 
 #### 4. "I want to change how we find game paths on Linux."
-**Location:** `core/game/installation_finder.py`.
+**Location:** `drivers/InfinityEngine/installation_finder.py`.
 **Why:** Platform-specific discovery logic is part of the Domain layer's responsibility to abstract the environment from the rest of the app.
 
 ### Key Patterns

@@ -144,17 +144,3 @@ class Resource:
 
     def __repr__(self):
         return f"<Resource {self.name} ({self.schema.name})>"
-
-class Section:
-    """
-    Represents a section of a resource (header, extended_header, feature_block, etc.).
-    Stores the fields for that section and their values.
-    """
-    def __init__(self, name, fields, count=1):
-        self.name = name
-        self.fields = fields
-        self.count = count
-        self.data = []  # List of dicts, each dict: field_name -> value
-
-    def __repr__(self):
-        return f"<Section {self.name} ({self.count} entries)>"

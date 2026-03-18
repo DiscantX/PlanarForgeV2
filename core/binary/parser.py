@@ -3,12 +3,13 @@ from core.resource import Resource
 
 class BinaryParser:
 
-    def __init__(self, schema):
+    def __init__(self, schema, resource_class=Resource):
         self.schema = schema
+        self.resource_class = resource_class
 
     def read(self, reader, name=None, source=None):
 
-        resource = Resource(self.schema, name=name, source=source)
+        resource = self.resource_class(self.schema, name=name, source=source)
         resource.sections = {}
 
         filesize = reader.size()
