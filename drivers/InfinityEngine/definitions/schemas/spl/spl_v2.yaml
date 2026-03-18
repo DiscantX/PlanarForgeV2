@@ -141,8 +141,8 @@ header:
     offset: 0x0042
 
   - name: ground_icon
-    type: dword
-    size: 4
+    type: resref
+    size: 8
     offset: 0x0044
 
   - name: weight

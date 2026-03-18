@@ -128,6 +128,26 @@ class SchemaLoader:
                         raise ValueError(f"Schema validation error in '{filepath.name}': Duplicate field name '{field.name}' found in section '{key}'.")
                     seen_names.add(field.name)
 
+                # The parser walks structures sequentially and does not seek to per-field offsets.
+                # Fixed-size fields therefore need to form a contiguous layout.
+                expected_offset = 0
+                for field in fields:
+                    offset = field.attributes.get("offset")
+                    size = field.attributes.get("size")
+                    if isinstance(offset, int):
+                        if offset != expected_offset:
+                            raise ValueError(
+                                f"Schema validation error in '{filepath.name}': "
+                                f"Section '{key}' expected next field at {hex(expected_offset)}, "
+                                f"but field '{field.name}' starts at {hex(offset)}."
+                            )
+                        if not isinstance(size, int):
+                            raise ValueError(
+                                f"Schema validation error in '{filepath.name}': "
+                                f"Section '{key}' field '{field.name}' must define an integer size."
+                            )
+                        expected_offset = offset + size
+
                 section = Section(
                     key,
                     fields,
