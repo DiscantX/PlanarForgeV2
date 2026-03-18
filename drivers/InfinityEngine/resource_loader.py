@@ -1,4 +1,5 @@
 import io
+import threading
 from pathlib import Path
 from core.binary.reader import BinaryReader
 from core.binary.parser import BinaryParser
@@ -33,13 +34,14 @@ class ResourceLoader:
         self.chitins = {}
         self.resource_maps = {}
         self.install_paths = {}
+        self._lock = threading.RLock()
         self.biff_handler = BiffHandler()
         
         # Determine default game from available installations
         found_games = self.install_finder.find_all()
         if found_games:
             self.default_game = found_games[0].game_id
-            self._load_chitin(self.default_game)
+            # self._load_chitin(self.default_game)
         else:
             self.default_game = None
             print("Warning: No Infinity Engine game installations found.")
@@ -187,36 +189,44 @@ class ResourceLoader:
     def _get_install_path(self, game):
         if game in self.install_paths:
             return self.install_paths[game]
-            
-        found = self.install_finder.find(game)
-        if found:
-            self.install_paths[game] = found.install_path
-            return found.install_path
-        return None
+
+        with self._lock:
+            if game in self.install_paths:
+                return self.install_paths[game]
+                
+            found = self.install_finder.find(game)
+            if found:
+                self.install_paths[game] = found.install_path
+                return found.install_path
+            return None
 
     def _load_chitin(self, game):
         if game in self.chitins:
             return self.chitins[game]
 
-        chitin_path = self.install_finder.find_chitin(game)
-        if chitin_path is None:
-            print(f"Failed to find CHITIN.KEY for game {game}.")
-            return None
-        chitin_schema = self.schema_loader.get("CHITIN", game=game)
-        chitin = self.load_file(resref="CHITIN", restype="KEY", game=game, file_path=chitin_path, schema=chitin_schema)
-        if chitin is None:
-            print(f"Failed to load CHITIN.KEY for game {game}.")
-            return None
+        with self._lock:
+            if game in self.chitins:
+                return self.chitins[game]
+
+            chitin_path = self.install_finder.find_chitin(game)
+            if chitin_path is None:
+                print(f"Failed to find CHITIN.KEY for game {game}.")
+                return None
+            chitin_schema = self.schema_loader.get("CHITIN", game=game)
+            chitin = self.load_file(resref="CHITIN", restype="KEY", game=game, file_path=chitin_path, schema=chitin_schema)
+            if chitin is None:
+                print(f"Failed to load CHITIN.KEY for game {game}.")
+                return None
+                
+            self.chitins[game] = chitin
             
-        self.chitins[game] = chitin
-        
-        res_map = {}
-        for entry in chitin.sections.get("resource_entries", []):
-            res_name = entry.get("resource_name", "").upper()
-            if res_name:
-                if res_name not in res_map:
-                    res_map[res_name] = []
-                res_map[res_name].append(entry)
-        self.resource_maps[game] = res_map
-        
-        return chitin
+            res_map = {}
+            for entry in chitin.sections.get("resource_entries", []):
+                res_name = entry.get("resource_name", "").upper()
+                if res_name:
+                    if res_name not in res_map:
+                        res_map[res_name] = []
+                    res_map[res_name].append(entry)
+            self.resource_maps[game] = res_map
+            
+            return chitin
