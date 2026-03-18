@@ -686,24 +686,3 @@ Available Tests:
         sys.argv = [sys.argv[0]] + unknown
 
     unittest.main(verbosity=2)
-    TestPlanarForge.game_filter = args.game
-
-    # If --test is used, it overrides any other test specifications.
-    if args.test:
-        test_map = {
-            1: 'test_01_biff_parsing_and_decompression',
-            2: 'test_02_resource_fidelity_roundtrip',
-            3: 'test_03_biff_caching_real_files',
-            4: 'test_04_bif_caching',
-        }
-        test_name = test_map.get(args.test)
-        if test_name:
-            sys.argv = [sys.argv[0], f'TestPlanarForge.{test_name}']
-        else:
-            print(f"Error: Invalid test number '{args.test}'. Available tests are: {', '.join(map(str, test_map.keys()))}.")
-            sys.exit(1)
-    else:
-        # Reconstruct sys.argv for unittest.main() to allow running tests by full name
-        sys.argv = [sys.argv[0]] + unknown
-
-    unittest.main(verbosity=2)

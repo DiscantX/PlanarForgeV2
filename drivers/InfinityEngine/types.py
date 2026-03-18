@@ -29,6 +29,18 @@ class ResRefString(str):
     def __repr__(self):
         return repr(self.__str__())
 
+    def __eq__(self, other):
+        """
+        Allows comparison with standard strings ignoring null padding.
+        Example: ResRefString("SW1H01\x00\x00") == "SW1H01" -> True
+        """
+        if isinstance(other, str):
+            return str(self) == other.split('\x00')[0]
+        return super().__eq__(other)
+    
+    def __hash__(self):
+        return hash(str(self))
+
 class StrRef(FieldType):
     names = ["strref"]
 

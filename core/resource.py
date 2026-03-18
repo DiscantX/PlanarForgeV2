@@ -2,20 +2,18 @@ from core.change_event import ChangeEvent
 
 
 class Resource:
-    '''
+    """
     Resource instance belonging to a schema. Stores field values organized by sections
     and notifies listeners when changes occur.
 
     A resource may contain multiple sections (header, extended_header, etc.).
     Repeating sections are stored as lists.
-
+    
     Args:
         schema (Schema): The schema to which this resource belongs.
         name (str, optional): The resource name.
         source (str, optional): The source file.
-    '''
-
-class Resource:
+    """
     def __init__(self, schema, name=None, source=None):
         self.schema = schema
         self.name = name

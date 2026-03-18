@@ -105,6 +105,23 @@ class Bitfield(BaseIntField):
             result["_unknown"] = unknown_bits
             
         return result
+
+    def write(self, writer, value, field):
+        bitfields = field.attributes.get("bitfields")
+        if bitfields and isinstance(value, dict):
+            int_value = 0
+            for name, params in bitfields.items():
+                shift = params.get("shift", 0)
+                mask = params.get("mask", 0xFFFFFFFF)
+                val = value.get(name, 0)
+                int_value |= (val & mask) << shift
+            
+            # Restore unknown bits if present
+            int_value |= value.get("_unknown", 0)
+            
+            super().write(writer, int_value, field)
+        else:
+            super().write(writer, value, field)
         
 class Bitmask(BaseIntField):
     names = ["bitmask"]
@@ -218,20 +235,3 @@ class PointerString(FieldType):
         # PointerString is a virtual field that reads from an offset.
         # Writing does not happen in-line with the struct; string data management is handled externally.
         pass
-
-    def write(self, writer, value, field):
-        bitfields = field.attributes.get("bitfields")
-        if bitfields and isinstance(value, dict):
-            int_value = 0
-            for name, params in bitfields.items():
-                shift = params.get("shift", 0)
-                mask = params.get("mask", 0xFFFFFFFF)
-                val = value.get(name, 0)
-                int_value |= (val & mask) << shift
-            
-            # Restore unknown bits if present
-            int_value |= value.get("_unknown", 0)
-            
-            super().write(writer, int_value, field)
-        else:
-            super().write(writer, value, field)
