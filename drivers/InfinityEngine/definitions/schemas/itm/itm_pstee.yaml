@@ -25,7 +25,7 @@ header:
     size: 4
     offset: 0x000c
 
-  - name: drop_sound_played_when_the_item_is_dropped_in_the_inventory
+  - name: drop_sound
     type: resref
     size: 8
     offset: 0x0010
