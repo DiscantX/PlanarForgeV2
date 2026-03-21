@@ -301,3 +301,43 @@ By internalizing these lessons, we can approach future troubleshooting with grea
 
 **Remaining Work:**
 *   `PSTEE` `CRE` files still have separate fidelity issues beyond this fix. For example, `3PLANEA` still truncates after this change, so `cre_pstee.yaml` requires additional investigation beyond the missing tail-section problem solved here.
+
+### 2026-03-21: IWD2 CRE V2.2 Spell and Ability Groups
+
+**Problem:** `IWD2` `CRE V2.2` files were failing fidelity inside the spell region, commonly at offsets like `0x676` or `0x7de`, while four legacy `V9.1` files were crashing because they were being parsed as `V2.2`.
+
+**Analysis:**
+1.  **Legacy Version Routing:** The four crashing files (`TEST_01`, `TEST_02`, `TEST_03`, `TESTOCLE`) are `CRE V9.1` files and belong on the classic `IWD` schema, not the `V2.2` schema.
+2.  **Structured V2.2 Group Data:** The `V2.2` schema had preserved the spell header tables as raw bytes and left the referenced bodies unmodeled. Inspection of live `IWD2` files showed those bodies are not garbage:
+    *   each class spell group and domain spell group is `count * 16` bytes of entries followed by an 8-byte footer
+    *   the same layout is used for `abilities`, `songs`, and `shapes`
+3.  **Invalid Temporary Workaround:** A temporary full-file passthrough had made unmodified round-trips succeed, but it bypassed real serialization and hid the missing structure instead of modeling it.
+
+**Solution:**
+*   Kept the legitimate version-based routing in `drivers/InfinityEngine/resource_loader.py` so `IWD2 CRE V9.1` files resolve to the legacy `cre_v9.yaml` schema.
+*   Removed the full-file passthrough from `core/resource.py`, `drivers/InfinityEngine/resource_loader.py`, and `core/binary/parser.py`.
+*   Added dynamic flattened field support to the runtime:
+    *   recursive child type resolution in `core/schema_loader.py`
+    *   generic field measurement in `core/field_types.py`
+    *   flattened dynamic field reads/writes and dynamic size calculation in `core/binary/parser.py`
+*   Added a dedicated `iwd2_cre_group` field type in `drivers/InfinityEngine/definitions/types.py` to read and write:
+    *   repeated 16-byte entries
+    *   the trailing 8-byte `total_slots` / `free_slots` footer
+*   Rebuilt `drivers/InfinityEngine/definitions/schemas/cre/cre_v2_2.yaml` so it now explicitly models:
+    *   all `63` class spell offset/count pairs
+    *   all `9` domain spell offset/count pairs
+    *   `abilities`, `songs`, and `shapes`
+    *   the existing `item_slots`, `items`, and `effects` tail sections
+
+**Verification:**
+*   Representative formerly failing `V2.2` files now round-trip byte-for-byte:
+    *   `62NEOORC`
+    *   `62MDARF`
+    *   `20ORCW3`
+    *   `20DERETH`
+    *   `63ISAIR`
+    *   `00sAbgd`
+*   The four legacy `V9.1` files now load and round-trip correctly through the legacy schema.
+*   Full official fidelity run:
+    *   `python tools/tests/test_suite.py --test 2 --schema CRE --game IWD2`
+    *   Result: `0/1622` failures

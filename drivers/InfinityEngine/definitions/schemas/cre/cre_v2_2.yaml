@@ -760,30 +760,729 @@ header:
     size: 2
     offset: 0x03b8
 
-  # IESDP documents per-class/per-level spell blocks starting at 0x03ba.
-  # In sampled IWD2 CRE files each offset/count pair points to a mixed block:
-  # one 8-byte memorization header followed by N 16-byte spell entries.
-  # The current schema model cannot express that shape, so the header tables
-  # are preserved here as raw bytes instead of modeling invalid sections.
-  - name: spell_offset_table
-    type: bytes
-    size: 252
+  # IESDP documents 63 class spell groups, 9 domain spell groups, and
+  # three additional known-list groups for abilities, songs, and shapes.
+  # Each offset/count pair points to count*16 bytes of entries followed by
+  # an 8-byte footer containing total/free slots.
+  - name: offset_to_bard_level_1_spells
+    type: dword
+    size: 4
     offset: 0x03ba
 
-  - name: spell_count_table
-    type: bytes
-    size: 252
+  - name: offset_to_bard_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x03be
+
+  - name: offset_to_bard_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x03c2
+
+  - name: offset_to_bard_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x03c6
+
+  - name: offset_to_bard_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x03ca
+
+  - name: offset_to_bard_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x03ce
+
+  - name: offset_to_bard_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x03d2
+
+  - name: offset_to_bard_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x03d6
+
+  - name: offset_to_bard_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x03da
+
+  - name: offset_to_cleric_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x03de
+
+  - name: offset_to_cleric_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x03e2
+
+  - name: offset_to_cleric_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x03e6
+
+  - name: offset_to_cleric_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x03ea
+
+  - name: offset_to_cleric_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x03ee
+
+  - name: offset_to_cleric_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x03f2
+
+  - name: offset_to_cleric_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x03f6
+
+  - name: offset_to_cleric_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x03fa
+
+  - name: offset_to_cleric_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x03fe
+
+  - name: offset_to_druid_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x0402
+
+  - name: offset_to_druid_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x0406
+
+  - name: offset_to_druid_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x040a
+
+  - name: offset_to_druid_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x040e
+
+  - name: offset_to_druid_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x0412
+
+  - name: offset_to_druid_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x0416
+
+  - name: offset_to_druid_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x041a
+
+  - name: offset_to_druid_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x041e
+
+  - name: offset_to_druid_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x0422
+
+  - name: offset_to_paladin_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x0426
+
+  - name: offset_to_paladin_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x042a
+
+  - name: offset_to_paladin_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x042e
+
+  - name: offset_to_paladin_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x0432
+
+  - name: offset_to_paladin_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x0436
+
+  - name: offset_to_paladin_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x043a
+
+  - name: offset_to_paladin_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x043e
+
+  - name: offset_to_paladin_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x0442
+
+  - name: offset_to_paladin_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x0446
+
+  - name: offset_to_ranger_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x044a
+
+  - name: offset_to_ranger_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x044e
+
+  - name: offset_to_ranger_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x0452
+
+  - name: offset_to_ranger_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x0456
+
+  - name: offset_to_ranger_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x045a
+
+  - name: offset_to_ranger_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x045e
+
+  - name: offset_to_ranger_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x0462
+
+  - name: offset_to_ranger_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x0466
+
+  - name: offset_to_ranger_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x046a
+
+  - name: offset_to_sorcerer_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x046e
+
+  - name: offset_to_sorcerer_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x0472
+
+  - name: offset_to_sorcerer_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x0476
+
+  - name: offset_to_sorcerer_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x047a
+
+  - name: offset_to_sorcerer_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x047e
+
+  - name: offset_to_sorcerer_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x0482
+
+  - name: offset_to_sorcerer_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x0486
+
+  - name: offset_to_sorcerer_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x048a
+
+  - name: offset_to_sorcerer_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x048e
+
+  - name: offset_to_wizard_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x0492
+
+  - name: offset_to_wizard_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x0496
+
+  - name: offset_to_wizard_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x049a
+
+  - name: offset_to_wizard_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x049e
+
+  - name: offset_to_wizard_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x04a2
+
+  - name: offset_to_wizard_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x04a6
+
+  - name: offset_to_wizard_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x04aa
+
+  - name: offset_to_wizard_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x04ae
+
+  - name: offset_to_wizard_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x04b2
+
+  - name: count_of_bard_level_1_spells
+    type: dword
+    size: 4
     offset: 0x04b6
 
-  - name: domain_spell_offset_table
-    type: bytes
-    size: 36
+  - name: count_of_bard_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x04ba
+
+  - name: count_of_bard_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x04be
+
+  - name: count_of_bard_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x04c2
+
+  - name: count_of_bard_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x04c6
+
+  - name: count_of_bard_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x04ca
+
+  - name: count_of_bard_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x04ce
+
+  - name: count_of_bard_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x04d2
+
+  - name: count_of_bard_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x04d6
+
+  - name: count_of_cleric_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x04da
+
+  - name: count_of_cleric_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x04de
+
+  - name: count_of_cleric_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x04e2
+
+  - name: count_of_cleric_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x04e6
+
+  - name: count_of_cleric_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x04ea
+
+  - name: count_of_cleric_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x04ee
+
+  - name: count_of_cleric_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x04f2
+
+  - name: count_of_cleric_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x04f6
+
+  - name: count_of_cleric_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x04fa
+
+  - name: count_of_druid_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x04fe
+
+  - name: count_of_druid_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x0502
+
+  - name: count_of_druid_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x0506
+
+  - name: count_of_druid_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x050a
+
+  - name: count_of_druid_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x050e
+
+  - name: count_of_druid_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x0512
+
+  - name: count_of_druid_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x0516
+
+  - name: count_of_druid_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x051a
+
+  - name: count_of_druid_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x051e
+
+  - name: count_of_paladin_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x0522
+
+  - name: count_of_paladin_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x0526
+
+  - name: count_of_paladin_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x052a
+
+  - name: count_of_paladin_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x052e
+
+  - name: count_of_paladin_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x0532
+
+  - name: count_of_paladin_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x0536
+
+  - name: count_of_paladin_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x053a
+
+  - name: count_of_paladin_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x053e
+
+  - name: count_of_paladin_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x0542
+
+  - name: count_of_ranger_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x0546
+
+  - name: count_of_ranger_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x054a
+
+  - name: count_of_ranger_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x054e
+
+  - name: count_of_ranger_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x0552
+
+  - name: count_of_ranger_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x0556
+
+  - name: count_of_ranger_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x055a
+
+  - name: count_of_ranger_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x055e
+
+  - name: count_of_ranger_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x0562
+
+  - name: count_of_ranger_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x0566
+
+  - name: count_of_sorcerer_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x056a
+
+  - name: count_of_sorcerer_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x056e
+
+  - name: count_of_sorcerer_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x0572
+
+  - name: count_of_sorcerer_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x0576
+
+  - name: count_of_sorcerer_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x057a
+
+  - name: count_of_sorcerer_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x057e
+
+  - name: count_of_sorcerer_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x0582
+
+  - name: count_of_sorcerer_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x0586
+
+  - name: count_of_sorcerer_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x058a
+
+  - name: count_of_wizard_level_1_spells
+    type: dword
+    size: 4
+    offset: 0x058e
+
+  - name: count_of_wizard_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x0592
+
+  - name: count_of_wizard_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x0596
+
+  - name: count_of_wizard_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x059a
+
+  - name: count_of_wizard_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x059e
+
+  - name: count_of_wizard_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x05a2
+
+  - name: count_of_wizard_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x05a6
+
+  - name: count_of_wizard_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x05aa
+
+  - name: count_of_wizard_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x05ae
+
+  - name: offset_to_domain_level_1_spells
+    type: dword
+    size: 4
     offset: 0x05b2
 
-  - name: domain_spell_count_table
-    type: bytes
-    size: 36
+  - name: offset_to_domain_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x05b6
+
+  - name: offset_to_domain_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x05ba
+
+  - name: offset_to_domain_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x05be
+
+  - name: offset_to_domain_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x05c2
+
+  - name: offset_to_domain_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x05c6
+
+  - name: offset_to_domain_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x05ca
+
+  - name: offset_to_domain_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x05ce
+
+  - name: offset_to_domain_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x05d2
+
+  - name: count_of_domain_level_1_spells
+    type: dword
+    size: 4
     offset: 0x05d6
+
+  - name: count_of_domain_level_2_spells
+    type: dword
+    size: 4
+    offset: 0x05da
+
+  - name: count_of_domain_level_3_spells
+    type: dword
+    size: 4
+    offset: 0x05de
+
+  - name: count_of_domain_level_4_spells
+    type: dword
+    size: 4
+    offset: 0x05e2
+
+  - name: count_of_domain_level_5_spells
+    type: dword
+    size: 4
+    offset: 0x05e6
+
+  - name: count_of_domain_level_6_spells
+    type: dword
+    size: 4
+    offset: 0x05ea
+
+  - name: count_of_domain_level_7_spells
+    type: dword
+    size: 4
+    offset: 0x05ee
+
+  - name: count_of_domain_level_8_spells
+    type: dword
+    size: 4
+    offset: 0x05f2
+
+  - name: count_of_domain_level_9_spells
+    type: dword
+    size: 4
+    offset: 0x05f6
 
   - name: offset_to_abilities
     type: dword
@@ -845,6 +1544,2115 @@ header:
     size: 8
     offset: 0x0626
 
+bard_level_1_spells:
+  offset_field: offset_to_bard_level_1_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_bard_level_1_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+bard_level_2_spells:
+  offset_field: offset_to_bard_level_2_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_bard_level_2_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+bard_level_3_spells:
+  offset_field: offset_to_bard_level_3_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_bard_level_3_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+bard_level_4_spells:
+  offset_field: offset_to_bard_level_4_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_bard_level_4_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+bard_level_5_spells:
+  offset_field: offset_to_bard_level_5_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_bard_level_5_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+bard_level_6_spells:
+  offset_field: offset_to_bard_level_6_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_bard_level_6_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+bard_level_7_spells:
+  offset_field: offset_to_bard_level_7_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_bard_level_7_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+bard_level_8_spells:
+  offset_field: offset_to_bard_level_8_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_bard_level_8_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+bard_level_9_spells:
+  offset_field: offset_to_bard_level_9_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_bard_level_9_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+cleric_level_1_spells:
+  offset_field: offset_to_cleric_level_1_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_cleric_level_1_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+cleric_level_2_spells:
+  offset_field: offset_to_cleric_level_2_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_cleric_level_2_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+cleric_level_3_spells:
+  offset_field: offset_to_cleric_level_3_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_cleric_level_3_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+cleric_level_4_spells:
+  offset_field: offset_to_cleric_level_4_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_cleric_level_4_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+cleric_level_5_spells:
+  offset_field: offset_to_cleric_level_5_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_cleric_level_5_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+cleric_level_6_spells:
+  offset_field: offset_to_cleric_level_6_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_cleric_level_6_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+cleric_level_7_spells:
+  offset_field: offset_to_cleric_level_7_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_cleric_level_7_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+cleric_level_8_spells:
+  offset_field: offset_to_cleric_level_8_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_cleric_level_8_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+cleric_level_9_spells:
+  offset_field: offset_to_cleric_level_9_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_cleric_level_9_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+druid_level_1_spells:
+  offset_field: offset_to_druid_level_1_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_druid_level_1_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+druid_level_2_spells:
+  offset_field: offset_to_druid_level_2_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_druid_level_2_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+druid_level_3_spells:
+  offset_field: offset_to_druid_level_3_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_druid_level_3_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+druid_level_4_spells:
+  offset_field: offset_to_druid_level_4_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_druid_level_4_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+druid_level_5_spells:
+  offset_field: offset_to_druid_level_5_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_druid_level_5_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+druid_level_6_spells:
+  offset_field: offset_to_druid_level_6_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_druid_level_6_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+druid_level_7_spells:
+  offset_field: offset_to_druid_level_7_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_druid_level_7_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+druid_level_8_spells:
+  offset_field: offset_to_druid_level_8_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_druid_level_8_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+druid_level_9_spells:
+  offset_field: offset_to_druid_level_9_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_druid_level_9_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+paladin_level_1_spells:
+  offset_field: offset_to_paladin_level_1_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_paladin_level_1_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+paladin_level_2_spells:
+  offset_field: offset_to_paladin_level_2_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_paladin_level_2_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+paladin_level_3_spells:
+  offset_field: offset_to_paladin_level_3_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_paladin_level_3_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+paladin_level_4_spells:
+  offset_field: offset_to_paladin_level_4_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_paladin_level_4_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+paladin_level_5_spells:
+  offset_field: offset_to_paladin_level_5_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_paladin_level_5_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+paladin_level_6_spells:
+  offset_field: offset_to_paladin_level_6_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_paladin_level_6_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+paladin_level_7_spells:
+  offset_field: offset_to_paladin_level_7_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_paladin_level_7_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+paladin_level_8_spells:
+  offset_field: offset_to_paladin_level_8_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_paladin_level_8_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+paladin_level_9_spells:
+  offset_field: offset_to_paladin_level_9_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_paladin_level_9_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+ranger_level_1_spells:
+  offset_field: offset_to_ranger_level_1_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_ranger_level_1_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+ranger_level_2_spells:
+  offset_field: offset_to_ranger_level_2_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_ranger_level_2_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+ranger_level_3_spells:
+  offset_field: offset_to_ranger_level_3_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_ranger_level_3_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+ranger_level_4_spells:
+  offset_field: offset_to_ranger_level_4_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_ranger_level_4_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+ranger_level_5_spells:
+  offset_field: offset_to_ranger_level_5_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_ranger_level_5_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+ranger_level_6_spells:
+  offset_field: offset_to_ranger_level_6_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_ranger_level_6_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+ranger_level_7_spells:
+  offset_field: offset_to_ranger_level_7_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_ranger_level_7_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+ranger_level_8_spells:
+  offset_field: offset_to_ranger_level_8_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_ranger_level_8_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+ranger_level_9_spells:
+  offset_field: offset_to_ranger_level_9_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_ranger_level_9_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+sorcerer_level_1_spells:
+  offset_field: offset_to_sorcerer_level_1_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_sorcerer_level_1_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+sorcerer_level_2_spells:
+  offset_field: offset_to_sorcerer_level_2_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_sorcerer_level_2_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+sorcerer_level_3_spells:
+  offset_field: offset_to_sorcerer_level_3_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_sorcerer_level_3_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+sorcerer_level_4_spells:
+  offset_field: offset_to_sorcerer_level_4_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_sorcerer_level_4_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+sorcerer_level_5_spells:
+  offset_field: offset_to_sorcerer_level_5_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_sorcerer_level_5_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+sorcerer_level_6_spells:
+  offset_field: offset_to_sorcerer_level_6_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_sorcerer_level_6_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+sorcerer_level_7_spells:
+  offset_field: offset_to_sorcerer_level_7_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_sorcerer_level_7_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+sorcerer_level_8_spells:
+  offset_field: offset_to_sorcerer_level_8_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_sorcerer_level_8_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+sorcerer_level_9_spells:
+  offset_field: offset_to_sorcerer_level_9_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_sorcerer_level_9_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+wizard_level_1_spells:
+  offset_field: offset_to_wizard_level_1_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_wizard_level_1_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+wizard_level_2_spells:
+  offset_field: offset_to_wizard_level_2_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_wizard_level_2_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+wizard_level_3_spells:
+  offset_field: offset_to_wizard_level_3_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_wizard_level_3_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+wizard_level_4_spells:
+  offset_field: offset_to_wizard_level_4_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_wizard_level_4_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+wizard_level_5_spells:
+  offset_field: offset_to_wizard_level_5_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_wizard_level_5_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+wizard_level_6_spells:
+  offset_field: offset_to_wizard_level_6_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_wizard_level_6_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+wizard_level_7_spells:
+  offset_field: offset_to_wizard_level_7_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_wizard_level_7_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+wizard_level_8_spells:
+  offset_field: offset_to_wizard_level_8_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_wizard_level_8_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+wizard_level_9_spells:
+  offset_field: offset_to_wizard_level_9_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_wizard_level_9_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+domain_level_1_spells:
+  offset_field: offset_to_domain_level_1_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_domain_level_1_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+domain_level_2_spells:
+  offset_field: offset_to_domain_level_2_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_domain_level_2_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+domain_level_3_spells:
+  offset_field: offset_to_domain_level_3_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_domain_level_3_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+domain_level_4_spells:
+  offset_field: offset_to_domain_level_4_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_domain_level_4_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+domain_level_5_spells:
+  offset_field: offset_to_domain_level_5_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_domain_level_5_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+domain_level_6_spells:
+  offset_field: offset_to_domain_level_6_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_domain_level_6_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+domain_level_7_spells:
+  offset_field: offset_to_domain_level_7_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_domain_level_7_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+domain_level_8_spells:
+  offset_field: offset_to_domain_level_8_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_domain_level_8_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+domain_level_9_spells:
+  offset_field: offset_to_domain_level_9_spells
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_domain_level_9_spells
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+abilities:
+  offset_field: offset_to_abilities
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_abilities
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+songs:
+  offset_field: offset_to_songs
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_songs
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+shapes:
+  offset_field: offset_to_shapes
+  fields:
+
+  - name: group
+    type: iwd2_cre_group
+    size: 0
+    offset: 0x0000
+    flatten: true
+    count_ref: count_of_shapes
+    fields:
+    - name: list_index
+      type: dword
+      size: 4
+      offset: 0x0000
+    - name: amount_memorized
+      type: dword
+      size: 4
+      offset: 0x0004
+    - name: amount_remaining
+      type: dword
+      size: 4
+      offset: 0x0008
+    - name: unknown
+      type: dword
+      size: 4
+      offset: 0x000c
+
+item_slots:
+  offset_field: offset_to_item_slots
+  fields:
+
+  - name: slots
+    type: bytes
+    size: 104
+    offset: 0x0000
+
 items:
   offset_field: offset_to_items
   count_field: count_of_items
@@ -880,11 +3688,92 @@ items:
     size: 4
     offset: 0x0010
 
-item_slots:
-  offset_field: offset_to_item_slots
+effects:
+  offset_field: offset_to_effects
+  count_field: count_of_effects
   fields:
 
-  - name: slots
-    type: bytes
-    size: 104
+  - name: opcode_number
+    type: word
+    size: 2
     offset: 0x0000
+
+  - name: target_type
+    type: char
+    size: 1
+    offset: 0x0002
+
+  - name: power
+    type: char
+    size: 1
+    offset: 0x0003
+
+  - name: parameter_1
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: parameter_2
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: timing_mode
+    type: char
+    size: 1
+    offset: 0x000c
+
+  - name: dispel_resistance
+    type: char
+    size: 1
+    offset: 0x000d
+
+  - name: duration
+    type: dword
+    size: 4
+    offset: 0x000e
+
+  - name: probability_1
+    type: char
+    size: 1
+    offset: 0x0012
+
+  - name: probability_2
+    type: char
+    size: 1
+    offset: 0x0013
+
+  - name: resource
+    type: resref
+    size: 8
+    offset: 0x0014
+
+  - name: dice_thrown_maximum_level
+    type: dword
+    size: 4
+    offset: 0x001c
+
+  - name: dice_sides_minimum_level
+    type: dword
+    size: 4
+    offset: 0x0020
+
+  - name: saving_throw_type
+    type: dword
+    size: 4
+    offset: 0x0024
+
+  - name: saving_throw_bonus
+    type: dword
+    size: 4
+    offset: 0x0028
+
+  - name: tobex_stacking_id
+    type: dword
+    size: 4
+    offset: 0x002c
+
+  - name: extra_data
+    type: effect_extra_data
+    size: 216
+    offset: 0x0030

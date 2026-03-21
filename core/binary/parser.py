@@ -155,7 +155,14 @@ class BinaryParser:
                 # Create a new exception of the same type to preserve the original error type
                 raise type(e)(error_message) from e
 
-            section_data[field.name] = value
+            if field.attributes.get("flatten"):
+                if not isinstance(value, dict):
+                    raise TypeError(
+                        f"Field '{field.name}' in section '{section.name}' is marked flatten=true but returned {type(value).__name__}"
+                    )
+                section_data.update(value)
+            else:
+                section_data[field.name] = value
 
         return section_data
 
@@ -165,7 +172,7 @@ class BinaryParser:
         - If the resource is unmodified, it preserves the original file layout (offsets and gaps).
         - If the resource has been modified, it repacks the file and recalculates all offsets.
         """
-        
+
         # 1. Calculation Phase (only if modified)
         # If the resource has been modified, we recalculate all offsets and counts for a clean, repacked file.
         # Otherwise, we use the original offsets stored in resource.values to ensure byte-for-byte fidelity.
@@ -193,9 +200,20 @@ class BinaryParser:
                     resource.values[section.offset_field] = current_offset if count > 0 else 0
 
                 if count > 0:
-                    # Note: This assumes fixed-size entries.
-                    entry_size = sum(f.attributes.get("size", 0) for f in section.fields)
-                    current_offset += (entry_size * count)
+                    for entry in entries:
+                        entry_context = dict(resource.values)
+                        entry_context.update(entry)
+                        for field in section.fields:
+                            value = entry if field.attributes.get("flatten") else entry.get(field.name)
+                            count_ref = field.attributes.get("count_ref")
+                            if count_ref:
+                                if isinstance(value, dict):
+                                    dynamic_entries = value.get("entries")
+                                    if isinstance(dynamic_entries, list):
+                                        resource.values[count_ref] = len(dynamic_entries)
+                                elif isinstance(value, list):
+                                    resource.values[count_ref] = len(value)
+                            current_offset += field.type.measure(value, field, entry_context)
 
         # 2. Writing Phase
         # Determine the physical write order by sorting sections based on their offset.
@@ -227,4 +245,5 @@ class BinaryParser:
 
             for entry in resource.sections.get(section.name, []):
                 for field in section.fields:
-                    field.type.write(writer, entry.get(field.name), field)
+                    value = entry if field.attributes.get("flatten") else entry.get(field.name)
+                    field.type.write(writer, value, field)

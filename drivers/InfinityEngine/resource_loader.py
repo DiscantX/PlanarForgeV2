@@ -137,7 +137,8 @@ class ResourceLoader:
             parser = BinaryParser(resource_schema, resource_class=Resource)
             
             # Parse the final resource and return it.
-            return parser.read(bytes_reader, name=resref, source=f"BIF: {source_path}")
+            resource = parser.read(bytes_reader, name=resref, source=f"BIF: {source_path}")
+            return resource
 
     def _resolve_resource_schema(self, restype, game, raw_bytes=None, schema=None):
         if schema is not None:
@@ -157,6 +158,15 @@ class ResourceLoader:
                 legacy_pst_schema = self.schema_loader.get("CRE", game="PST")
                 if legacy_pst_schema is not None:
                     return legacy_pst_schema
+
+        # IWD2 mostly uses CRE V2.2, but four legacy test creatures are V9.1
+        # and match the classic IWD CRE layout.
+        if restype == "CRE" and game == "IWD2" and len(raw_bytes) >= 8:
+            version = raw_bytes[4:8].decode("latin-1", errors="ignore").rstrip("\x00")
+            if version == "V9.1":
+                legacy_iwd_schema = self.schema_loader.get("CRE", game="IWD")
+                if legacy_iwd_schema is not None:
+                    return legacy_iwd_schema
 
         return resolved
             
