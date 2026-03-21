@@ -272,4 +272,32 @@ This troubleshooting journey provides several key takeaways for future developme
 4.  **Embrace Simple, Directed Debugging:** In a complex system, a full step-through debugger can sometimes be less efficient than adding a single, well-placed print statement to inspect the state of data at a critical boundary between components. This was the key to solving our most persistent bug.
 
 By internalizing these lessons, we can approach future troubleshooting with greater efficiency, avoiding common pitfalls and more quickly identifying the true root cause of complex issues.
-```
+
+### 2026-03-21: CRE V1 Tail Truncation and Versioned Effect Blocks
+
+**Problem:** A large number of `CRE` files in the `V1` family were failing fidelity with truncation or mid-file mismatches. A representative case was `KPCHAP01.CRE` in `BG2EE`, where the original file was `1328` bytes, but the saved file was only `1248` bytes and ended exactly at `offset_to_item_slots` (`0x4e0`).
+
+**Analysis:**
+1.  **Missing Tail Sections:** The `CRE` schemas already defined `offset_to_item_slots`, `offset_to_effects`, and `count_of_effects` in the header, but the schemas themselves did not define `item_slots` or `effects` sections. This meant the parser never loaded those regions and the writer never emitted them.
+2.  **Versioned Effect Structure:** `CRE` effect blocks are not uniformly `0x30` bytes long.
+    *   If `eff_structure_version == 0`, the classic effect entry is `0x30` bytes.
+    *   If `eff_structure_version == 1`, the entry is `0x108` bytes: the classic `0x30`-byte prefix plus `216` bytes of additional effect data.
+3.  **Optional Zero-Offset Sections:** Some `CRE` variants contain optional fixed-size sections whose offset is `0`. For sections without a `count_field`, treating offset `0` as a real read location causes the parser to consume bytes from the file header instead of correctly treating the section as absent.
+
+**Solution:**
+*   Added `effects` and `item_slots` sections to:
+    *   `drivers/InfinityEngine/definitions/schemas/cre/cre_v1.yaml`
+    *   `drivers/InfinityEngine/definitions/schemas/cre/cre_pstee.yaml`
+    *   `drivers/InfinityEngine/definitions/schemas/cre/cre_v1_2.yaml`
+*   Added a new Infinity Engine field type, `effect_extra_data`, which conditionally reads and writes the extra `216` bytes only when `eff_structure_version` is nonzero.
+*   Updated `BinaryParser._read_section` to pass header values into field-type context, allowing the effect field type to see `eff_structure_version` while parsing each effect entry.
+*   Updated `BinaryParser.read` so an offset-based section with no `count_field` and offset `0` is treated as empty instead of reading from the start of the file.
+
+**Verification:**
+*   `KPCHAP01` (`BG2EE`) now round-trips byte-for-byte. The missing `80`-byte `item_slots` tail at `0x4e0` is preserved.
+*   `MOONDOG` (`BG2EE`) now round-trips byte-for-byte with `3` `V1`-format extended effects (`eff_structure_version = 1`).
+*   `ALORA` (`BGEE`) now round-trips byte-for-byte with `3` classic `0x30`-byte effects (`eff_structure_version = 0`).
+*   `MDK2DOC` (`IWDEE`) now round-trips byte-for-byte, confirming the same fix applies cleanly to another `CRE V1` family game.
+
+**Remaining Work:**
+*   `PSTEE` `CRE` files still have separate fidelity issues beyond this fix. For example, `3PLANEA` still truncates after this change, so `cre_pstee.yaml` requires additional investigation beyond the missing tail-section problem solved here.

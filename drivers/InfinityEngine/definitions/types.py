@@ -79,3 +79,17 @@ class StrRef(FieldType):
             return
 
         writer.write_uint32(0 if value is None else value)
+
+class EffectExtraData(FieldType):
+    names = ["effect_extra_data"]
+
+    def read(self, reader, field, context=None):
+        size = field.attributes.get("size", 0)
+        eff_structure_version = 0 if context is None else context.get("eff_structure_version", 0)
+        if eff_structure_version:
+            return reader.read(size)
+        return b""
+
+    def write(self, writer, value, field):
+        if value:
+            writer.write(value)

@@ -59,6 +59,14 @@ class BinaryParser:
                         f"Section '{section.name}' references missing offset field '{section.offset_field}'"
                     )
 
+                # Some optional fixed-size sections (for example CRE item slots or
+                # overlays) are absent when their offset is 0. Those sections do
+                # not have an explicit count field, so treat them as empty instead
+                # of incorrectly reading from the file header.
+                if offset == 0 and not section.count_field:
+                    resource.sections[section.name] = []
+                    continue
+
                 reader.seek(offset)
 
             # Determine entry count
@@ -136,8 +144,11 @@ class BinaryParser:
         for field in section.fields:
             current_offset = reader.tell()
             try:
-                # Pass the currently parsed section data for context-aware fields
-                value = field.type.read(reader, field, section_data)
+                # Let field types see both header-level values and the fields
+                # already parsed in the current section.
+                context = dict(resource.values)
+                context.update(section_data)
+                value = field.type.read(reader, field, context)
             except Exception as e:
                 # Re-raise with more context for better error reporting
                 error_message = f"Parsing field '{field.name}' at offset {hex(current_offset)} failed: {e}"

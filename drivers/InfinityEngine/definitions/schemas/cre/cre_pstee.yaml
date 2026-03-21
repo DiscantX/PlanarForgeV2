@@ -770,6 +770,96 @@ memorized_spells:
     size: 4
     offset: 0x0008
 
+effects:
+  offset_field: offset_to_effects
+  count_field: count_of_effects
+  fields:
+
+  - name: opcode_number
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: target_type
+    type: char
+    size: 1
+    offset: 0x0002
+
+  - name: power
+    type: char
+    size: 1
+    offset: 0x0003
+
+  - name: parameter_1
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: parameter_2
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: timing_mode
+    type: char
+    size: 1
+    offset: 0x000c
+
+  - name: dispel_resistance
+    type: char
+    size: 1
+    offset: 0x000d
+
+  - name: duration
+    type: dword
+    size: 4
+    offset: 0x000e
+
+  - name: probability_1
+    type: char
+    size: 1
+    offset: 0x0012
+
+  - name: probability_2
+    type: char
+    size: 1
+    offset: 0x0013
+
+  - name: resource
+    type: resref
+    size: 8
+    offset: 0x0014
+
+  - name: dice_thrown_maximum_level
+    type: dword
+    size: 4
+    offset: 0x001c
+
+  - name: dice_sides_minimum_level
+    type: dword
+    size: 4
+    offset: 0x0020
+
+  - name: saving_throw_type
+    type: dword
+    size: 4
+    offset: 0x0024
+
+  - name: saving_throw_bonus
+    type: dword
+    size: 4
+    offset: 0x0028
+
+  - name: tobex_stacking_id
+    type: dword
+    size: 4
+    offset: 0x002c
+
+  - name: extra_data
+    type: effect_extra_data
+    size: 216
+    offset: 0x0030
+
 items:
   offset_field: offset_to_items
   count_field: count_of_items
@@ -804,3 +894,12 @@ items:
     type: dword
     size: 4
     offset: 0x0010
+
+item_slots:
+  offset_field: offset_to_item_slots
+  fields:
+
+  - name: slots
+    type: bytes
+    size: 80
+    offset: 0x0000
