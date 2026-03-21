@@ -55,6 +55,9 @@ class FieldType:
     def write(self, writer, value, field):
         raise NotImplementedError
 
+    def measure(self, value, field, context=None):
+        return field.attributes.get("size", 0)
+
 class BaseIntField(FieldType):
     default_size = 4
 

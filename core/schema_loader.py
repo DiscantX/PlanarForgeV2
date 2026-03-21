@@ -99,6 +99,11 @@ class SchemaLoader:
         Resolve Field.type using a FieldTypes registry.
         Must be called after all schemas are loaded.
         """
+        def resolve_field(field):
+            field.type = registry.get(field.type_name)
+            for child in field.children:
+                resolve_field(child)
+
         # Collect all unique schema instances to avoid double-processing
         all_schemas = set(self.schemas.values())
         for game_map in self.game_schemas.values():
@@ -106,7 +111,7 @@ class SchemaLoader:
 
         for schema in all_schemas:
             for field in schema:
-                field.type = registry.get(field.type_name)
+                resolve_field(field)
 
     def _load_schema(self, filepath):
         """Load a single YAML schema file and construct a Schema object."""

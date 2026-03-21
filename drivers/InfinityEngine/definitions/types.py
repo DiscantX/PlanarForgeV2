@@ -93,3 +93,57 @@ class EffectExtraData(FieldType):
     def write(self, writer, value, field):
         if value:
             writer.write(value)
+
+    def measure(self, value, field, context=None):
+        return len(value) if value else 0
+
+class Iwd2CreGroup(FieldType):
+    names = ["iwd2_cre_group"]
+
+    def _entry_size(self, field):
+        return sum(child.type.measure(None, child) for child in field.children)
+
+    def read(self, reader, field, context=None):
+        if context is None:
+            raise ValueError(f"{field.name} requires a parsing context")
+
+        count_ref = field.attributes.get("count_ref")
+        if not count_ref:
+            raise ValueError(f"{field.name} requires a 'count_ref' attribute")
+
+        count = context.get(count_ref, 0) or 0
+        entries = []
+
+        for _ in range(count):
+            entry = {}
+            entry_context = {}
+            for child in field.children:
+                value = child.type.read(reader, child, entry_context)
+                entry[child.name] = value
+                entry_context[child.name] = value
+            entries.append(entry)
+
+        total_slots = reader.read_uint32()
+        free_slots = reader.read_uint32()
+
+        return {
+            "entries": entries,
+            "total_slots": total_slots,
+            "free_slots": free_slots,
+        }
+
+    def write(self, writer, value, field):
+        value = value or {}
+        entries = value.get("entries", [])
+
+        for entry in entries:
+            for child in field.children:
+                child.type.write(writer, entry.get(child.name), child)
+
+        writer.write_uint32(value.get("total_slots", 0))
+        writer.write_uint32(value.get("free_slots", 0))
+
+    def measure(self, value, field, context=None):
+        value = value or {}
+        entries = value.get("entries", [])
+        return (len(entries) * self._entry_size(field)) + 8
