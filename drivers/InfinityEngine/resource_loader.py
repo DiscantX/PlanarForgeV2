@@ -48,21 +48,21 @@ class ResourceLoader:
         
     def load_file(self, resref = default_resref, restype = default_restype, game = None, file_path=None, schema=None):
         game = game or self.default_game
-        if schema is None:
-            schema = self.schema_loader.get(restype, game=game)
-
-        if schema is None:
-            print(f"Error: No schema found for type '{restype}' (resref: {resref}).")
-            return None
-
         if file_path is None:
             print(f"No file path provided when loading resource {resref} of type {restype}.")
             return None
         
         with open(file_path, "rb") as f:
-            reader = BinaryReader(f)
-            parser = BinaryParser(schema, resource_class=Resource)
-            resource = parser.read(reader, name=resref, source=file_path)
+            raw_bytes = f.read()
+
+        schema = self._resolve_resource_schema(restype, game, raw_bytes=raw_bytes, schema=schema)
+        if schema is None:
+            print(f"Error: No schema found for type '{restype}' (resref: {resref}).")
+            return None
+
+        reader = BinaryReader(io.BytesIO(raw_bytes))
+        parser = BinaryParser(schema, resource_class=Resource)
+        resource = parser.read(reader, name=resref, source=file_path)
         return resource
 
     def save_file(self, resource, file_path):
@@ -127,7 +127,7 @@ class ResourceLoader:
                 restype = RESOURCE_TYPE_MAP[res_type_code]
 
             # Get the schema for the actual resource type (e.g., ITM, CRE).
-            resource_schema = schema or self.schema_loader.get(restype, game=game)
+            resource_schema = self._resolve_resource_schema(restype, game, raw_bytes=raw_bytes, schema=schema)
             if resource_schema is None:
                 print(f"No schema found for resource type '{restype}'. Cannot parse {resref}.")
                 return None
@@ -138,6 +138,27 @@ class ResourceLoader:
             
             # Parse the final resource and return it.
             return parser.read(bytes_reader, name=resref, source=f"BIF: {source_path}")
+
+    def _resolve_resource_schema(self, restype, game, raw_bytes=None, schema=None):
+        if schema is not None:
+            return schema
+
+        resolved = self.schema_loader.get(restype, game=game)
+        if resolved is None or raw_bytes is None:
+            return resolved
+
+        # PSTEE mostly uses a dedicated V1.0 CRE layout, but four legacy CRE
+        # resources in the game still use the older PST V1.1/V1.2-style header.
+        # Their section offsets live later in the header (0x0344+), so routing
+        # them through the PSTEE V1.0 schema truncates the file at the header.
+        if restype == "CRE" and game == "PSTEE" and len(raw_bytes) >= 8:
+            version = raw_bytes[4:8].decode("latin-1", errors="ignore").rstrip("\x00")
+            if version == "V1.1":
+                legacy_pst_schema = self.schema_loader.get("CRE", game="PST")
+                if legacy_pst_schema is not None:
+                    return legacy_pst_schema
+
+        return resolved
             
     def _find_bif_file(self, res_entry, game=None):
         game = game or self.default_game
