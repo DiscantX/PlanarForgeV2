@@ -21,19 +21,50 @@ output_path = Path(f"./{resref_to_test}.saved.itm")
 print(f"--- Running Round-Trip Test for {resref_to_test} ---")
 
 # 1. Load the resource from the game files
-resource = resource_loader.load(resref_to_test, restype="ITM", game="PSTEE")
+target_game = "PSTEE"
+resource = resource_loader.load(resref_to_test, restype="ITM", game=target_game)
 if not resource:
     raise SystemExit(f"Failed to load {resref_to_test}")
 
 print(f"Loaded {resource.name} from {resource.source}")
 
+# TLK Debugging
+tlk_path = resource_loader.install_finder.find_tlk(target_game)
+print(f"TLK Source: {tlk_path}")
+handler = resource_loader._get_tlk_handler(target_game)
+print(f"TLK Entry Count: {handler.entry_count if handler else 'Fail'}")
+
 print("\n--- Resource Data Inspection ---")
 for section_name, entries in resource.sections.items():
     print(f"Section: {section_name} ({len(entries)} entries)")
+    
+    # Get the section definition to look up field types
+    section_def = resource.schema.get_section(section_name)
+
     for i, entry in enumerate(entries):
         print(f"  Entry {i}:")
         for key, value in entry.items():
-            print(f"    {key}: {value}")
+            
+            # Check for StrRef resolution
+            field_def = section_def.get_field(key) if section_def else None
+
+            if field_def and field_def.type_name == "strref" and isinstance(value, int):
+                text = resource_loader.get_string(value, game=target_game)
+                
+                base_label = f"    {key}: ({value})"
+                
+                if text is not None:
+                    # If text is multiline or long, print indented block
+                    if "\n" in text or len(text) > 60:
+                        print(base_label)
+                        for txt_line in text.splitlines():
+                            print(f"        {txt_line}")
+                    else:
+                        print(f"{base_label} {text}")
+                else:
+                    print(f"{base_label} <No Text>")
+            else:
+                print(f"    {key}: {value}")
 print("--------------------------------\n")
 
 # 2. Save the in-memory resource object to a new file

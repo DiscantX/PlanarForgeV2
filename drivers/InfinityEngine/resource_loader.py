@@ -12,6 +12,7 @@ from core.resource import Resource
 from .io.installation_finder import InstallationFinder
 from .definitions.extensions import RESOURCE_TYPE_MAP, RESOURCE_TYPE_MAP_REV
 from .io.biff_handler import BiffHandler
+from .io.tlk_handler import TlkHandler
 # Import definitions to ensure types register themselves with FieldTypes
 from .definitions import types
 
@@ -36,6 +37,7 @@ class ResourceLoader:
         self.install_paths = {}
         self._lock = threading.RLock()
         self.biff_handler = BiffHandler()
+        self.tlk_handlers = {}
         
         # Determine default game from available installations
         found_games = self.install_finder.find_all()
@@ -108,6 +110,19 @@ class ResourceLoader:
         except (FileNotFoundError, Exception) as e:
             print(f"Error processing BIF/resource for {resref} in {bif_file_path}: {e}")
             return None, None, None
+
+    def get_string(self, strref, game=None):
+        """
+        Resolves a StrRef index to its text string for the specified game.
+        """
+        game = game or self.default_game
+        handler = self._get_tlk_handler(game)
+        if not handler:
+            return f"<Missing TLK: {strref}>"
+        
+        text = handler.get_string(strref)
+        # Return None if lookup failed, so caller can distinguish from empty string
+        return text
 
     def load(self, resref=default_resref, restype=default_restype, game=None, file_path=None, schema=None):
         game = game or self.default_game
@@ -190,6 +205,23 @@ class ResourceLoader:
 
         file_path = Path(f"{install_path}/{filename}")
         return file_path
+
+    def _get_tlk_handler(self, game):
+        if game in self.tlk_handlers:
+            return self.tlk_handlers[game]
+
+        with self._lock:
+            if game in self.tlk_handlers:
+                return self.tlk_handlers[game]
+            
+            tlk_path = self.install_finder.find_tlk(game)
+            # We allow the handler to be created even if path is None, it just won't work.
+            # Better to return None here to signal failure.
+            if not tlk_path:
+                return None
+            
+            self.tlk_handlers[game] = TlkHandler(tlk_path)
+            return self.tlk_handlers[game]
     
     def _find_resource_location(self, resref, restype=None, game=None):
         game = game or self.default_game

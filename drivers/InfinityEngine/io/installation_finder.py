@@ -183,6 +183,39 @@ class InstallationFinder:
         inst = self.find(game_id)
         return inst.chitin_key if inst is not None else None
 
+    def find_tlk(self, game_id: str) -> Optional[Path]:
+        """
+        Return the path to dialog.tlk for *game_id*, or ``None``.
+        Checks root (Classic) and lang/en_US/ (EE).
+        """
+        inst = self.find(game_id)
+        if inst is None:
+            return None
+
+        root = inst.install_path
+        filename = "dialog.tlk"
+
+        # 1. Check Root (Classic Games / Override)
+        root_tlk = root / filename
+        if root_tlk.exists():
+            return root_tlk
+
+        # 2. Check Language Folders (Enhanced Editions)
+        lang_dir = root / "lang"
+        if lang_dir.is_dir():
+            # Prefer en_US
+            en_us = lang_dir / "en_US" / filename
+            if en_us.exists():
+                return en_us
+            
+            # Fallback: scan for others
+            for lang in lang_dir.iterdir():
+                candidate = lang / filename
+                if candidate.exists():
+                    return candidate
+        
+        return None
+
     def rescan(self) -> None:
         """Discard the cached results and force a fresh scan on next access."""
         self._cache = None
