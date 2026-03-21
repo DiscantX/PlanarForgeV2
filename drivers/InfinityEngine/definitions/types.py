@@ -8,14 +8,28 @@ class ResRef(FieldType):
     names = ["resref"]
 
     def read(self, reader, field, context=None):
-        # Formerly BinaryReader.read_resref
-        raw = reader.read(8)
+        size = field.attributes.get("size", 8)
+        raw = reader.read(size)
+
+        # Some imported schemas use resref semantics for repeated blocks.
+        # In that case preserve the raw bytes so the stream position remains correct.
+        if size != 8:
+            return raw
+
         stripped = raw.rstrip(b"\x00")
         val = stripped.decode("latin-1")
         return ResRefString(val)
 
     def write(self, writer, value, field):
-        # Formerly BinaryWriter.write_resref
+        size = field.attributes.get("size", 8)
+        if size != 8:
+            if value is None:
+                value = b"\x00" * size
+            elif isinstance(value, str):
+                value = value.encode("latin-1")
+            writer.write(bytes(value)[:size].ljust(size, b"\x00"))
+            return
+
         writer.write_string(value, 8)
 
 class ResRefString(str):
@@ -45,9 +59,23 @@ class StrRef(FieldType):
     names = ["strref"]
 
     def read(self, reader, field, context=None):
-        # Formerly BinaryReader.read_strref
+        size = field.attributes.get("size", 4)
+        if size != 4:
+            # Preserve raw repeated/padded data when the schema declares a
+            # non-standard width instead of desynchronizing the remaining fields.
+            return reader.read(size)
+
         value = reader.read_uint32()
         return None if value == 0 else value
 
     def write(self, writer, value, field):
+        size = field.attributes.get("size", 4)
+        if size != 4:
+            if value is None:
+                value = b"\x00" * size
+            elif isinstance(value, int):
+                value = value.to_bytes(size, byteorder="little", signed=False)
+            writer.write(bytes(value)[:size].ljust(size, b"\x00"))
+            return
+
         writer.write_uint32(0 if value is None else value)

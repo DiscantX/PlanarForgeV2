@@ -25,7 +25,7 @@ header:
     size: 4
     offset: 0x000c
 
-  - name: drop_sound
+  - name: drop_sound_played_when_the_item_is_dropped_in_the_inventory
     type: resref
     size: 8
     offset: 0x0010
@@ -165,17 +165,17 @@ header:
     size: 4
     offset: 0x0060
 
-  - name: offset_to_extended_headers
+  - name: offset_to_extended_header
     type: dword
     size: 4
     offset: 0x0064
 
-  - name: count_of_extended_headers
+  - name: count_of_extended_header
     type: word
     size: 2
     offset: 0x0068
 
-  - name: offset_to_feature_blocks
+  - name: offset_to_feature_block
     type: dword
     size: 4
     offset: 0x006a
@@ -190,10 +190,9 @@ header:
     size: 2
     offset: 0x0070
 
-
 extended_header:
-  offset_field: offset_to_extended_headers       # read from here
-  count_field: count_of_extended_headers        # read this many entries
+  offset_field: offset_to_extended_header
+  count_field: count_of_extended_header
   fields:
 
   - name: attack_type
@@ -226,7 +225,7 @@ extended_header:
     size: 1
     offset: 0x000c
 
-  - name: target_count
+  - name: count_of_target
     type: char
     size: 1
     offset: 0x000d
@@ -256,7 +255,7 @@ extended_header:
     size: 1
     offset: 0x0013
 
-  - name: time_stop
+  - name: thac0_bonus
     type: word
     size: 2
     offset: 0x0014
@@ -291,7 +290,7 @@ extended_header:
     size: 2
     offset: 0x001c
 
-  - name: count_of_feature_blocks
+  - name: count_of_feature_block
     type: word
     size: 2
     offset: 0x001e
@@ -321,39 +320,29 @@ extended_header:
     size: 2
     offset: 0x002a
 
-  - name: overhand_animation
-    type: word
-    size: 2
+  - name: melee_animation
+    type: bytes
+    size: 6
     offset: 0x002c
 
-  - name: overhead_animation
-    type: word
-    size: 2
-    offset: 0x002e
-
-  - name: backhand_animation
-    type: word
-    size: 2
-    offset: 0x0030
-
-  - name: arrow_qualifier
+  - name: arrow_qualifier_is_arrow
     type: word
     size: 2
     offset: 0x0032
 
-  - name: bolt_qualifier
+  - name: bolt_qualifier_is_bolt
     type: word
     size: 2
     offset: 0x0034
 
-  - name: bullet_qualifier
+  - name: bullet_qualifier_is_bullet
     type: word
     size: 2
     offset: 0x0036
 
-
 feature_block:
-  offset_field: offset_to_feature_blocks
+  offset_field: offset_to_feature_block
+  count_field: count_of_feature_block
   fields:
 
   - name: opcode_number
@@ -386,7 +375,7 @@ feature_block:
     size: 1
     offset: 0x000c
 
-  - name: dispel
+  - name: dispel_resistance
     type: char
     size: 1
     offset: 0x000d
@@ -411,12 +400,12 @@ feature_block:
     size: 8
     offset: 0x0014
 
-  - name: dice_thrown
+  - name: dice_thrown_maximum_level
     type: dword
     size: 4
     offset: 0x001c
 
-  - name: dice_sides
+  - name: dice_sides_minimum_level
     type: dword
     size: 4
     offset: 0x0020
@@ -431,7 +420,7 @@ feature_block:
     size: 4
     offset: 0x0028
 
-  - name: tobex
+  - name: tobex_stacking_id
     type: dword
     size: 4
     offset: 0x002c

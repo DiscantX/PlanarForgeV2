@@ -65,7 +65,7 @@ header:
     size: 1
     offset: 0x0028
 
-  - name: kit_usability_1
+  - name: kit_usability
     type: byte
     size: 1
     offset: 0x0029
@@ -165,17 +165,17 @@ header:
     size: 4
     offset: 0x0060
 
-  - name: offset_to_extended_headers
+  - name: offset_to_extended_header
     type: dword
     size: 4
     offset: 0x0064
 
-  - name: count_of_extended_headers
+  - name: count_of_extended_header
     type: word
     size: 2
     offset: 0x0068
 
-  - name: offset_to_feature_blocks
+  - name: offset_to_feature_block
     type: dword
     size: 4
     offset: 0x006a
@@ -194,11 +194,10 @@ header:
     type: byte
     size: 16
     offset: 0x0072
-    hidden: true
 
 extended_header:
-  offset_field: offset_to_extended_headers
-  count_field: count_of_extended_headers
+  offset_field: offset_to_extended_header
+  count_field: count_of_extended_header
   fields:
 
   - name: attack_type
@@ -231,7 +230,7 @@ extended_header:
     size: 1
     offset: 0x000c
 
-  - name: target_count
+  - name: count_of_target
     type: char
     size: 1
     offset: 0x000d
@@ -296,7 +295,7 @@ extended_header:
     size: 2
     offset: 0x001c
 
-  - name: count_of_feature_blocks
+  - name: count_of_feature_block
     type: word
     size: 2
     offset: 0x001e
@@ -321,7 +320,7 @@ extended_header:
     size: 2
     offset: 0x0026
 
-  - name: attack_type_special
+  - name: attack_type_2
     type: word
     size: 2
     offset: 0x0028
@@ -332,16 +331,16 @@ extended_header:
     offset: 0x002a
 
   - name: melee_animation
-    type: word
+    type: bytes
     size: 6
     offset: 0x002c
 
-  - name: bow
+  - name: bow_arrow_qualifier
     type: word
     size: 2
     offset: 0x0032
 
-  - name: crossbow
+  - name: crossbow_bolt_qualifier
     type: word
     size: 2
     offset: 0x0034
@@ -352,8 +351,8 @@ extended_header:
     offset: 0x0036
 
 feature_block:
-  offset_field: offset_to_feature_blocks
-  count_field: count_of_feature_blocks
+  offset_field: offset_to_feature_block
+  count_field: count_of_feature_block
   fields:
 
   - name: opcode_number

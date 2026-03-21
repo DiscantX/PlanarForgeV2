@@ -25,7 +25,7 @@ header:
     size: 4
     offset: 0x000c
 
-  - name: drop_sound
+  - name: drop_sound_played_when_the_item_is_dropped_in_the_inventory
     type: resref
     size: 8
     offset: 0x0010
@@ -45,7 +45,7 @@ header:
     size: 4
     offset: 0x001e
 
-  - name: item_animation
+  - name: weapon_animation
     type: char_array
     size: 2
     offset: 0x0022
@@ -55,47 +55,40 @@ header:
     size: 2
     offset: 0x0024
 
-  - name: unused_0x26
+  - name: unused
     type: word
     size: 2
     offset: 0x0026
-    hidden: true
 
-  - name: unused_0x28
+  - name: unused_2
     type: word
     size: 2
     offset: 0x0028
-    hidden: true
 
-  - name: unused_0x2a
+  - name: unused_3
     type: word
     size: 2
     offset: 0x002a
-    hidden: true
 
-  - name: unused_0x2c
+  - name: unused_4
     type: word
     size: 2
     offset: 0x002c
-    hidden: true
 
-  - name: unused_0x2e
+  - name: unused_5
     type: word
     size: 2
     offset: 0x002e
-    hidden: true
 
-  - name: unused_0x30
+  - name: unused_6
     type: word
     size: 2
     offset: 0x0030
-    hidden: true
 
-  - name: unused_0x32
+  - name: unused_7
     type: word
     size: 2
     offset: 0x0032
-    hidden: true
 
   - name: price
     type: dword
@@ -137,7 +130,7 @@ header:
     size: 4
     offset: 0x0054
 
-  - name: pickup_sound
+  - name: pickup_sound_played_when_the_item_is_picked_up_in_the_inventory
     type: resref
     size: 8
     offset: 0x0058
@@ -147,17 +140,17 @@ header:
     size: 4
     offset: 0x0060
 
-  - name: offset_to_extended_headers
+  - name: offset_to_extended_header
     type: dword
     size: 4
     offset: 0x0064
 
-  - name: count_of_extended_headers
+  - name: count_of_extended_header
     type: word
     size: 2
     offset: 0x0068
 
-  - name: offset_to_feature_blocks
+  - name: offset_to_feature_block
     type: dword
     size: 4
     offset: 0x006a
@@ -187,51 +180,44 @@ header:
     size: 2
     offset: 0x007e
 
-  - name: unknown_0x80
+  - name: unknown
     type: word
     size: 2
     offset: 0x0080
-    hidden: true
 
-  - name: unknown_0x82
+  - name: unknown_2
     type: dword
     size: 4
     offset: 0x0082
-    hidden: true
 
-  - name: unknown_0x86
+  - name: unknown_3
     type: dword
     size: 4
     offset: 0x0086
-    hidden: true
 
-  - name: unknown_0x8a
+  - name: unknown_4
     type: dword
     size: 4
     offset: 0x008a
-    hidden: true
 
-  - name: unknown_0x8e
+  - name: unknown_5
     type: dword
     size: 4
     offset: 0x008e
-    hidden: true
 
-  - name: unknown_0x92
+  - name: unknown_6
     type: dword
     size: 4
     offset: 0x0092
-    hidden: true
 
-  - name: unknown_0x96
+  - name: unknown_7
     type: dword
     size: 4
     offset: 0x0096
-    hidden: true
 
 extended_header:
-  offset_field: offset_to_extended_headers
-  count_field: count_of_extended_headers
+  offset_field: offset_to_extended_header
+  count_field: count_of_extended_header
   fields:
 
   - name: attack_type
@@ -264,7 +250,7 @@ extended_header:
     size: 1
     offset: 0x000c
 
-  - name: target_count
+  - name: count_of_target
     type: char
     size: 1
     offset: 0x000d
@@ -284,7 +270,7 @@ extended_header:
     size: 1
     offset: 0x0011
 
-  - name: speed_factor
+  - name: speed
     type: byte
     size: 1
     offset: 0x0012
@@ -329,7 +315,7 @@ extended_header:
     size: 2
     offset: 0x001c
 
-  - name: count_of_feature_blocks
+  - name: count_of_feature_block
     type: word
     size: 2
     offset: 0x001e
@@ -339,7 +325,7 @@ extended_header:
     size: 2
     offset: 0x0020
 
-  - name: max_charges
+  - name: charges
     type: word
     size: 2
     offset: 0x0022
@@ -359,41 +345,29 @@ extended_header:
     size: 2
     offset: 0x002a
 
-  - name: overhand_animation
-    type: word
-    size: 2
+  - name: melee_animation
+    type: bytes
+    size: 6
     offset: 0x002c
 
-  - name: overhead_animation
-    type: word
-    size: 2
-    offset: 0x002e
-
-  - name: backhand_animation
-    type: word
-    size: 2
-    offset: 0x0030
-
-  - name: unused_0x32
+  - name: unused
     type: word
     size: 2
     offset: 0x0032
-    hidden: true
 
-  - name: unused_0x34
+  - name: unused_2
     type: word
     size: 2
     offset: 0x0034
-    hidden: true
 
-  - name: unused_0x36
+  - name: unused_3
     type: word
     size: 2
     offset: 0x0036
-    hidden: true
 
 feature_block:
-  offset_field: offset_to_feature_blocks
+  offset_field: offset_to_feature_block
+  count_field: count_of_feature_block
   fields:
 
   - name: opcode_number
@@ -426,7 +400,7 @@ feature_block:
     size: 1
     offset: 0x000c
 
-  - name: dispel
+  - name: resistance
     type: char
     size: 1
     offset: 0x000d

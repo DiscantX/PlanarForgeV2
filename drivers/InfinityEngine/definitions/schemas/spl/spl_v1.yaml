@@ -15,12 +15,12 @@ header:
     size: 4
     offset: 0x0004
 
-  - name: unidentified_name
+  - name: spell_name
     type: dword
     size: 4
     offset: 0x0008
 
-  - name: identified_name
+  - name: spell_name_identified_usually
     type: dword
     size: 4
     offset: 0x000c
@@ -130,7 +130,7 @@ header:
     size: 2
     offset: 0x0038
 
-  - name: spellbook_icon
+  - name: spellbook_icon_the_engine_replaces_the_last_character_of_this_filename_with_a_c
     type: resref
     size: 8
     offset: 0x003a
@@ -150,12 +150,12 @@ header:
     size: 4
     offset: 0x004c
 
-  - name: unidentified_description
+  - name: spell_description_unidentified
     type: dword
     size: 4
     offset: 0x0050
 
-  - name: identified_description
+  - name: spell_description_identified_usually
     type: dword
     size: 4
     offset: 0x0054
@@ -170,17 +170,17 @@ header:
     size: 4
     offset: 0x0060
 
-  - name: extended_header_offset
+  - name: offset_to_extended_header
     type: dword
     size: 4
     offset: 0x0064
 
-  - name: extended_header_count
+  - name: count_of_extended_header
     type: word
     size: 2
     offset: 0x0068
 
-  - name: feature_block_table_offset
+  - name: offset_to_feature_block
     type: dword
     size: 4
     offset: 0x006a
@@ -190,22 +190,22 @@ header:
     size: 2
     offset: 0x006e
 
-  - name: casting_feature_block_count
+  - name: count_of_casting_feature_block
     type: word
     size: 2
     offset: 0x0070
 
 extended_header:
-  offset_field: extended_header_offset
-  count_field: extended_header_count
+  offset_field: offset_to_extended_header
+  count_field: count_of_extended_header
   fields:
 
-  - name: itm
+  - name: spell_form
     type: char
     size: 1
     offset: 0x0000
 
-  - name: bit_2
+  - name: bit_2_friendly_ability
     type: char
     size: 1
     offset: 0x0001
@@ -215,7 +215,7 @@ extended_header:
     size: 2
     offset: 0x0002
 
-  - name: memorised_icon
+  - name: memorized_icon_the_engine_replaces_the_last_character_of_this_filename_with_a_b
     type: resref
     size: 8
     offset: 0x0004
@@ -225,7 +225,7 @@ extended_header:
     size: 1
     offset: 0x000c
 
-  - name: target_count
+  - name: count_of_target
     type: char
     size: 1
     offset: 0x000d
@@ -270,7 +270,7 @@ extended_header:
     size: 2
     offset: 0x001c
 
-  - name: count_of_feature_blocks
+  - name: count_of_feature_block
     type: word
     size: 2
     offset: 0x001e
@@ -296,8 +296,8 @@ extended_header:
     offset: 0x0026
 
 feature_block:
-  offset_field: feature_block_table_offset
-  count_field: casting_feature_block_count
+  offset_field: offset_to_feature_block
+  count_field: count_of_feature_block
   fields:
 
   - name: opcode_number
@@ -330,7 +330,7 @@ feature_block:
     size: 1
     offset: 0x000c
 
-  - name: dispel
+  - name: dispel_resistance
     type: char
     size: 1
     offset: 0x000d
@@ -355,12 +355,12 @@ feature_block:
     size: 8
     offset: 0x0014
 
-  - name: dice_thrown
+  - name: dice_thrown_maximum_level
     type: dword
     size: 4
     offset: 0x001c
 
-  - name: dice_sides
+  - name: dice_sides_minimum_level
     type: dword
     size: 4
     offset: 0x0020
@@ -375,7 +375,7 @@ feature_block:
     size: 4
     offset: 0x0028
 
-  - name: tobex
+  - name: tobex_stacking_id
     type: dword
     size: 4
     offset: 0x002c

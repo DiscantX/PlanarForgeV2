@@ -1,0 +1,1005 @@
+name: CRE
+version: V1.2
+games: [PST]
+
+header:
+  fields:
+
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: long_name
+    type: strref
+    size: 4
+    offset: 0x0008
+
+  - name: short_name
+    type: strref
+    size: 4
+    offset: 0x000c
+
+  - name: creature_flags
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: xp
+    type: dword
+    size: 4
+    offset: 0x0014
+
+  - name: creature_power_level_xp_of_the_creature
+    type: dword
+    size: 4
+    offset: 0x0018
+
+  - name: gold_carried
+    type: dword
+    size: 4
+    offset: 0x001c
+
+  - name: permanent_status_flags
+    type: dword
+    size: 4
+    offset: 0x0020
+
+  - name: current_hit_points
+    type: word
+    size: 2
+    offset: 0x0024
+
+  - name: maximum_hit_points
+    type: word
+    size: 2
+    offset: 0x0026
+
+  - name: animation_id
+    type: dword
+    size: 4
+    offset: 0x0028
+
+  - name: metal_colour_index
+    type: byte
+    size: 1
+    offset: 0x002c
+
+  - name: minor_colour_index
+    type: byte
+    size: 1
+    offset: 0x002d
+
+  - name: major_colour_index
+    type: byte
+    size: 1
+    offset: 0x002e
+
+  - name: skin_colour_index
+    type: byte
+    size: 1
+    offset: 0x002f
+
+  - name: leather_colour_index
+    type: byte
+    size: 1
+    offset: 0x0030
+
+  - name: armor_colour_index
+    type: byte
+    size: 1
+    offset: 0x0031
+
+  - name: hair_colour_index
+    type: byte
+    size: 1
+    offset: 0x0032
+
+  - name: eff_structure_version
+    type: byte
+    size: 1
+    offset: 0x0033
+
+  - name: small_portrait
+    type: resref
+    size: 8
+    offset: 0x0034
+
+  - name: large_portrait
+    type: resref
+    size: 8
+    offset: 0x003c
+
+  - name: reputation
+    type: word
+    size: 2
+    offset: 0x0044
+
+  - name: armor_class
+    type: word
+    size: 2
+    offset: 0x0046
+
+  - name: armor_class_2
+    type: word
+    size: 2
+    offset: 0x0048
+
+  - name: armor_class_3
+    type: word
+    size: 2
+    offset: 0x004a
+
+  - name: armor_class_4
+    type: word
+    size: 2
+    offset: 0x004c
+
+  - name: armor_class_5
+    type: word
+    size: 2
+    offset: 0x004e
+
+  - name: armor_class_6
+    type: word
+    size: 2
+    offset: 0x0050
+
+  - name: thac0
+    type: byte
+    size: 1
+    offset: 0x0052
+
+  - name: number_of_attacks
+    type: byte
+    size: 1
+    offset: 0x0053
+
+  - name: save_versus_death
+    type: byte
+    size: 1
+    offset: 0x0054
+
+  - name: save_versus_wands
+    type: byte
+    size: 1
+    offset: 0x0055
+
+  - name: save_versus_polymorph
+    type: byte
+    size: 1
+    offset: 0x0056
+
+  - name: save_versus_breath_attacks
+    type: byte
+    size: 1
+    offset: 0x0057
+
+  - name: save_versus_spells
+    type: byte
+    size: 1
+    offset: 0x0058
+
+  - name: resist_fire
+    type: byte
+    size: 1
+    offset: 0x0059
+
+  - name: resist_cold
+    type: byte
+    size: 1
+    offset: 0x005a
+
+  - name: resist_electricity
+    type: byte
+    size: 1
+    offset: 0x005b
+
+  - name: resist_acid
+    type: byte
+    size: 1
+    offset: 0x005c
+
+  - name: resist_magic
+    type: byte
+    size: 1
+    offset: 0x005d
+
+  - name: resist_magic_fire
+    type: byte
+    size: 1
+    offset: 0x005e
+
+  - name: resist_magic_cold
+    type: byte
+    size: 1
+    offset: 0x005f
+
+  - name: resist_slashing
+    type: byte
+    size: 1
+    offset: 0x0060
+
+  - name: resist_crushing
+    type: byte
+    size: 1
+    offset: 0x0061
+
+  - name: resist_piercing
+    type: byte
+    size: 1
+    offset: 0x0062
+
+  - name: resist_missile
+    type: byte
+    size: 1
+    offset: 0x0063
+
+  - name: detect_illusion
+    type: byte
+    size: 1
+    offset: 0x0064
+
+  - name: set_traps
+    type: byte
+    size: 1
+    offset: 0x0065
+
+  - name: lore
+    type: byte
+    size: 1
+    offset: 0x0066
+
+  - name: lockpicking
+    type: byte
+    size: 1
+    offset: 0x0067
+
+  - name: stealth
+    type: byte
+    size: 1
+    offset: 0x0068
+
+  - name: find_disarm_traps
+    type: byte
+    size: 1
+    offset: 0x0069
+
+  - name: pick_pockets
+    type: byte
+    size: 1
+    offset: 0x006a
+
+  - name: fatigue
+    type: byte
+    size: 1
+    offset: 0x006b
+
+  - name: intoxication
+    type: byte
+    size: 1
+    offset: 0x006c
+
+  - name: luck
+    type: byte
+    size: 1
+    offset: 0x006d
+
+  - name: fist_proficiency
+    type: byte
+    size: 1
+    offset: 0x006e
+
+  - name: edged_proficiency
+    type: byte
+    size: 1
+    offset: 0x006f
+
+  - name: hammer_proficiency
+    type: byte
+    size: 1
+    offset: 0x0070
+
+  - name: axe_proficiency
+    type: byte
+    size: 1
+    offset: 0x0071
+
+  - name: club_proficiency
+    type: byte
+    size: 1
+    offset: 0x0072
+
+  - name: bow_proficiency
+    type: byte
+    size: 1
+    offset: 0x0073
+
+  - name: unused_proficiency_slots
+    type: byte
+    size: 1
+    offset: 0x0074
+
+  - name: unused_proficiency_slot
+    type: byte
+    size: 1
+    offset: 0x0075
+
+  - name: unused_proficiency_slot_2
+    type: bytes
+    size: 1
+    offset: 0x0076
+
+  - name: unused_proficiency_slot_3
+    type: bytes
+    size: 1
+    offset: 0x0077
+
+  - name: unused_proficiency_slot_4
+    type: bytes
+    size: 1
+    offset: 0x0078
+
+  - name: unused_proficiency_slot_5
+    type: bytes
+    size: 1
+    offset: 0x0079
+
+  - name: unused_proficiency_slot_6
+    type: bytes
+    size: 1
+    offset: 0x007a
+
+  - name: unused_proficiency_slot_7
+    type: bytes
+    size: 1
+    offset: 0x007b
+
+  - name: unused_proficiency_slot_8
+    type: bytes
+    size: 1
+    offset: 0x007c
+
+  - name: unused_proficiency_slot_9
+    type: bytes
+    size: 1
+    offset: 0x007d
+
+  - name: unused_proficiency_slot_10
+    type: bytes
+    size: 1
+    offset: 0x007e
+
+  - name: unused_proficiency_slot_11
+    type: bytes
+    size: 1
+    offset: 0x007f
+
+  - name: unused_proficiency_slot_12
+    type: bytes
+    size: 1
+    offset: 0x0080
+
+  - name: unused_proficiency_slot_13
+    type: bytes
+    size: 1
+    offset: 0x0081
+
+  - name: turn_undead_level
+    type: bytes
+    size: 1
+    offset: 0x0082
+
+  - name: tracking_skill
+    type: byte
+    size: 1
+    offset: 0x0083
+
+  - name: tracking_target
+    type: char_array
+    size: 32
+    offset: 0x0084
+
+  - name: character_strrefs
+    type: bytes
+    size: 400
+    offset: 0x00a4
+
+  - name: highest_attained_level_in_class_for_dual_multi_class_characters_the_levels_for_each_class_are_split_between_0x0234_0x0235_and_0x0236_according_to_the_internal_class_name_i_e
+    type: byte
+    size: 1
+    offset: 0x0234
+
+  - name: highest_attained_level_in_class
+    type: byte
+    size: 1
+    offset: 0x0235
+
+  - name: highest_attained_level_in_class_2
+    type: byte
+    size: 1
+    offset: 0x0236
+
+  - name: sex_not_changed_by_effects
+    type: byte
+    size: 1
+    offset: 0x0237
+
+  - name: strength
+    type: byte
+    size: 1
+    offset: 0x0238
+
+  - name: strength_bonus
+    type: byte
+    size: 1
+    offset: 0x0239
+
+  - name: intelligence
+    type: byte
+    size: 1
+    offset: 0x023a
+
+  - name: wisdom
+    type: byte
+    size: 1
+    offset: 0x023b
+
+  - name: dexterity
+    type: byte
+    size: 1
+    offset: 0x023c
+
+  - name: constitution
+    type: byte
+    size: 1
+    offset: 0x023d
+
+  - name: charisma
+    type: byte
+    size: 1
+    offset: 0x023e
+
+  - name: morale
+    type: byte
+    size: 1
+    offset: 0x023f
+
+  - name: morale_break
+    type: byte
+    size: 1
+    offset: 0x0240
+
+  - name: racial_enemy
+    type: byte
+    size: 1
+    offset: 0x0241
+
+  - name: morale_recovery_time
+    type: word
+    size: 2
+    offset: 0x0242
+
+  - name: kit_information
+    type: dword
+    size: 4
+    offset: 0x0244
+
+  - name: creature
+    type: resref
+    size: 8
+    offset: 0x0248
+
+  - name: creature_2
+    type: resref
+    size: 8
+    offset: 0x0250
+
+  - name: creature_3
+    type: resref
+    size: 8
+    offset: 0x0258
+
+  - name: creature_4
+    type: resref
+    size: 8
+    offset: 0x0260
+
+  - name: creature_5
+    type: resref
+    size: 8
+    offset: 0x0268
+
+  - name: unknown
+    type: bytes
+    size: 36
+    offset: 0x0270
+
+  - name: offset_to_overlays
+    type: dword
+    size: 4
+    offset: 0x0294
+
+  - name: size_of_overlay_section
+    type: dword
+    size: 4
+    offset: 0x0298
+
+  - name: xp_2
+    type: dword
+    size: 4
+    offset: 0x029c
+
+  - name: xp_3
+    type: dword
+    size: 4
+    offset: 0x02a0
+
+  - name: internal_0
+    type: word
+    size: 2
+    offset: 0x02a4
+
+  - name: internal_1
+    type: word
+    size: 2
+    offset: 0x02a6
+
+  - name: internal_2
+    type: word
+    size: 2
+    offset: 0x02a8
+
+  - name: internal_3
+    type: word
+    size: 2
+    offset: 0x02aa
+
+  - name: internal_4
+    type: word
+    size: 2
+    offset: 0x02ac
+
+  - name: internal_5
+    type: word
+    size: 2
+    offset: 0x02ae
+
+  - name: internal_6
+    type: word
+    size: 2
+    offset: 0x02b0
+
+  - name: internal_7
+    type: word
+    size: 2
+    offset: 0x02b2
+
+  - name: internal_8
+    type: word
+    size: 2
+    offset: 0x02b4
+
+  - name: internal_9
+    type: word
+    size: 2
+    offset: 0x02b6
+
+  - name: good_variable_increment_value
+    type: byte
+    size: 1
+    offset: 0x02b8
+
+  - name: law_variable_increment_value
+    type: byte
+    size: 1
+    offset: 0x02b9
+
+  - name: lady_variable_increment_value
+    type: byte
+    size: 1
+    offset: 0x02ba
+
+  - name: murder_variable_increment_value
+    type: byte
+    size: 1
+    offset: 0x02bb
+
+  - name: monstrous_compendium_entry
+    type: char_array
+    size: 32
+    offset: 0x02bc
+
+  - name: dialog_activation_range
+    type: char
+    size: 1
+    offset: 0x02dc
+
+  - name: selection_circle_size
+    type: byte
+    size: 1
+    offset: 0x02dd
+
+  - name: unknown_2
+    type: byte
+    size: 1
+    offset: 0x02de
+
+  - name: number_of_colours
+    type: byte
+    size: 1
+    offset: 0x02df
+
+  - name: attribute_flags
+    type: dword
+    size: 4
+    offset: 0x02e0
+
+  - name: colour_1
+    type: word
+    size: 2
+    offset: 0x02e4
+
+  - name: colour_2
+    type: word
+    size: 2
+    offset: 0x02e6
+
+  - name: colour_3
+    type: word
+    size: 2
+    offset: 0x02e8
+
+  - name: colour_4
+    type: word
+    size: 2
+    offset: 0x02ea
+
+  - name: colour_5
+    type: word
+    size: 2
+    offset: 0x02ec
+
+  - name: colour_6
+    type: word
+    size: 2
+    offset: 0x02ee
+
+  - name: colour_7
+    type: word
+    size: 2
+    offset: 0x02f0
+
+  - name: related_to_colours
+    type: bytes
+    size: 3
+    offset: 0x02f2
+
+  - name: colour_placement_1
+    type: char
+    size: 1
+    offset: 0x02f5
+
+  - name: colour_placement_2
+    type: char
+    size: 1
+    offset: 0x02f6
+
+  - name: colour_placement_3
+    type: char
+    size: 1
+    offset: 0x02f7
+
+  - name: colour_placement_4
+    type: char
+    size: 1
+    offset: 0x02f8
+
+  - name: colour_placement_5
+    type: char
+    size: 1
+    offset: 0x02f9
+
+  - name: colour_placement_6
+    type: char
+    size: 1
+    offset: 0x02fa
+
+  - name: colour_placement_7
+    type: char
+    size: 1
+    offset: 0x02fb
+
+  - name: unknown_3
+    type: bytes
+    size: 21
+    offset: 0x02fc
+
+  - name: species
+    type: byte
+    size: 1
+    offset: 0x0311
+
+  - name: team
+    type: byte
+    size: 1
+    offset: 0x0312
+
+  - name: faction
+    type: byte
+    size: 1
+    offset: 0x0313
+
+  - name: enemy_ally
+    type: byte
+    size: 1
+    offset: 0x0314
+
+  - name: general
+    type: byte
+    size: 1
+    offset: 0x0315
+
+  - name: race
+    type: byte
+    size: 1
+    offset: 0x0316
+
+  - name: class
+    type: byte
+    size: 1
+    offset: 0x0317
+
+  - name: specific
+    type: byte
+    size: 1
+    offset: 0x0318
+
+  - name: gender
+    type: byte
+    size: 1
+    offset: 0x0319
+
+  - name: object_ids_references
+    type: bytes
+    size: 5
+    offset: 0x031a
+
+  - name: alignment
+    type: byte
+    size: 1
+    offset: 0x031f
+
+  - name: global_actor_enumeration_value
+    type: word
+    size: 2
+    offset: 0x0320
+
+  - name: local_actor_enumeration_value
+    type: word
+    size: 2
+    offset: 0x0322
+
+  - name: death_variable
+    type: char_array
+    size: 32
+    offset: 0x0324
+
+  - name: offset_to_known_spells
+    type: dword
+    size: 4
+    offset: 0x0344
+
+  - name: count_of_known_spells
+    type: dword
+    size: 4
+    offset: 0x0348
+
+  - name: offset_to_spell_memorization_info
+    type: dword
+    size: 4
+    offset: 0x034c
+
+  - name: count_of_spell_memorization_info
+    type: dword
+    size: 4
+    offset: 0x0350
+
+  - name: offset_to_memorized_spells
+    type: dword
+    size: 4
+    offset: 0x0354
+
+  - name: count_of_memorized_spells
+    type: dword
+    size: 4
+    offset: 0x0358
+
+  - name: offset_to_item_slots
+    type: dword
+    size: 4
+    offset: 0x035c
+
+  - name: offset_to_items
+    type: dword
+    size: 4
+    offset: 0x0360
+
+  - name: count_of_items
+    type: dword
+    size: 4
+    offset: 0x0364
+
+  - name: offset_to_effects
+    type: dword
+    size: 4
+    offset: 0x0368
+
+  - name: count_to_effects
+    type: dword
+    size: 4
+    offset: 0x036c
+
+  - name: dialog_file
+    type: resref
+    size: 8
+    offset: 0x0370
+
+overlays:
+  offset_field: offset_to_overlays
+  fields:
+
+  - name: overlay_bam_file
+    type: resref
+    size: 8
+    offset: 0x0000
+
+  - name: unknown
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: timing
+    type: word
+    size: 2
+    offset: 0x000c
+
+  - name: type
+    type: word
+    size: 2
+    offset: 0x000e
+
+  - name: duration
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: unknown_2
+    type: dword
+    size: 4
+    offset: 0x0014
+
+  - name: unknown_3
+    type: bytes
+    size: 8
+    offset: 0x0018
+
+  - name: unknown_4
+    type: dword
+    size: 4
+    offset: 0x0020
+
+  - name: unknown_5
+    type: word
+    size: 2
+    offset: 0x0024
+
+known_spells:
+  offset_field: offset_to_known_spells
+  count_field: count_of_known_spells
+  fields:
+
+  - name: spl_file
+    type: resref
+    size: 8
+    offset: 0x0000
+
+  - name: spell_level
+    type: word
+    size: 2
+    offset: 0x0008
+
+  - name: spell_type
+    type: word
+    size: 2
+    offset: 0x000a
+
+spell_memorization_info:
+  offset_field: offset_to_spell_memorization_info
+  count_field: count_of_spell_memorization_info
+  fields:
+
+  - name: spell_level
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: count_of_spells_memorizable
+    type: word
+    size: 2
+    offset: 0x0002
+
+  - name: count_of_spells_memorizable_2
+    type: word
+    size: 2
+    offset: 0x0004
+
+  - name: spell_type
+    type: word
+    size: 2
+    offset: 0x0006
+
+  - name: index_into_memorized_spells
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: count_of_memorized_spells
+    type: dword
+    size: 4
+    offset: 0x000c
+
+memorized_spells:
+  offset_field: offset_to_memorized_spells
+  count_field: count_of_memorized_spells
+  fields:
+
+  - name: spl_file
+    type: resref
+    size: 8
+    offset: 0x0000
+
+  - name: memorized
+    type: dword
+    size: 4
+    offset: 0x0008
+
+items:
+  offset_field: offset_to_items
+  count_field: count_of_items
+  fields:
+
+  - name: itm_file
+    type: resref
+    size: 8
+    offset: 0x0000
+
+  - name: item_expiration_time_is_not_available
+    type: word
+    size: 2
+    offset: 0x0008
+
+  - name: quantity_charges_1
+    type: word
+    size: 2
+    offset: 0x000a
+
+  - name: quantity_charges_2
+    type: word
+    size: 2
+    offset: 0x000c
+
+  - name: quantity_charges_3
+    type: word
+    size: 2
+    offset: 0x000e
+
+  - name: flags
+    type: dword
+    size: 4
+    offset: 0x0010
