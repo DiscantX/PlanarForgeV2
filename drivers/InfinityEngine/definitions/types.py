@@ -37,11 +37,14 @@ class ResRefString(str):
     A string wrapper for ResRefs that preserves raw binary data (decoded as latin-1)
     but sanitizes the string representation for display.
     """
+    def _display_value(self):
+        return str.__str__(self).split('\x00', 1)[0]
+
     def __str__(self):
-        return self.split('\x00')[0]
+        return self._display_value()
 
     def __repr__(self):
-        return repr(self.__str__())
+        return repr(self._display_value())
 
     def __eq__(self, other):
         """
@@ -49,11 +52,11 @@ class ResRefString(str):
         Example: ResRefString("SW1H01\x00\x00") == "SW1H01" -> True
         """
         if isinstance(other, str):
-            return str(self) == other.split('\x00')[0]
+            return self._display_value() == other.split('\x00', 1)[0]
         return super().__eq__(other)
     
     def __hash__(self):
-        return hash(str(self))
+        return hash(self._display_value())
 
 class StrRef(FieldType):
     names = ["strref"]

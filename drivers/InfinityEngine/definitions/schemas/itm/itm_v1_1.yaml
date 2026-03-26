@@ -346,9 +346,19 @@ extended_header:
     offset: 0x002a
 
   - name: melee_animation
-    type: bytes
+    type: bitfield
     size: 6
     offset: 0x002c
+    bitfields:
+      overhand:
+        shift: 0
+        mask: 0xffff
+      backhand:
+        shift: 16
+        mask: 0xffff
+      thrust:
+        shift: 32
+        mask: 0xffff
 
   - name: unused
     type: word
