@@ -144,3 +144,88 @@ class Resource:
 
     def __repr__(self):
         return f"<Resource {self.name} ({self.schema.name})>"
+
+    # ------------------------------
+    # Serialization
+    # ------------------------------
+
+    def to_dict(self):
+        """
+        Serializes the resource using schema field types for readable JSON output.
+        """
+        serialized = {}
+
+        for section_name, section_data in self.sections.items():
+            section = self.schema.get_section(section_name)
+            serialized[section_name] = self._serialize_section(section_data, section)
+
+        return serialized
+
+    def _serialize_section(self, value, section=None):
+        if isinstance(value, list):
+            return [self._serialize_section(entry, section) for entry in value]
+
+        if isinstance(value, dict):
+            serialized = {}
+            for key, item in value.items():
+                field = section.get_field(key) if section else None
+                serialized[key] = self._serialize_value(item, field=field)
+            return serialized
+
+        return self._serialize_value(value)
+
+    def _serialize_value(self, value, field=None):
+        """
+        Recursively converts a value to a plain Python type for serialization.
+        """
+        field_type_name = getattr(field, "type_name", None)
+
+        if isinstance(value, dict):
+            return {k: self._serialize_value(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._serialize_value(v) for v in value]
+
+        if field_type_name == "resref":
+            return self._serialize_resref(value)
+
+        if isinstance(value, bytes):
+            return self._serialize_bytes(value)
+
+        if isinstance(value, str):
+            return value.rstrip('\x00')
+
+        if not isinstance(value, (int, float, bool, type(None))):
+            return str(value).rstrip('\x00')
+
+        return value
+
+    def _serialize_bytes(self, value):
+        if not value:
+            return ""
+
+        return f"0x{value.hex()}"
+
+    def _serialize_resref(self, value):
+        if value is None:
+            return None
+
+        if isinstance(value, bytes):
+            raw_bytes = value
+        elif isinstance(value, str):
+            raw_bytes = str.__str__(value).encode("latin-1", errors="replace")
+        else:
+            raw_bytes = str(value).encode("latin-1", errors="replace")
+
+        text_bytes = raw_bytes.split(b"\x00", 1)[0]
+        if not text_bytes:
+            return None
+
+        display = text_bytes.decode("latin-1", errors="ignore")
+        if display and self._is_printable_text(display):
+            return display
+
+        return f"<non-text resref:{raw_bytes.hex()}>"
+
+    @staticmethod
+    def _is_printable_text(value):
+        return all(32 <= ord(char) <= 126 for char in value)

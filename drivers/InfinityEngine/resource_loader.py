@@ -155,6 +155,30 @@ class ResourceLoader:
             resource = parser.read(bytes_reader, name=resref, source=f"BIF: {source_path}")
             return resource
 
+    def iter_resources(self, game=None):
+        """
+        A generator that yields metadata for all known resources for a given game.
+        Ensures CHITIN.KEY is loaded and yields a tuple for each resource entry.
+
+        Yields:
+            (resref_str, restype_str, chitin_entry_dict)
+        """
+        game = game or self.default_game
+        if game not in self.chitins:
+            self._load_chitin(game)
+
+        resource_map = self.resource_maps.get(game)
+        if not resource_map:
+            # This should not happen if _load_chitin was successful
+            print(f"Warning: No resource map available for {game} during iteration.")
+            return
+
+        for resref, entries in resource_map.items():
+            for entry in entries:
+                res_type_code = entry.get("resource_type")
+                res_type_str = RESOURCE_TYPE_MAP.get(res_type_code, "UNKN")
+                yield (resref, res_type_str, entry)
+
     def _resolve_resource_schema(self, restype, game, raw_bytes=None, schema=None):
         if schema is not None:
             return schema
