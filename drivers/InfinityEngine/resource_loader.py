@@ -13,6 +13,7 @@ from .io.installation_finder import InstallationFinder
 from .definitions.extensions import RESOURCE_TYPE_MAP, RESOURCE_TYPE_MAP_REV
 from .io.biff_handler import BiffHandler
 from .io.tlk_handler import TlkHandler
+from .io.table_resolver import TableResolver, decode_ie_text_resource
 # Import definitions to ensure types register themselves with FieldTypes
 from .definitions import types
 
@@ -38,6 +39,7 @@ class ResourceLoader:
         self._lock = threading.RLock()
         self.biff_handler = BiffHandler()
         self.tlk_handlers = {}
+        self.table_resolver = TableResolver(self)
         
         # Determine default game from available installations
         found_games = self.install_finder.find_all()
@@ -123,6 +125,37 @@ class ResourceLoader:
         text = handler.get_string(strref)
         # Return None if lookup failed, so caller can distinguish from empty string
         return text
+
+    def get_text_resource(self, resref, restype, game=None):
+        """
+        Loads a text resource (IDS/2DA/etc.) from override or BIFF and returns
+        its decoded text content.
+        """
+        game = game or self.default_game
+        restype = str(restype).upper()
+        resref = str(resref).upper()
+
+        install_path = self._get_install_path(game)
+        if install_path is not None:
+            filename = f"{resref}.{restype.lower()}"
+            for candidate in (install_path / "override" / filename, install_path / filename):
+                if candidate.exists():
+                    return decode_ie_text_resource(candidate.read_bytes())
+
+        res_entry = self._find_exact_resource_location(resref, restype=restype, game=game)
+        if not res_entry:
+            return None
+
+        resource_index = res_entry.get("resource_locator").get("resource_index")
+        bif_file_path = self._find_bif_file(res_entry, game)
+        if not bif_file_path:
+            return None
+
+        raw_bytes = self.biff_handler.get_resource_data(bif_file_path, resource_index)
+        if raw_bytes is None:
+            return None
+
+        return decode_ie_text_resource(raw_bytes)
 
     def load(self, resref=default_resref, restype=default_restype, game=None, file_path=None, schema=None):
         game = game or self.default_game
@@ -253,6 +286,7 @@ class ResourceLoader:
 
         resource.game = game
         resource.strref_resolver = lambda strref, _game=game: self.get_string(strref, game=_game)
+        resource.table_resolver = self.table_resolver
         return resource
     
     def _find_resource_location(self, resref, restype=None, game=None):
@@ -280,6 +314,26 @@ class ResourceLoader:
         if restype:
             print(f"Warning: Resource {resref} found, but type '{restype}' mismatch. Returning first match ({RESOURCE_TYPE_MAP.get(entries[0].get('resource_type'))}).")
         return entries[0]
+
+    def _find_exact_resource_location(self, resref, restype, game=None):
+        game = game or self.default_game
+        if game not in self.chitins:
+            self._load_chitin(game)
+
+        resource_map = self.resource_maps.get(game)
+        if not resource_map:
+            return None
+
+        entries = resource_map.get(str(resref).upper())
+        if not entries:
+            return None
+
+        target_code = RESOURCE_TYPE_MAP_REV.get(restype, restype)
+        for entry in entries:
+            if entry.get("resource_type") == target_code:
+                return entry
+
+        return None
     
     def _get_install_path(self, game):
         if game in self.install_paths:

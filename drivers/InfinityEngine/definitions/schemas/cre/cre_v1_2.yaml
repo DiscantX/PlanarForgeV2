@@ -64,6 +64,9 @@ header:
     type: dword
     size: 4
     offset: 0x0028
+    lookup:
+      kind: ids
+      file: ANIMATE.IDS
 
   - name: metal_colour_index
     type: byte
@@ -741,21 +744,33 @@ header:
     type: byte
     size: 1
     offset: 0x0314
+    lookup:
+      kind: ids
+      file: EA.IDS
 
   - name: general
     type: byte
     size: 1
     offset: 0x0315
+    lookup:
+      kind: ids
+      file: GENERAL.IDS
 
   - name: race
     type: byte
     size: 1
     offset: 0x0316
+    lookup:
+      kind: ids
+      file: RACE.IDS
 
   - name: class
     type: byte
     size: 1
     offset: 0x0317
+    lookup:
+      kind: ids
+      file: CLASS.IDS
 
   - name: specific
     type: byte
@@ -766,6 +781,9 @@ header:
     type: byte
     size: 1
     offset: 0x0319
+    lookup:
+      kind: ids
+      file: GENDER.IDS
 
   - name: object_ids_references
     type: byte_array
@@ -786,6 +804,9 @@ header:
     type: byte
     size: 1
     offset: 0x031f
+    lookup:
+      kind: ids
+      file: ALIGN.IDS
 
   - name: global_actor_enumeration_value
     type: word
@@ -1225,6 +1246,11 @@ item_slots:
     type: sword
     size: 2
     offset: 0x005c
+    lookup:
+      kind: ids
+      file: SLOTS.IDS
+      value_offset: 35
+      skip_values: [-1]
 
   - name: selected_weapon_ability
     type: sword
