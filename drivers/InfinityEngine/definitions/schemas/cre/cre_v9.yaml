@@ -126,32 +126,32 @@ header:
     offset: 0x0045
 
   - name: armor_class
-    type: word
+    type: sword
     size: 2
     offset: 0x0046
 
   - name: armor_class_2
-    type: word
+    type: sword
     size: 2
     offset: 0x0048
 
   - name: armor_class_3
-    type: word
+    type: sword
     size: 2
     offset: 0x004a
 
   - name: armor_class_4
-    type: word
+    type: sword
     size: 2
     offset: 0x004c
 
   - name: armor_class_5
-    type: word
+    type: sword
     size: 2
     offset: 0x004e
 
   - name: armor_class_6
-    type: word
+    type: sword
     size: 2
     offset: 0x0050
 
@@ -613,7 +613,17 @@ header:
     offset: 0x02dd
 
   - name: object_ids_references
-    type: bytes
+    type: byte_array
+    count: 5
+    display_as_mapping: true
+    labels:
+      - reference_1
+      - reference_2
+      - reference_3
+      - reference_4
+      - reference_5
+    values:
+      0: Nothing
     size: 5
     offset: 0x02de
 
@@ -624,11 +634,15 @@ header:
 
   - name: global_actor_enumeration_value
     type: word
+    display_value_map:
+      65535: -1
     size: 2
     offset: 0x02e4
 
   - name: local_actor_enumeration_value
     type: word
+    display_value_map:
+      65535: -1
     size: 2
     offset: 0x02e6
 
@@ -822,7 +836,61 @@ item_slots:
   offset_field: offset_to_item_slots
   fields:
 
-  - name: slots
-    type: bytes
-    size: 80
+  - name: equipped_slots
+    type: word_array
+    count: 38
+    pad_value: 65535
+    display_empty_values: [65535]
+    resolve_indices_from_section: items
+    resolve_indices_to_field: itm_file
+    labels:
+      - helmet
+      - armor
+      - shield
+      - gloves
+      - left_ring
+      - right_ring
+      - amulet
+      - belt
+      - boots
+      - weapon_1
+      - weapon_2
+      - weapon_3
+      - weapon_4
+      - quiver_1
+      - quiver_2
+      - quiver_3
+      - quiver_4
+      - cloak
+      - quick_item_1
+      - quick_item_2
+      - quick_item_3
+      - inventory_item_1
+      - inventory_item_2
+      - inventory_item_3
+      - inventory_item_4
+      - inventory_item_5
+      - inventory_item_6
+      - inventory_item_7
+      - inventory_item_8
+      - inventory_item_9
+      - inventory_item_10
+      - inventory_item_11
+      - inventory_item_12
+      - inventory_item_13
+      - inventory_item_14
+      - inventory_item_15
+      - inventory_item_16
+      - magic_weapon
+    size: 76
     offset: 0x0000
+
+  - name: selected_weapon
+    type: sword
+    size: 2
+    offset: 0x004c
+
+  - name: selected_weapon_ability
+    type: sword
+    size: 2
+    offset: 0x004e

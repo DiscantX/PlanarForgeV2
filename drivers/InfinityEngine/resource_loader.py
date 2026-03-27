@@ -65,7 +65,7 @@ class ResourceLoader:
         reader = BinaryReader(io.BytesIO(raw_bytes))
         parser = BinaryParser(schema, resource_class=Resource)
         resource = parser.read(reader, name=resref, source=file_path)
-        return resource
+        return self._attach_runtime_context(resource, game)
 
     def save_file(self, resource, file_path):
         """
@@ -153,7 +153,7 @@ class ResourceLoader:
             
             # Parse the final resource and return it.
             resource = parser.read(bytes_reader, name=resref, source=f"BIF: {source_path}")
-            return resource
+            return self._attach_runtime_context(resource, game)
 
     def iter_resources(self, game=None):
         """
@@ -246,6 +246,14 @@ class ResourceLoader:
             
             self.tlk_handlers[game] = TlkHandler(tlk_path)
             return self.tlk_handlers[game]
+
+    def _attach_runtime_context(self, resource, game):
+        if resource is None:
+            return None
+
+        resource.game = game
+        resource.strref_resolver = lambda strref, _game=game: self.get_string(strref, game=_game)
+        return resource
     
     def _find_resource_location(self, resref, restype=None, game=None):
         game = game or self.default_game

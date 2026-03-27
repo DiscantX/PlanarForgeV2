@@ -24,6 +24,8 @@ class TlkHandler:
         self.entry_data = None
         self.string_offset_base = 0
         self.entry_count = 0
+        self.file_size = 0
+        self.offset_mode = "absolute"
         self._load_table()
 
     def _load_table(self):
@@ -32,6 +34,7 @@ class TlkHandler:
 
         try:
             with open(self.file_path, "rb") as f:
+                self.file_size = os.path.getsize(self.file_path)
                 # 1. Read Header
                 header_data = f.read(self.HEADER_SIZE)
                 if len(header_data) < self.HEADER_SIZE:
@@ -49,13 +52,46 @@ class TlkHandler:
                 # 100,000 strings * 26 bytes = ~2.6 MB. This is cheap for modern RAM.
                 f.seek(self.HEADER_SIZE)
                 self.entry_data = bytearray(f.read(self.entry_count * self.ENTRY_SIZE))
-                
-                # The string data usually follows the entry table, but we use absolute offsets provided by the entries.
-                # However, standard TLK offsets are absolute from file start.
+                self.offset_mode = self._detect_offset_mode()
 
         except Exception as e:
             print(f"Error loading TLK table {self.file_path}: {e}")
             self.entry_data = None
+
+    def _detect_offset_mode(self):
+        if self.entry_data is None or self.file_size <= 0:
+            return "absolute"
+
+        absolute_valid = 0
+        relative_valid = 0
+        samples = 0
+        sample_limit = min(self.entry_count, 2048)
+
+        for strref in range(sample_limit):
+            start_idx = strref * self.ENTRY_SIZE
+            offset = struct.unpack_from("<I", self.entry_data, start_idx + 18)[0]
+            length = struct.unpack_from("<I", self.entry_data, start_idx + 22)[0]
+
+            if length <= 0:
+                continue
+
+            samples += 1
+
+            if offset >= self.string_offset_base and offset + length <= self.file_size:
+                absolute_valid += 1
+
+            if self.string_offset_base + offset + length <= self.file_size:
+                relative_valid += 1
+
+        if samples == 0:
+            return "absolute"
+
+        return "relative" if relative_valid > absolute_valid else "absolute"
+
+    def _resolve_offset(self, offset):
+        if self.offset_mode == "relative":
+            return self.string_offset_base + offset
+        return offset
 
     def get_string(self, strref):
         if self.entry_data is None:
@@ -71,13 +107,7 @@ class TlkHandler:
         # Format: <H8sII(II) -> We need the last two II.
         offset = struct.unpack_from("<I", self.entry_data, start_idx + 18)[0]
         length = struct.unpack_from("<I", self.entry_data, start_idx + 22)[0]
-
-        # Handle relative offsets:
-        # In many EE games (and some classic mods), if the offset is less than the start 
-        # of the string data block, it is relative to that block.
-        # (An absolute offset to string data can never be less than the size of the header + table).
-        if offset < self.string_offset_base:
-            offset += self.string_offset_base
+        offset = self._resolve_offset(offset)
 
         # 2. Read the text from disk
         with open(self.file_path, "rb") as f:

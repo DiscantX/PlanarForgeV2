@@ -181,7 +181,7 @@ class Resource:
         field_type_name = getattr(field, "type_name", None)
 
         if field is not None and getattr(field, "type", None) is not None:
-            custom_serialized = field.type.serialize(value, field)
+            custom_serialized = field.type.serialize(value, field, resource=self)
             if custom_serialized is not value:
                 return self._serialize_value(custom_serialized)
 
