@@ -291,7 +291,7 @@ header:
     size: 2
     offset: 0x0068
 
-  - name: offset_to_feature_block
+  - name: offset_to_feature_blocks
     type: dword
     size: 4
     offset: 0x006a
@@ -306,7 +306,7 @@ header:
     size: 2
     offset: 0x0070
 
-extended_header:
+extended_headers:
   offset_field: offset_to_extended_header
   count_field: count_of_extended_header
   fields:
@@ -445,7 +445,7 @@ extended_header:
       8: Crushing/Slashing (Worse)
       9: Blunt missile
 
-  - name: count_of_feature_block
+  - name: count_of_feature_blocks
     type: word
     size: 2
     offset: 0x001e
@@ -515,9 +515,9 @@ extended_header:
     size: 2
     offset: 0x0036
 
-feature_block:
-  offset_field: offset_to_feature_block
-  count_field: count_of_feature_block
+feature_blocks:
+  offset_field: offset_to_feature_blocks
+  count_field: count_of_equipping_feature_blocks
   fields:
 
   - name: opcode_number

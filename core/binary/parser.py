@@ -31,15 +31,16 @@ class BinaryParser:
         # -----------------------------
 
         sections_to_parse = list(self.schema.sections)
-        # Handle inter-section dependencies by reordering.
-        # For ITM/SPL, 'feature_blocks' count depends on 'extended_headers', so parse extended_headers first.
-        if any(s.name == "extended_header" for s in sections_to_parse) and \
-           any(s.name == "feature_block" for s in sections_to_parse):
+        # Handle inter-section dependencies by reordering (extended_header -> feature_block).
+        # Match names like 'extended_header', 'extended_headers', 'feature_block', 'feature_blocks', 'effects'.
+        def _is_ext_hdr(n): return n in ("extended_header", "extended_headers")
+        def _is_feat_blk(n): return n in ("feature_block", "feature_blocks", "effects")
+        if any(_is_ext_hdr(s.name) for s in sections_to_parse) and any(_is_feat_blk(s.name) for s in sections_to_parse):
             
             def sort_key(section):
-                if section.name == "extended_header":
+                if _is_ext_hdr(section.name):
                     return 0  # This should come first
-                if section.name == "feature_block":
+                if _is_feat_blk(section.name):
                     return 1  # This should come after
                 return 2 # All others
             
@@ -87,16 +88,24 @@ class BinaryParser:
         Handles logic for 'orphaned' data (e.g. Feature Blocks referenced by Abilities
         outside the Global Effect count).
         """
-        # Special handling for Feature Blocks to capture orphaned data
-        if section.name == "feature_block" and "extended_header" in resource.sections:
+        # Special handling for feature blocks (ITM/SPL) or effects (CRE) to capture orphaned data.
+        is_feat_blk = section.name in ("feature_block", "feature_blocks", "effects")
+        ext_hdr_name = next((n for n in ("extended_header", "extended_headers") if n in resource.sections), None)
+
+        if is_feat_blk and ext_hdr_name:
             # Start with the count of global/equipping effects from the header.
-            # This field name is specific to the ITM schema.
-            global_effect_count = resource.values.get("count_of_equipping_feature_blocks", 0)
+            # Heuristic: try known header field names for different resource types.
+            global_effect_count = (
+                resource.values.get("count_of_equipping_feature_blocks") or 
+                resource.values.get("count_of_effects") or 
+                0
+            )
             max_needed = global_effect_count
             
-            for ability in resource.sections["extended_header"]:
-                idx = ability.get("index_into_feature_blocks")
-                cnt = ability.get("count_of_feature_blocks")
+            for ability in resource.sections[ext_hdr_name]:
+                # Check for both singular and plural versions of count/index fields to handle inconsistent schemas.
+                idx = ability.get(f"index_into_{section.name}") or ability.get(f"index_into_{section.name}s") or ability.get("index_into_feature_blocks")
+                cnt = ability.get(f"count_of_{section.name}") or ability.get(f"count_of_{section.name}s") or ability.get("count_of_feature_blocks")
 
                 if isinstance(idx, int) and isinstance(cnt, int):
                     # If an ability references index 10 with count 5, we need at least 15 blocks (0-14)
