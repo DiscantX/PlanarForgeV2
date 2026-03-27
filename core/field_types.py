@@ -58,6 +58,9 @@ class FieldType:
     def measure(self, value, field, context=None):
         return field.attributes.get("size", 0)
 
+    def serialize(self, value, field):
+        return value
+
 class BaseIntField(FieldType):
     default_size = 4
 
