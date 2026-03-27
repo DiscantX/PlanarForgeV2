@@ -331,7 +331,9 @@ header:
     offset: 0x0096
 
   - name: character_strrefs
-    type: bytes
+    type: strref_array
+    count: 64
+    display_empty_values: [4294967295, 0]
     size: 256
     offset: 0x00ac
 

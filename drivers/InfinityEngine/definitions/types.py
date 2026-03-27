@@ -83,6 +83,91 @@ class StrRef(FieldType):
 
         writer.write_uint32(0 if value is None else value)
 
+class StrRefArray(FieldType):
+    names = ["strref_array"]
+
+    def _entry_size(self, field):
+        return field.attributes.get("entry_size", 4)
+
+    def _count(self, field):
+        count = field.attributes.get("count")
+        if count is not None:
+            return count
+
+        size = field.attributes.get("size")
+        entry_size = self._entry_size(field)
+        if size is None or size % entry_size != 0:
+            raise ValueError(f"{field.name} requires a valid 'count' or divisible 'size'")
+        return size // entry_size
+
+    def _labels(self, field):
+        return field.attributes.get("labels", {}) or {}
+
+    def _parse_index(self, key, field):
+        if isinstance(key, int):
+            return key
+
+        if isinstance(key, str):
+            if key.isdigit():
+                return int(key)
+            if key.startswith("slot_") and key[5:].isdigit():
+                return int(key[5:])
+
+            reverse_labels = {label: index for index, label in self._labels(field).items()}
+            if key in reverse_labels:
+                return reverse_labels[key]
+
+        raise ValueError(f"Unsupported key for {field.name}: {key!r}")
+
+    def read(self, reader, field, context=None):
+        entry_size = self._entry_size(field)
+        if entry_size != 4:
+            raise ValueError(f"{field.name} only supports 4-byte strrefs")
+
+        return [reader.read_uint32() for _ in range(self._count(field))]
+
+    def write(self, writer, value, field):
+        count = self._count(field)
+        pad_value = field.attributes.get("pad_value", 0xFFFFFFFF)
+
+        if value is None:
+            entries = [pad_value] * count
+        elif isinstance(value, dict):
+            entries = [pad_value] * count
+            for key, entry in value.items():
+                index = self._parse_index(key, field)
+                if 0 <= index < count:
+                    entries[index] = pad_value if entry is None else int(entry)
+        else:
+            entries = list(value)[:count]
+            if len(entries) < count:
+                entries.extend([pad_value] * (count - len(entries)))
+
+        for entry in entries:
+            writer.write_uint32(pad_value if entry is None else int(entry))
+
+    def measure(self, value, field, context=None):
+        return self._count(field) * self._entry_size(field)
+
+    def serialize(self, value, field):
+        if value is None:
+            return {}
+
+        labels = self._labels(field)
+        display_empty_values = set(field.attributes.get("display_empty_values", [0xFFFFFFFF]))
+        serialized = {}
+
+        for index, entry in enumerate(list(value)[:self._count(field)]):
+            if entry is None or entry in display_empty_values:
+                continue
+
+            label = labels.get(index, f"slot_{index}")
+            if label in serialized:
+                label = f"{label}[{index}]"
+            serialized[label] = entry
+
+        return serialized
+
 class EffectExtraData(FieldType):
     names = ["effect_extra_data"]
 

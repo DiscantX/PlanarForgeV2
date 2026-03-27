@@ -1,10 +1,14 @@
 import sys
 import unittest
+import io
 from pathlib import Path
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from core.binary.reader import BinaryReader
+from core.binary.writer import BinaryWriter
+from core.resource import Resource
 from drivers.InfinityEngine.definitions.types import ResRefString
 from drivers.InfinityEngine.resource_loader import ResourceLoader
 
@@ -79,6 +83,58 @@ class TestResourceSerialization(unittest.TestCase):
         self.assertNotIn(0x00000200, pstee_itm.get_section("extended_header").get_field("flags").attributes["flags"])
         self.assertNotIn(0x00000020, pst_effect_flags)
         self.assertEqual(pstee_effect_flags[0x00000020], "alternate_spells")
+
+    def test_cre_character_strrefs_uses_structured_strref_arrays(self):
+        ee_cre = self.loader.schema_loader.get("CRE", game="BG2EE")
+        iwd2_cre = self.loader.schema_loader.get("CRE", game="IWD2")
+
+        ee_field = ee_cre.get_section("header").get_field("character_strrefs")
+        iwd2_field = iwd2_cre.get_section("header").get_field("character_strrefs")
+
+        self.assertEqual(ee_field.type_name, "strref_array")
+        self.assertEqual(ee_field.attributes["count"], 100)
+        self.assertEqual(iwd2_field.type_name, "strref_array")
+        self.assertEqual(iwd2_field.attributes["count"], 64)
+
+    def test_strref_array_serializes_sparse_slots(self):
+        cre_schema = self.loader.schema_loader.get("CRE", game="BG2EE")
+        field = cre_schema.get_section("header").get_field("character_strrefs")
+
+        entries = [0xFFFFFFFF] * field.attributes["count"]
+        entries[9] = 60296
+        entries[10] = 60297
+        entries[20] = 0
+        entries[26] = 60295
+        raw = b"".join(entry.to_bytes(4, byteorder="little", signed=False) for entry in entries)
+
+        parsed = field.type.read(BinaryReader(io.BytesIO(raw)), field)
+        resource = Resource(cre_schema, name="TEST")
+        resource.set_section("header", {"character_strrefs": parsed})
+
+        self.assertEqual(
+            resource.to_dict()["header"]["character_strrefs"],
+            {
+                "slot_9": 60296,
+                "slot_10": 60297,
+                "slot_26": 60295,
+            },
+        )
+
+    def test_strref_array_write_preserves_raw_entries(self):
+        cre_schema = self.loader.schema_loader.get("CRE", game="BG2EE")
+        field = cre_schema.get_section("header").get_field("character_strrefs")
+
+        entries = [0xFFFFFFFF] * field.attributes["count"]
+        entries[2] = 0
+        entries[9] = 60296
+        entries[10] = 60297
+        entries[26] = 60295
+        raw = b"".join(entry.to_bytes(4, byteorder="little", signed=False) for entry in entries)
+
+        output = io.BytesIO()
+        field.type.write(BinaryWriter(output), entries, field)
+
+        self.assertEqual(output.getvalue(), raw)
 
 
 if __name__ == "__main__":

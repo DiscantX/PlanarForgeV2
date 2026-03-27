@@ -180,6 +180,11 @@ class Resource:
         """
         field_type_name = getattr(field, "type_name", None)
 
+        if field is not None and getattr(field, "type", None) is not None:
+            custom_serialized = field.type.serialize(value, field)
+            if custom_serialized is not value:
+                return self._serialize_value(custom_serialized)
+
         if isinstance(value, dict):
             return {k: self._serialize_value(v) for k, v in value.items()}
         if isinstance(value, list):
