@@ -1,0 +1,626 @@
+name: ITM
+version: V1
+games: [BG2EE, BGEE, IWDEE]
+
+header:
+  fields:
+
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: unidentified_name
+    type: strref
+    size: 4
+    offset: 0x0008
+
+  - name: identified_name
+    type: strref
+    size: 4
+    offset: 0x000c
+
+  - name: replacement_item
+    type: resref
+    size: 8
+    offset: 0x0010
+
+  - name: flags
+    type: bitmask
+    size: 4
+    offset: 0x0018
+    flags:
+      0x00000001: unsellable_critical_item
+      0x00000002: two_handed
+      0x00000004: movable_droppable
+      0x00000008: displayable
+      0x00000010: cursed
+      0x00000020: cannot_scribe_to_spellbook
+      0x00000040: magical
+      0x00000080: left_handed
+      0x00000100: silver
+      0x00000200: cold_iron
+      0x00000400: off_handed
+      0x00000800: conversable_unsellable
+      0x00001000: fake_two_handed
+      0x00002000: forbid_off_hand_weapon
+      0x00008000: adamantine
+      0x01000000: undispellable
+      0x02000000: toggle_critical_hit_aversion
+
+  - name: item_type
+    type: enum
+    size: 2
+    offset: 0x001c
+    values:
+      0x0000: Books/misc
+      0x0001: Amulets and necklaces
+      0x0002: Armor
+      0x0003: Belts and girdles
+      0x0004: Boots
+      0x0005: Arrows
+      0x0006: Bracers and gauntlets
+      0x0007: Headgear
+      0x0008: Keys
+      0x0009: Potions
+      0x000A: Rings
+      0x000B: Scrolls
+      0x000C: Shields
+      0x000D: Food
+      0x000E: Bullets
+      0x000F: Bows
+      0x0010: Daggers
+      0x0011: Maces (in BG, this includes clubs)
+      0x0012: Slings
+      0x0013: Small swords
+      0x0014: Large swords
+      0x0015: Hammers
+      0x0016: Morning stars
+      0x0017: Flails
+      0x0018: Darts
+      0x0019: Axes
+      0x001A: Quarterstaff
+      0x001B: Crossbow
+      0x001C: Hand-to-hand weapons
+      0x001D: Spears
+      0x001E: Halberds
+      0x001F: Crossbow bolts
+      0x0020: Cloaks and robes
+      0x0021: Gold pieces
+      0x0022: Gems
+      0x0023: Wands
+      0x0024: Containers/eye/broken armor
+      0x0025: Books/Broken shields/bracelets
+      0x0026: Familiars/Broken swords/earrings
+      0x0027: Tattoos
+      0x0028: Lenses
+      0x0029: Bucklers/teeth
+      0x002A: Candles
+      0x002C: Clubs
+      0x002F: Large Shields
+      0x0031: Medium Shields
+      0x0032: Notes
+      0x0035: Small Shields
+      0x0037: Telescopes
+      0x0038: Drinks
+      0x0039: Great Swords
+      0x003A: Container
+      0x003B: Fur/pelt
+      0x003C: Leather Armor
+      0x003D: Studded Leather Armor
+      0x003E: Chain Mail
+      0x003F: Splint Mail
+      0x0040: Half Plate
+      0x0041: Full Plate
+      0x0042: Hide Armor
+      0x0043: Robe
+      0x0045: Bastard Sword
+      0x0046: Scarf
+      0x0047: Food (IWD2)
+      0x0048: Hat
+      0x0049: Gauntlet
+
+  - name: usability_bitmask
+    type: bitmask
+    size: 4
+    offset: 0x001e
+    flags:
+      0x00000001: unusable_by_chaotic
+      0x00000002: unusable_by_evil
+      0x00000004: unusable_by_good
+      0x00000008: unusable_by_good_evil_neutral
+      0x00000010: unusable_by_lawful
+      0x00000020: unusable_by_lawful_chaotic_neutral
+      0x00000040: unusable_by_bard
+      0x00000080: unusable_by_cleric
+      0x00000100: unusable_by_cleric_mage
+      0x00000200: unusable_by_cleric_thief
+      0x00000400: unusable_by_cleric_ranger
+      0x00000800: unusable_by_fighter
+      0x00001000: unusable_by_fighter_druid
+      0x00002000: unusable_by_fighter_mage
+      0x00004000: unusable_by_fighter_cleric
+      0x00008000: unusable_by_fighter_mage_cleric
+      0x00010000: unusable_by_fighter_mage_thief
+      0x00020000: unusable_by_fighter_thief
+      0x00040000: unusable_by_mage_and_sorcerer
+      0x00080000: unusable_by_mage_thief
+      0x00100000: unusable_by_paladin
+      0x00200000: unusable_by_ranger
+      0x00400000: unusable_by_thief
+      0x00800000: unusable_by_elf
+      0x01000000: unusable_by_dwarf
+      0x02000000: unusable_by_half_elf
+      0x04000000: unusable_by_halfling
+      0x08000000: unusable_by_human
+      0x10000000: unusable_by_gnome
+      0x20000000: unusable_by_monk
+      0x40000000: unusable_by_druid_and_shaman
+      0x80000000: unusable_by_half_orc
+
+  - name: item_animation
+    type: char_array
+    size: 2
+    offset: 0x0022
+
+  - name: min_level
+    type: word
+    size: 2
+    offset: 0x0024
+
+  - name: min_strength
+    type: word
+    size: 2
+    offset: 0x0026
+
+  - name: min_strength_bonus
+    type: byte
+    size: 1
+    offset: 0x0028
+
+  - name: kit_usability_1
+    type: byte
+    size: 1
+    offset: 0x0029
+
+  - name: min_intelligence
+    type: byte
+    size: 1
+    offset: 0x002a
+
+  - name: kit_usability_2
+    type: byte
+    size: 1
+    offset: 0x002b
+
+  - name: min_dexterity
+    type: byte
+    size: 1
+    offset: 0x002c
+
+  - name: kit_usability_3
+    type: byte
+    size: 1
+    offset: 0x002d
+
+  - name: min_wisdom
+    type: byte
+    size: 1
+    offset: 0x002e
+
+  - name: kit_usability_4
+    type: byte
+    size: 1
+    offset: 0x002f
+
+  - name: min_constitution
+    type: byte
+    size: 1
+    offset: 0x0030
+
+  - name: weapon_proficiency
+    type: byte
+    size: 1
+    offset: 0x0031
+
+  - name: min_charisma
+    type: word
+    size: 2
+    offset: 0x0032
+
+  - name: price
+    type: dword
+    size: 4
+    offset: 0x0034
+
+  - name: stack_amount
+    type: word
+    size: 2
+    offset: 0x0038
+
+  - name: inventory_icon
+    type: resref
+    size: 8
+    offset: 0x003a
+
+  - name: lore_to_id
+    type: word
+    size: 2
+    offset: 0x0042
+
+  - name: ground_icon
+    type: resref
+    size: 8
+    offset: 0x0044
+
+  - name: weight
+    type: dword
+    size: 4
+    offset: 0x004c
+
+  - name: unidentified_description
+    type: strref
+    size: 4
+    offset: 0x0050
+
+  - name: identified_description
+    type: strref
+    size: 4
+    offset: 0x0054
+
+  - name: description_icon
+    type: resref
+    size: 8
+    offset: 0x0058
+
+  - name: enchantment
+    type: dword
+    size: 4
+    offset: 0x0060
+
+  - name: offset_to_extended_header
+    type: dword
+    size: 4
+    offset: 0x0064
+
+  - name: count_of_extended_header
+    type: word
+    size: 2
+    offset: 0x0068
+
+  - name: offset_to_feature_block
+    type: dword
+    size: 4
+    offset: 0x006a
+
+  - name: index_into_equipping_feature_blocks
+    type: word
+    size: 2
+    offset: 0x006e
+
+  - name: count_of_equipping_feature_blocks
+    type: word
+    size: 2
+    offset: 0x0070
+
+extended_header:
+  offset_field: offset_to_extended_header
+  count_field: count_of_extended_header
+  fields:
+
+  - name: attack_type
+    type: char
+    size: 1
+    offset: 0x0000
+
+  - name: id_req
+    type: char
+    size: 1
+    offset: 0x0001
+
+  - name: location
+    type: char
+    size: 1
+    offset: 0x0002
+
+  - name: alternative_dice_sides
+    type: char
+    size: 1
+    offset: 0x0003
+
+  - name: use_icon
+    type: resref
+    size: 8
+    offset: 0x0004
+
+  - name: target_type
+    type: enum
+    size: 1
+    offset: 0x000c
+    values:
+      0: Invalid
+      1: Creature
+      2: Crash
+      3: Character portrait
+      4: Area
+      5: Self
+      6: Crash (alternate)
+      7: None (Self, ignores game pause)
+
+  - name: count_of_target
+    type: char
+    size: 1
+    offset: 0x000d
+
+  - name: range
+    type: word
+    size: 2
+    offset: 0x000e
+
+  - name: launcher_required
+    type: byte
+    size: 1
+    offset: 0x0010
+
+  - name: alternative_dice_thrown
+    type: byte
+    size: 1
+    offset: 0x0011
+
+  - name: speed_factor
+    type: byte
+    size: 1
+    offset: 0x0012
+
+  - name: alternative_damage_bonus
+    type: byte
+    size: 1
+    offset: 0x0013
+
+  - name: thac0_bonus
+    type: word
+    size: 2
+    offset: 0x0014
+
+  - name: dice_sides
+    type: byte
+    size: 1
+    offset: 0x0016
+
+  - name: primary_type
+    type: byte
+    size: 1
+    offset: 0x0017
+
+  - name: dice_thrown
+    type: byte
+    size: 1
+    offset: 0x0018
+
+  - name: secondary_type
+    type: byte
+    size: 1
+    offset: 0x0019
+
+  - name: damage_bonus
+    type: word
+    size: 2
+    offset: 0x001a
+
+  - name: damage_type
+    type: enum
+    size: 2
+    offset: 0x001c
+    values:
+      0: None
+      1: Piercing
+      2: Crushing
+      3: Slashing
+      4: Missile
+      5: Fist
+      6: Piercing/Crushing (Better)
+      7: Piercing/Slashing (Better)
+      8: Crushing/Slashing (Worse)
+      9: Blunt missile
+
+  - name: count_of_feature_block
+    type: word
+    size: 2
+    offset: 0x001e
+
+  - name: index_into_feature_blocks
+    type: word
+    size: 2
+    offset: 0x0020
+
+  - name: max_charges
+    type: word
+    size: 2
+    offset: 0x0022
+
+  - name: charge_depletion_behaviour
+    type: word
+    size: 2
+    offset: 0x0024
+
+  - name: flags
+    type: bitmask
+    size: 4
+    offset: 0x0026
+    flags:
+      0x00000001: add_strength_bonus
+      0x00000002: breakable
+      0x00000004: damage_strength_bonus
+      0x00000008: thac0_strength_bonus
+      0x00000200: breaks_sanctuary_invisibility
+      0x00000400: hostile
+      0x00000800: recharge_after_resting
+      0x04000000: cannot_target_invisible
+
+  - name: projectile_animation
+    type: word
+    size: 2
+    offset: 0x002a
+
+  - name: melee_animation
+    type: bitfield
+    size: 6
+    offset: 0x002c
+    bitfields:
+      overhand:
+        shift: 0
+        mask: 0xffff
+      backhand:
+        shift: 16
+        mask: 0xffff
+      thrust:
+        shift: 32
+        mask: 0xffff
+
+  - name: arrow_qualifier_is_arrow
+    type: word
+    size: 2
+    offset: 0x0032
+
+  - name: bolt_qualifier_is_bolt
+    type: word
+    size: 2
+    offset: 0x0034
+
+  - name: bullet_qualifier_is_bullet
+    type: word
+    size: 2
+    offset: 0x0036
+
+feature_block:
+  offset_field: offset_to_feature_block
+  count_field: count_of_feature_block
+  fields:
+
+  - name: opcode_number
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: target_type
+    type: enum
+    size: 1
+    offset: 0x0002
+    values:
+      0: None
+      1: Self
+      2: Projectile target
+      3: Party
+      4: Everyone
+      5: Everyone except party
+      6: Caster group
+      7: Target group
+      8: Everyone except self
+      9: Original caster
+
+  - name: power
+    type: char
+    size: 1
+    offset: 0x0003
+
+  - name: parameter_1
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: parameter_2
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: timing_mode
+    type: enum
+    size: 1
+    offset: 0x000c
+    values:
+      0: Instant/Limited
+      1: Instant/Permanent
+      2: Instant/While equipped
+      3: Delay/Limited
+      4: Delay/Permanent
+      5: Delay/While equipped
+      6: Limited after duration
+      7: Permanent after duration
+      8: Equipped after duration
+      9: Instant/Permanent (after Death)
+      10: Instant/Limited (ticks)
+
+  - name: dispel_resistance
+    type: enum
+    size: 1
+    offset: 0x000d
+    values:
+      0: Natural/Nonmagical
+      1: Can be dispelled/Affected by resistance
+      2: Cannot be dispelled/Ignores resistance
+      3: Can be dispelled/Ignores resistance
+
+  - name: duration
+    type: dword
+    size: 4
+    offset: 0x000e
+
+  - name: probability_1
+    type: char
+    size: 1
+    offset: 0x0012
+
+  - name: probability_2
+    type: char
+    size: 1
+    offset: 0x0013
+
+  - name: resource
+    type: resref
+    size: 8
+    offset: 0x0014
+
+  - name: dice_thrown_maximum_level
+    type: dword
+    size: 4
+    offset: 0x001c
+
+  - name: dice_sides_minimum_level
+    type: dword
+    size: 4
+    offset: 0x0020
+
+  - name: saving_throw_type
+    type: bitmask
+    size: 4
+    offset: 0x0024
+    flags:
+      0x00000001: spells
+      0x00000002: breath
+      0x00000004: paralyze_poison_death
+      0x00000008: wands
+      0x00000010: petrify_polymorph
+      0x00000020: alternate_spells
+      0x00000040: alternate_breath
+      0x00000080: alternate_paralyze_poison_death
+      0x00000100: alternate_wands
+      0x00000200: alternate_petrify_polymorph
+      0x00000400: ignore_primary_target
+      0x00000800: ignore_secondary_target
+      0x01000000: bypass_mirror_image
+      0x02000000: ignore_difficulty
+
+  - name: saving_throw_bonus
+    type: dword
+    size: 4
+    offset: 0x0028
+
+  - name: tobex_stacking_id
+    type: dword
+    size: 4
+    offset: 0x002c

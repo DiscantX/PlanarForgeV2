@@ -31,19 +31,129 @@ header:
     offset: 0x0010
 
   - name: flags
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0018
+    flags:
+      0x00000001: unsellable_critical_item
+      0x00000002: two_handed
+      0x00000004: movable
+      0x00000008: displayable
+      0x00000010: cursed
+      0x00000020: cannot_scribe_to_spellbook
+      0x00000040: magical
+      0x00000100: silver
+      0x00000200: cold_iron
+      0x00000400: steel
+      0x00000800: conversable
+      0x00001000: pulsating
 
   - name: item_type
-    type: word
+    type: enum
     size: 2
     offset: 0x001c
+    values:
+      0x0000: Books/misc
+      0x0001: Amulets and necklaces
+      0x0002: Armor
+      0x0003: Belts and girdles
+      0x0004: Boots
+      0x0005: Arrows
+      0x0006: Bracers and gauntlets
+      0x0007: Headgear
+      0x0008: Keys
+      0x0009: Potions
+      0x000A: Rings
+      0x000B: Scrolls
+      0x000C: Shields
+      0x000D: Food
+      0x000E: Bullets
+      0x000F: Bows
+      0x0010: Daggers
+      0x0011: Maces (in BG, this includes clubs)
+      0x0012: Slings
+      0x0013: Small swords
+      0x0014: Large swords
+      0x0015: Hammers
+      0x0016: Morning stars
+      0x0017: Flails
+      0x0018: Darts
+      0x0019: Axes
+      0x001A: Quarterstaff
+      0x001B: Crossbow
+      0x001C: Hand-to-hand weapons
+      0x001D: Spears
+      0x001E: Halberds
+      0x001F: Crossbow bolts
+      0x0020: Cloaks and robes
+      0x0021: Gold pieces
+      0x0022: Gems
+      0x0023: Wands
+      0x0024: Containers/eye/broken armor
+      0x0025: Books/Broken shields/bracelets
+      0x0026: Familiars/Broken swords/earrings
+      0x0027: Tattoos
+      0x0028: Lenses
+      0x0029: Bucklers/teeth
+      0x002A: Candles
+      0x002C: Clubs
+      0x002F: Large Shields
+      0x0031: Medium Shields
+      0x0032: Notes
+      0x0035: Small Shields
+      0x0037: Telescopes
+      0x0038: Drinks
+      0x0039: Great Swords
+      0x003A: Container
+      0x003B: Fur/pelt
+      0x003C: Leather Armor
+      0x003D: Studded Leather Armor
+      0x003E: Chain Mail
+      0x003F: Splint Mail
+      0x0040: Half Plate
+      0x0041: Full Plate
+      0x0042: Hide Armor
+      0x0043: Robe
+      0x0045: Bastard Sword
+      0x0046: Scarf
+      0x0047: Food (IWD2)
+      0x0048: Hat
+      0x0049: Gauntlet
 
   - name: usability_bitmask
     type: bitmask
     size: 4
     offset: 0x001e
+    flags:
+      0x00000001: unusable_by_chaotic
+      0x00000002: unusable_by_evil
+      0x00000004: unusable_by_good
+      0x00000008: unusable_by_good_evil_neutral
+      0x00000010: unusable_by_lawful
+      0x00000020: unusable_by_lawful_chaotic_neutral
+      0x00000040: unusable_by_sensates
+      0x00000080: unusable_by_priest
+      0x00000100: unusable_by_godsmen
+      0x00000200: unusable_by_anarchist
+      0x00000400: unusable_by_chaosmen
+      0x00000800: unusable_by_fighter
+      0x00001000: unusable_by_no_faction
+      0x00002000: unusable_by_fighter_mage
+      0x00004000: unusable_by_dustmen
+      0x00008000: unusable_by_mercykillers
+      0x00010000: unusable_by_indeps
+      0x00020000: unusable_by_fighter_thief
+      0x00040000: unusable_by_mage
+      0x00080000: unusable_by_mage_thief
+      0x00100000: unusable_by_dak_kon
+      0x00200000: unusable_by_fall_from_grace
+      0x00400000: unusable_by_thief
+      0x00800000: unusable_by_vhailor
+      0x01000000: unusable_by_ignus
+      0x02000000: unusable_by_morte
+      0x04000000: unusable_by_nordom
+      0x10000000: unusable_by_annah
+      0x40000000: unusable_by_nameless_one
 
   - name: item_animation
     type: char_array
@@ -221,9 +331,18 @@ extended_header:
     offset: 0x0004
 
   - name: target_type
-    type: char
+    type: enum
     size: 1
     offset: 0x000c
+    values:
+      0: Invalid
+      1: Creature
+      2: Crash
+      3: Character portrait
+      4: Area
+      5: Self
+      6: Crash (alternate)
+      7: None (Self, ignores game pause)
 
   - name: count_of_target
     type: char
@@ -286,9 +405,20 @@ extended_header:
     offset: 0x001a
 
   - name: damage_type
-    type: word
+    type: enum
     size: 2
     offset: 0x001c
+    values:
+      0: None
+      1: Piercing
+      2: Crushing
+      3: Slashing
+      4: Missile
+      5: Fist
+      6: Piercing/Crushing (Better)
+      7: Piercing/Slashing (Better)
+      8: Crushing/Slashing (Worse)
+      9: Blunt missile
 
   - name: count_of_feature_block
     type: word
@@ -311,9 +441,14 @@ extended_header:
     offset: 0x0024
 
   - name: flags
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0026
+    flags:
+      0x00000001: add_strength_bonus
+      0x00000002: breakable
+      0x00000400: hostile
+      0x00000800: recharge_after_resting
 
   - name: projectile_animation
     type: word
@@ -361,9 +496,20 @@ feature_block:
     offset: 0x0000
 
   - name: target_type
-    type: char
+    type: enum
     size: 1
     offset: 0x0002
+    values:
+      0: None
+      1: Self
+      2: Projectile target
+      3: Party
+      4: Everyone
+      5: Everyone except party
+      6: Caster group
+      7: Target group
+      8: Everyone except self
+      9: Original caster
 
   - name: power
     type: char
@@ -381,14 +527,31 @@ feature_block:
     offset: 0x0008
 
   - name: timing_mode
-    type: char
+    type: enum
     size: 1
     offset: 0x000c
+    values:
+      0: Instant/Limited
+      1: Instant/Permanent
+      2: Instant/While equipped
+      3: Delay/Limited
+      4: Delay/Permanent
+      5: Delay/While equipped
+      6: Limited after duration
+      7: Permanent after duration
+      8: Equipped after duration
+      9: Instant/Permanent (after Death)
+      10: Instant/Limited (ticks)
 
   - name: dispel_resistance
-    type: char
+    type: enum
     size: 1
     offset: 0x000d
+    values:
+      0: Natural/Nonmagical
+      1: Can be dispelled/Affected by resistance
+      2: Cannot be dispelled/Ignores resistance
+      3: Can be dispelled/Ignores resistance
 
   - name: duration
     type: dword
@@ -421,9 +584,24 @@ feature_block:
     offset: 0x0020
 
   - name: saving_throw_type
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0024
+    flags:
+      0x00000001: spells
+      0x00000002: breath
+      0x00000004: paralyze_poison_death
+      0x00000008: wands
+      0x00000010: petrify_polymorph
+      0x00000020: alternate_spells
+      0x00000040: alternate_breath
+      0x00000080: alternate_paralyze_poison_death
+      0x00000100: alternate_wands
+      0x00000200: alternate_petrify_polymorph
+      0x00000400: ignore_primary_target
+      0x00000800: ignore_secondary_target
+      0x01000000: bypass_mirror_image
+      0x02000000: ignore_difficulty
 
   - name: saving_throw_bonus
     type: dword

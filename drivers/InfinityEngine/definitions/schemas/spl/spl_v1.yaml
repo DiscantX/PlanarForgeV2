@@ -1,6 +1,6 @@
 name: SPL
 version: V1
-games: [BG1, BG2, BG2EE, BGEE, IWD, IWDEE, PST, PSTEE]
+games: [BG1, BG2, IWD, PST]
 
 header:
   fields:
@@ -31,19 +31,52 @@ header:
     offset: 0x0010
 
   - name: flags
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0018
+    flags:
+      0x00000400: hostile
+      0x00000800: no_los_required
+      0x00001000: allow_spotting
+      0x00002000: outdoors_only
+      0x00004000: ignore_dead_magic_and_wild_surge
+      0x00008000: ignore_wild_surge
+      0x00010000: not_in_combat
 
   - name: spell_type
-    type: word
+    type: enum
     size: 2
     offset: 0x001c
+    values:
+      0: Special
+      1: Wizard
+      2: Priest
+      3: Psionic
+      4: Innate
+      5: Bard song
 
   - name: exclusion_flags
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x001e
+    flags:
+      0x00000001: exclude_chaotic_priests
+      0x00000002: exclude_evil_priests
+      0x00000004: exclude_good_priests
+      0x00000008: exclude_good_evil_neutral_priests
+      0x00000010: exclude_lawful_priests
+      0x00000020: exclude_lawful_chaotic_neutral_priests
+      0x00000040: exclude_abjurers
+      0x00000080: exclude_conjurers
+      0x00000100: exclude_diviners
+      0x00000200: exclude_enchanters
+      0x00000400: exclude_illusionists
+      0x00000800: exclude_invokers
+      0x00001000: exclude_necromancers
+      0x00002000: exclude_transmuters
+      0x00004000: wild_magic_exclude_generalists
+      0x40000000: exclude_cleric_paladin
+      0x80000000: exclude_druid_ranger
 
   - name: casting_graphics
     type: word
@@ -266,9 +299,20 @@ extended_header:
     offset: 0x001a
 
   - name: damage_type
-    type: word
+    type: enum
     size: 2
     offset: 0x001c
+    values:
+      0: None
+      1: Piercing
+      2: Crushing
+      3: Slashing
+      4: Missile
+      5: Fist
+      6: Piercing/Crushing (Better)
+      7: Piercing/Slashing (Better)
+      8: Crushing/Slashing (Worse)
+      9: Blunt missile
 
   - name: count_of_feature_block
     type: word
@@ -306,9 +350,20 @@ feature_block:
     offset: 0x0000
 
   - name: target_type
-    type: char
+    type: enum
     size: 1
     offset: 0x0002
+    values:
+      0: None
+      1: Self
+      2: Projectile target
+      3: Party
+      4: Everyone
+      5: Everyone except party
+      6: Caster group
+      7: Target group
+      8: Everyone except self
+      9: Original caster
 
   - name: power
     type: char
@@ -326,14 +381,31 @@ feature_block:
     offset: 0x0008
 
   - name: timing_mode
-    type: char
+    type: enum
     size: 1
     offset: 0x000c
+    values:
+      0: Instant/Limited
+      1: Instant/Permanent
+      2: Instant/While equipped
+      3: Delay/Limited
+      4: Delay/Permanent
+      5: Delay/While equipped
+      6: Limited after duration
+      7: Permanent after duration
+      8: Equipped after duration
+      9: Instant/Permanent (after Death)
+      10: Instant/Limited (ticks)
 
   - name: dispel_resistance
-    type: char
+    type: enum
     size: 1
     offset: 0x000d
+    values:
+      0: Natural/Nonmagical
+      1: Can be dispelled/Affected by resistance
+      2: Cannot be dispelled/Ignores resistance
+      3: Can be dispelled/Ignores resistance
 
   - name: duration
     type: dword
@@ -366,9 +438,15 @@ feature_block:
     offset: 0x0020
 
   - name: saving_throw_type
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0024
+    flags:
+      0x00000001: spells
+      0x00000002: breath
+      0x00000004: paralyze_poison_death
+      0x00000008: wands
+      0x00000010: petrify_polymorph
 
   - name: saving_throw_bonus
     type: dword
