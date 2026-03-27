@@ -61,6 +61,22 @@ class FieldType:
     def serialize(self, value, field, resource=None):
         return value
 
+
+def _serialize_lookup(value, field, resource):
+    if resource is None or value is None or isinstance(value, (dict, list)):
+        return None
+
+    lookup = field.attributes.get("lookup")
+    if not lookup:
+        return None
+
+    resolver = getattr(resource, "table_resolver", None)
+    game = getattr(resource, "game", None)
+    if resolver is None or game is None:
+        return None
+
+    return resolver.resolve(value, lookup, game=game)
+
 class BaseIntField(FieldType):
     default_size = 4
 
@@ -73,6 +89,10 @@ class BaseIntField(FieldType):
         writer.write_uint(value, size)
 
     def serialize(self, value, field, resource=None):
+        lookup_value = _serialize_lookup(value, field, resource)
+        if lookup_value is not None:
+            return lookup_value
+
         display_value_map = field.attributes.get("display_value_map", {})
         if not display_value_map or isinstance(value, (dict, list)):
             return value
@@ -90,6 +110,10 @@ class SignedBaseIntField(FieldType):
         writer.write_int(value, size)
 
     def serialize(self, value, field, resource=None):
+        lookup_value = _serialize_lookup(value, field, resource)
+        if lookup_value is not None:
+            return lookup_value
+
         display_value_map = field.attributes.get("display_value_map", {})
         if not display_value_map or isinstance(value, (dict, list)):
             return value
