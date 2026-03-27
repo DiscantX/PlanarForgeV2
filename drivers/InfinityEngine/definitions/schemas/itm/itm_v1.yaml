@@ -222,6 +222,9 @@ header:
     type: byte
     size: 1
     offset: 0x0031
+    lookup:
+      kind: ids
+      file: WPROF.IDS
 
   - name: min_charisma
     type: word
@@ -358,9 +361,16 @@ extended_header:
     offset: 0x000e
 
   - name: launcher_required
-    type: byte
+    type: enum
     size: 1
     offset: 0x0010
+    values:
+      0: None
+      1: Bow
+      2: Crossbow
+      3: Sling
+      40: Spear
+      100: Throwing Axe
 
   - name: alternative_dice_thrown
     type: byte
@@ -391,6 +401,13 @@ extended_header:
     type: byte
     size: 1
     offset: 0x0017
+    lookup:
+      kind: 2da
+      file: MSCHOOL.2DA
+      file_by_game:
+        IWD: SCHOOL.2DA
+      row_mode: index
+      column: _row_label
 
   - name: dice_thrown
     type: byte
@@ -401,6 +418,11 @@ extended_header:
     type: byte
     size: 1
     offset: 0x0019
+    lookup:
+      kind: 2da
+      file: MSECTYPE.2DA
+      row_mode: index
+      column: _row_label
 
   - name: damage_bonus
     type: word
@@ -459,6 +481,9 @@ extended_header:
     type: word
     size: 2
     offset: 0x002a
+    lookup:
+      kind: ids
+      file: MISSILE.IDS
 
   - name: melee_animation
     type: bitfield

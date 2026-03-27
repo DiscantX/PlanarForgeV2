@@ -73,6 +73,13 @@ header:
     type: byte
     size: 1
     offset: 0x0025
+    lookup:
+      kind: 2da
+      file: MSCHOOL.2DA
+      file_by_game:
+        IWD2: SCHOOL.2DA
+      row_mode: index
+      column: _row_label
 
   - name: min_strength
     type: byte
@@ -83,6 +90,11 @@ header:
     type: char
     size: 1
     offset: 0x0027
+    lookup:
+      kind: 2da
+      file: MSECTYPE.2DA
+      row_mode: index
+      column: _row_label
 
   - name: min_strength_bonus
     type: byte
@@ -334,6 +346,9 @@ extended_header:
     type: word
     size: 2
     offset: 0x0026
+    lookup:
+      kind: ids
+      file: MISSILE.IDS
 
 feature_block:
   offset_field: offset_to_feature_block

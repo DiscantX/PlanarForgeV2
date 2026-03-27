@@ -4,7 +4,7 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 
 
-CACHE_FORMAT_VERSION = 13
+CACHE_FORMAT_VERSION = 16
 
 
 @dataclass
