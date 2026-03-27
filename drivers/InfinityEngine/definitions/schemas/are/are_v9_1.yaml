@@ -1,0 +1,1630 @@
+name: AREA
+version: V9.1
+games: [IWD2]
+
+header:
+  fields:
+
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: area_wed
+    type: resref
+    size: 8
+    offset: 0x0008
+
+  - name: last_saved
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: area_flags
+    type: bitmask
+    flags:
+      0x00000001: save_allowed
+      0x00000002: tutorial_area
+      0x00000004: dead_magic_zone
+      0x00000008: dream_area
+      0x00000010: suppress_adventure_music
+      0x00000020: suppress_day_night_lighting
+      0x00000040: weather_disabled
+      0x00000080: rest_allowed
+      0x00000100: nightmarish
+    size: 4
+    offset: 0x0014
+
+  - name: north_area
+    type: resref
+    size: 8
+    offset: 0x0018
+
+  - name: north_area_flags
+    type: dword
+    size: 4
+    offset: 0x0020
+
+  - name: east_area
+    type: resref
+    size: 8
+    offset: 0x0024
+
+  - name: east_area_flags
+    type: dword
+    size: 4
+    offset: 0x002c
+
+  - name: south_area
+    type: resref
+    size: 8
+    offset: 0x0030
+
+  - name: south_area_flags
+    type: dword
+    size: 4
+    offset: 0x0038
+
+  - name: west_area
+    type: resref
+    size: 8
+    offset: 0x003c
+
+  - name: west_area_flags
+    type: dword
+    size: 4
+    offset: 0x0044
+
+  - name: area_type
+    type: bitmask
+    flags:
+      0x0001: outdoor
+      0x0002: day_night
+      0x0004: weather
+      0x0008: city
+      0x0010: forest
+      0x0020: dungeon
+      0x0040: extended_night
+      0x0080: can_rest
+    size: 2
+    offset: 0x0048
+
+  - name: rain_probability
+    type: word
+    size: 2
+    offset: 0x004a
+
+  - name: snow_probability
+    type: word
+    size: 2
+    offset: 0x004c
+
+  - name: fog_probability
+    type: word
+    size: 2
+    offset: 0x004e
+
+  - name: lightning_probability
+    type: word
+    size: 2
+    offset: 0x0050
+
+  - name: wind_speed
+    type: word
+    size: 2
+    offset: 0x0052
+
+  - name: level_requirement_2
+    type: byte
+    size: 1
+    offset: 0x0054
+
+  - name: level_requirement_3
+    type: byte
+    size: 1
+    offset: 0x0055
+
+  - name: average_party_level
+    type: word
+    size: 2
+    offset: 0x0056
+
+  - name: unknown
+    type: bytes
+    size: 12
+    offset: 0x0058
+
+  - name: offset_to_actors
+    type: dword
+    size: 4
+    offset: 0x0064
+
+  - name: count_of_actors
+    type: word
+    size: 2
+    offset: 0x0068
+
+  - name: count_of_regions
+    type: word
+    size: 2
+    offset: 0x006a
+
+  - name: offset_to_regions
+    type: dword
+    size: 4
+    offset: 0x006c
+
+  - name: offset_to_spawn_points
+    type: dword
+    size: 4
+    offset: 0x0070
+
+  - name: count_of_spawn_points
+    type: dword
+    size: 4
+    offset: 0x0074
+
+  - name: offset_to_entrances
+    type: dword
+    size: 4
+    offset: 0x0078
+
+  - name: count_of_entrances
+    type: dword
+    size: 4
+    offset: 0x007c
+
+  - name: offset_to_containers
+    type: dword
+    size: 4
+    offset: 0x0080
+
+  - name: count_of_containers
+    type: word
+    size: 2
+    offset: 0x0084
+
+  - name: count_of_items
+    type: word
+    size: 2
+    offset: 0x0086
+
+  - name: offset_to_items
+    type: dword
+    size: 4
+    offset: 0x0088
+
+  - name: offset_to_vertices
+    type: dword
+    size: 4
+    offset: 0x008c
+
+  - name: count_of_vertices
+    type: word
+    size: 2
+    offset: 0x0090
+
+  - name: count_of_ambients
+    type: word
+    size: 2
+    offset: 0x0092
+
+  - name: offset_to_ambients
+    type: dword
+    size: 4
+    offset: 0x0094
+
+  - name: offset_to_variables
+    type: dword
+    size: 4
+    offset: 0x0098
+
+  - name: count_of_variables
+    type: dword
+    size: 4
+    offset: 0x009c
+
+  - name: index_into_tiled_object_flags
+    type: word
+    size: 2
+    offset: 0x00a0
+
+  - name: count_of_tiled_object_flags
+    type: word
+    size: 2
+    offset: 0x00a2
+
+  - name: area_script
+    type: resref
+    size: 8
+    offset: 0x00a4
+
+  - name: size_of_explored_bitmask
+    type: dword
+    size: 4
+    offset: 0x00ac
+
+  - name: offset_to_explored_bitmask
+    type: dword
+    size: 4
+    offset: 0x00b0
+
+  - name: count_of_doors
+    type: dword
+    size: 4
+    offset: 0x00b4
+
+  - name: offset_to_doors
+    type: dword
+    size: 4
+    offset: 0x00b8
+
+  - name: count_of_animations
+    type: dword
+    size: 4
+    offset: 0x00bc
+
+  - name: offset_to_animation
+    type: dword
+    size: 4
+    offset: 0x00c0
+
+  - name: count_of_tiled_object
+    type: dword
+    size: 4
+    offset: 0x00c4
+
+  - name: offset_to_tiled_objects
+    type: dword
+    size: 4
+    offset: 0x00c8
+
+  - name: offset_to_song_entries
+    type: dword
+    size: 4
+    offset: 0x00cc
+
+  - name: offset_to_rest_interruptions
+    type: dword
+    size: 4
+    offset: 0x00d0
+
+  - name: offset_to_automap_notes
+    type: dword
+    size: 4
+    offset: 0x00d4
+
+  - name: count_of_automap_notes
+    type: dword
+    size: 4
+    offset: 0x00d8
+
+  - name: unknown_2
+    type: bytes
+    size: 80
+    offset: 0x00dc
+
+actors:
+  offset_field: offset_to_actors
+  count_field: count_of_actors
+  fields:
+
+  - name: name
+    type: char_array
+    size: 32
+    offset: 0x0000
+
+  - name: current_x_coordinate
+    type: word
+    size: 2
+    offset: 0x0020
+
+  - name: current_y_coordinate
+    type: word
+    size: 2
+    offset: 0x0022
+
+  - name: destination_x_coordinate
+    type: word
+    size: 2
+    offset: 0x0024
+
+  - name: destination_y_coordinate
+    type: word
+    size: 2
+    offset: 0x0026
+
+  - name: actor_flags
+    type: bitmask
+    flags:
+      0x00000001: cre_external
+      0x00000002: cre_embedded
+    size: 4
+    offset: 0x0028
+
+  - name: spawned
+    type: dword
+    size: 4
+    offset: 0x002c
+
+  - name: animation_id
+    type: word
+    lookup:
+      kind: ids
+      file: ANIMATE.IDS
+    size: 2
+    offset: 0x0030
+
+  - name: orientation
+    type: word
+    lookup:
+      kind: ids
+      file: DIR.IDS
+    size: 2
+    offset: 0x0032
+
+  - name: expiry_timer
+    type: dword
+    size: 4
+    offset: 0x0034
+
+  - name: wander_range
+    type: word
+    size: 2
+    offset: 0x0038
+
+  - name: follow_range
+    type: word
+    size: 2
+    offset: 0x003a
+
+  - name: times_present_schedule
+    type: dword
+    size: 4
+    offset: 0x003c
+
+  - name: num_times_talked_to
+    type: dword
+    size: 4
+    offset: 0x0040
+
+  - name: dialog_file
+    type: resref
+    size: 8
+    offset: 0x0044
+
+  - name: script_override
+    type: resref
+    size: 8
+    offset: 0x004c
+
+  - name: script_general
+    type: resref
+    size: 8
+    offset: 0x0054
+
+  - name: script_class
+    type: resref
+    size: 8
+    offset: 0x005c
+
+  - name: script_race
+    type: resref
+    size: 8
+    offset: 0x0064
+
+  - name: script_default
+    type: resref
+    size: 8
+    offset: 0x006c
+
+  - name: script_specific
+    type: resref
+    size: 8
+    offset: 0x0074
+
+  - name: cre_file
+    type: resref
+    size: 8
+    offset: 0x007c
+
+  - name: cre_offset
+    type: dword
+    size: 4
+    offset: 0x0084
+
+  - name: cre_size
+    type: dword
+    size: 4
+    offset: 0x0088
+
+  - name: unknown
+    type: bytes
+    size: 128
+    offset: 0x008c
+
+regions:
+  count_field: count_of_regions
+  offset_field: offset_to_regions
+  fields:
+
+  - name: name
+    type: char_array
+    size: 32
+    offset: 0x0000
+
+  - name: region_type
+    type: enum
+    values:
+      0: proximity_trigger
+      1: info_trigger
+      2: travel_trigger
+    size: 2
+    offset: 0x0020
+
+  - name: bounding_box
+    type: byte_array
+    count: 8
+    size: 8
+    offset: 0x0022
+
+  - name: count_of_vertices
+    type: word
+    size: 2
+    offset: 0x002a
+
+  - name: index_of_first
+    type: dword
+    size: 4
+    offset: 0x002c
+
+  - name: trigger_value
+    type: dword
+    size: 4
+    offset: 0x0030
+
+  - name: cursor_index
+    type: dword
+    size: 4
+    offset: 0x0034
+
+  - name: destination_area
+    type: resref
+    size: 8
+    offset: 0x0038
+
+  - name: entrance
+    type: char_array
+    size: 32
+    offset: 0x0040
+
+  - name: flags
+    type: bitmask
+    flags:
+      0x00000001: trap_resets
+      0x00000002: party_required
+      0x00000004: detectable
+      0x00000008: npcs_can_trigger
+      0x00000010: tutorial_only
+      0x00000020: anyone_can_trigger
+      0x00000040: no_string_on_detect
+      0x00000100: deactivated
+      0x00000400: use_point_enabled
+      0x00000800: can_be_used_by_npc
+    size: 4
+    offset: 0x0060
+
+  - name: information_text
+    type: strref
+    size: 4
+    offset: 0x0064
+
+  - name: trap_detection_difficulty
+    type: word
+    size: 2
+    offset: 0x0068
+
+  - name: trap_removal_difficulty
+    type: word
+    size: 2
+    offset: 0x006a
+
+  - name: region_is_trapped
+    type: word
+    size: 2
+    offset: 0x006c
+
+  - name: trap_detected
+    type: word
+    size: 2
+    offset: 0x006e
+
+  - name: trap_launch_location
+    type: word_array
+    count: 2
+    size: 4
+    offset: 0x0070
+
+  - name: key_item
+    type: resref
+    size: 8
+    offset: 0x0074
+
+  - name: region_script
+    type: resref
+    size: 8
+    offset: 0x007c
+
+  - name: alternative_use_point_x_coordinate
+    type: word
+    size: 2
+    offset: 0x0084
+
+  - name: alternative_use_point_y_coordinate
+    type: word
+    size: 2
+    offset: 0x0086
+
+  - name: alternative_use_point_x_coordinate_2
+    type: dword
+    size: 4
+    offset: 0x0088
+
+  - name: alternative_use_point_y_coordinate_2
+    type: dword
+    size: 4
+    offset: 0x008c
+
+  - name: unknown
+    type: bytes
+    size: 40
+    offset: 0x0090
+
+spawn_points:
+  offset_field: offset_to_spawn_points
+  count_field: count_of_spawn_points
+  fields:
+
+  - name: name
+    type: char_array
+    size: 32
+    offset: 0x0000
+
+  - name: x_coordinate
+    type: word
+    size: 2
+    offset: 0x0020
+
+  - name: y_coordinate
+    type: word
+    size: 2
+    offset: 0x0022
+
+  - name: creature_1
+    type: resref
+    size: 8
+    offset: 0x0024
+
+  - name: creature_2
+    type: resref
+    size: 8
+    offset: 0x002c
+
+  - name: creature_3
+    type: resref
+    size: 8
+    offset: 0x0034
+
+  - name: creature_4
+    type: resref
+    size: 8
+    offset: 0x003c
+
+  - name: creature_5
+    type: resref
+    size: 8
+    offset: 0x0044
+
+  - name: creature_6
+    type: resref
+    size: 8
+    offset: 0x004c
+
+  - name: creature_7
+    type: resref
+    size: 8
+    offset: 0x0054
+
+  - name: creature_8
+    type: resref
+    size: 8
+    offset: 0x005c
+
+  - name: creature_9
+    type: resref
+    size: 8
+    offset: 0x0064
+
+  - name: creature_10
+    type: resref
+    size: 8
+    offset: 0x006c
+
+  - name: count_of_spawn_creatures
+    type: word
+    size: 2
+    offset: 0x0074
+
+  - name: base_creature_number_to_spawn
+    type: word
+    size: 2
+    offset: 0x0076
+
+  - name: seconds_between_spawning
+    type: word
+    size: 2
+    offset: 0x0078
+
+  - name: spawn_method
+    type: word
+    size: 2
+    offset: 0x007a
+
+  - name: actor_removal_timer
+    type: dword
+    size: 4
+    offset: 0x007c
+
+  - name: movement_restriction_distance
+    type: word
+    size: 2
+    offset: 0x0080
+
+  - name: movement_restriction_distance_2
+    type: word
+    size: 2
+    offset: 0x0082
+
+  - name: maximum_creatures_to_spawn
+    type: word
+    size: 2
+    offset: 0x0084
+
+  - name: spawn_point_enabled
+    type: word
+    size: 2
+    offset: 0x0086
+
+  - name: spawn_point_appearence_schedule
+    type: dword
+    size: 4
+    offset: 0x0088
+
+  - name: probability
+    type: word
+    size: 2
+    offset: 0x008c
+
+  - name: probability_2
+    type: word
+    size: 2
+    offset: 0x008e
+
+  - name: unused
+    type: bytes
+    size: 56
+    offset: 0x0090
+
+entrances:
+  offset_field: offset_to_entrances
+  count_field: count_of_entrances
+  fields:
+
+  - name: name
+    type: char_array
+    size: 32
+    offset: 0x0000
+
+  - name: x_coordinate
+    type: word
+    size: 2
+    offset: 0x0020
+
+  - name: y_coordinate
+    type: word
+    size: 2
+    offset: 0x0022
+
+  - name: orientation
+    type: word
+    lookup:
+      kind: ids
+      file: DIR.IDS
+    size: 2
+    offset: 0x0024
+
+  - name: unused
+    type: bytes
+    size: 66
+    offset: 0x0026
+
+containers:
+  offset_field: offset_to_containers
+  count_field: count_of_containers
+  fields:
+
+  - name: name
+    type: char_array
+    size: 32
+    offset: 0x0000
+
+  - name: x_coordinate
+    type: word
+    size: 2
+    offset: 0x0020
+
+  - name: y_coordinate
+    type: word
+    size: 2
+    offset: 0x0022
+
+  - name: container_type
+    type: enum
+    values:
+      1: bag
+      2: chest
+      3: drawer
+      4: pile
+      5: table
+      6: shelf
+      7: altar
+      8: non_visible
+      9: spellbook
+      10: body
+      11: barrel
+      12: crate
+    size: 2
+    offset: 0x0024
+
+  - name: lock_difficulty
+    type: word
+    size: 2
+    offset: 0x0026
+
+  - name: flags
+    type: bitmask
+    flags:
+      0x00000001: locked
+      0x00000008: trap_resets
+      0x00000020: disabled
+      0x00000040: no_string_on_detect
+      0x00000100: magical_lock
+    size: 4
+    offset: 0x0028
+
+  - name: trap_detection_difficulty
+    type: word
+    size: 2
+    offset: 0x002c
+
+  - name: trap_removal_difficulty
+    type: word
+    size: 2
+    offset: 0x002e
+
+  - name: container_is_trapped
+    type: word
+    size: 2
+    offset: 0x0030
+
+  - name: trap_detected
+    type: word
+    size: 2
+    offset: 0x0032
+
+  - name: trap_launch_x_coordinate
+    type: word
+    size: 2
+    offset: 0x0034
+
+  - name: trap_launch_y_coordinate
+    type: word
+    size: 2
+    offset: 0x0036
+
+  - name: bounding_box
+    type: byte_array
+    count: 8
+    size: 8
+    offset: 0x0038
+
+  - name: index_of_first
+    type: dword
+    size: 4
+    offset: 0x0040
+
+  - name: count_of_items
+    type: dword
+    size: 4
+    offset: 0x0044
+
+  - name: trap_script
+    type: resref
+    size: 8
+    offset: 0x0048
+
+  - name: index_of_first_2
+    type: dword
+    size: 4
+    offset: 0x0050
+
+  - name: count_of_vertices
+    type: word
+    size: 2
+    offset: 0x0054
+
+  - name: trigger_range
+    type: word
+    size: 2
+    offset: 0x0056
+
+  - name: owner
+    type: bytes
+    size: 32
+    offset: 0x0058
+
+  - name: key_item
+    type: resref
+    size: 8
+    offset: 0x0078
+
+  - name: break_difficulty
+    type: dword
+    size: 4
+    offset: 0x0080
+
+  - name: lockpick_string
+    type: strref
+    size: 4
+    offset: 0x0084
+
+  - name: unused
+    type: bytes
+    size: 56
+    offset: 0x0088
+
+items:
+  count_field: count_of_items
+  offset_field: offset_to_items
+  fields:
+
+  - name: item_resref
+    type: resref
+    size: 8
+    offset: 0x0000
+
+  - name: item_expiration_time
+    type: word
+    size: 2
+    offset: 0x0008
+
+  - name: quantity_charges_1
+    type: word
+    size: 2
+    offset: 0x000a
+
+  - name: quantity_charges_2
+    type: word
+    size: 2
+    offset: 0x000c
+
+  - name: quantity_charges_3
+    type: word
+    size: 2
+    offset: 0x000e
+
+  - name: flags
+    type: dword
+    size: 4
+    offset: 0x0010
+
+ambients:
+  count_field: count_of_ambients
+  offset_field: offset_to_ambients
+  fields:
+
+  - name: name
+    type: char_array
+    size: 32
+    offset: 0x0000
+
+  - name: x_coordinate
+    type: word
+    size: 2
+    offset: 0x0020
+
+  - name: y_coordinate
+    type: word
+    size: 2
+    offset: 0x0022
+
+  - name: radius
+    type: word
+    size: 2
+    offset: 0x0024
+
+  - name: height
+    type: bytes
+    size: 2
+    offset: 0x0026
+
+  - name: pitch_variance
+    type: dword
+    size: 4
+    offset: 0x0028
+
+  - name: volume_variance
+    type: word
+    size: 2
+    offset: 0x002c
+
+  - name: volume
+    type: word
+    size: 2
+    offset: 0x002e
+
+  - name: resref_of_sound
+    type: resref
+    size: 8
+    offset: 0x0030
+
+  - name: resref_of_sound_2
+    type: resref
+    size: 8
+    offset: 0x0038
+
+  - name: resref_of_sound_3
+    type: resref
+    size: 8
+    offset: 0x0040
+
+  - name: resref_of_sound_4
+    type: resref
+    size: 8
+    offset: 0x0048
+
+  - name: resref_of_sound_5
+    type: resref
+    size: 8
+    offset: 0x0050
+
+  - name: resref_of_sound_6
+    type: resref
+    size: 8
+    offset: 0x0058
+
+  - name: resref_of_sound_7
+    type: resref
+    size: 8
+    offset: 0x0060
+
+  - name: resref_of_sound_8
+    type: resref
+    size: 8
+    offset: 0x0068
+
+  - name: resref_of_sound_9
+    type: resref
+    size: 8
+    offset: 0x0070
+
+  - name: resref_of_sound_10
+    type: resref
+    size: 8
+    offset: 0x0078
+
+  - name: count_of_sounds
+    type: word
+    size: 2
+    offset: 0x0080
+
+  - name: unused
+    type: word
+    size: 2
+    offset: 0x0082
+
+  - name: base_time_between_sounds_from_this_ambient_list
+    type: dword
+    size: 4
+    offset: 0x0084
+
+  - name: base_time_deviation
+    type: dword
+    size: 4
+    offset: 0x0088
+
+  - name: ambient_appearence_schedule
+    type: dword
+    size: 4
+    offset: 0x008c
+
+  - name: flags
+    type: dword
+    size: 4
+    offset: 0x0090
+
+  - name: unused_2
+    type: bytes
+    size: 64
+    offset: 0x0094
+
+variables:
+  offset_field: offset_to_variables
+  count_field: count_of_variables
+  fields:
+
+  - name: variable_name
+    type: char_array
+    size: 32
+    offset: 0x0000
+
+  - name: variable_type
+    type: enum
+    values:
+      1: integer
+      2: float
+      3: string
+    size: 2
+    offset: 0x0020
+
+  - name: resource_type
+    type: word
+    size: 2
+    offset: 0x0022
+
+  - name: dword_value
+    type: dword
+    size: 4
+    offset: 0x0024
+
+  - name: int_value
+    type: dword
+    size: 4
+    offset: 0x0028
+
+  - name: double_value
+    type: bytes
+    size: 8
+    offset: 0x002c
+
+  - name: script_name_value
+    type: char_array
+    size: 32
+    offset: 0x0034
+
+doors:
+  count_field: count_of_doors
+  offset_field: offset_to_doors
+  fields:
+
+  - name: name
+    type: char_array
+    size: 32
+    offset: 0x0000
+
+  - name: door_id
+    type: char_array
+    size: 8
+    offset: 0x0020
+
+  - name: flags
+    type: dword
+    size: 4
+    offset: 0x0028
+
+  - name: index_of_first
+    type: dword
+    size: 4
+    offset: 0x002c
+
+  - name: count_of_vertices
+    type: word
+    size: 2
+    offset: 0x0030
+
+  - name: count_of_vertices_2
+    type: word
+    size: 2
+    offset: 0x0032
+
+  - name: index_of_first_2
+    type: dword
+    size: 4
+    offset: 0x0034
+
+  - name: bounding_box
+    type: byte_array
+    count: 8
+    size: 8
+    offset: 0x0038
+
+  - name: bounding_box_2
+    type: byte_array
+    count: 8
+    size: 8
+    offset: 0x0040
+
+  - name: index_of_first_3
+    type: dword
+    size: 4
+    offset: 0x0048
+
+  - name: count_of_vertices_3
+    type: word
+    size: 2
+    offset: 0x004c
+
+  - name: count_of_vertices_4
+    type: word
+    size: 2
+    offset: 0x004e
+
+  - name: index_of_first_4
+    type: dword
+    size: 4
+    offset: 0x0050
+
+  - name: hit_points
+    type: word
+    size: 2
+    offset: 0x0054
+
+  - name: armor_class
+    type: word
+    size: 2
+    offset: 0x0056
+
+  - name: door_open_sound
+    type: resref
+    size: 8
+    offset: 0x0058
+
+  - name: door_close_sound
+    type: resref
+    size: 8
+    offset: 0x0060
+
+  - name: cursor_index
+    type: dword
+    size: 4
+    offset: 0x0068
+
+  - name: trap_detection_difficulty
+    type: word
+    size: 2
+    offset: 0x006c
+
+  - name: trap_removal_difficulty
+    type: word
+    size: 2
+    offset: 0x006e
+
+  - name: door_is_trapped
+    type: word
+    size: 2
+    offset: 0x0070
+
+  - name: trap_detected
+    type: word
+    size: 2
+    offset: 0x0072
+
+  - name: trap_launch_target_x_coordinate
+    type: word
+    size: 2
+    offset: 0x0074
+
+  - name: trap_launch_target_y_coordinate
+    type: word
+    size: 2
+    offset: 0x0076
+
+  - name: key_item
+    type: resref
+    size: 8
+    offset: 0x0078
+
+  - name: door_script
+    type: resref
+    size: 8
+    offset: 0x0080
+
+  - name: detection_difficulty
+    type: dword
+    size: 4
+    offset: 0x0088
+
+  - name: lock_difficulty
+    type: dword
+    size: 4
+    offset: 0x008c
+
+  - name: two_points
+    type: byte_array
+    count: 8
+    size: 8
+    offset: 0x0090
+
+  - name: lockpick_string
+    type: strref
+    size: 4
+    offset: 0x0098
+
+  - name: travel_trigger_name
+    type: bytes
+    size: 24
+    offset: 0x009c
+
+  - name: dialog_speaker_name
+    type: strref
+    size: 4
+    offset: 0x00b4
+
+  - name: dialog_resref
+    type: resref
+    size: 8
+    offset: 0x00b8
+
+  - name: unknown
+    type: bytes
+    size: 8
+    offset: 0x00c0
+
+animations:
+  offset_field: offset_to_animation
+  count_field: count_of_animations
+  fields:
+
+  - name: name
+    type: char_array
+    size: 32
+    offset: 0x0000
+
+  - name: x_coordinate
+    type: word
+    size: 2
+    offset: 0x0020
+
+  - name: y_coordinate
+    type: word
+    size: 2
+    offset: 0x0022
+
+  - name: animation_appearence_schedule
+    type: dword
+    size: 4
+    offset: 0x0024
+
+  - name: animation_resref
+    type: resref
+    size: 8
+    offset: 0x0028
+
+  - name: bam_sequence_number
+    type: word
+    size: 2
+    offset: 0x0030
+
+  - name: bam_frame_number
+    type: word
+    size: 2
+    offset: 0x0032
+
+  - name: flags
+    type: bitmask
+    flags:
+      0x00000001: enabled
+      0x00000002: v_flip
+      0x00000004: h_flip
+      0x00000008: transparent
+      0x00000010: translucent
+      0x00000020: translucent_shadow
+      0x00000040: blinking
+      0x00000080: lightning
+      0x00000100: background
+      0x00000200: palette_tint
+      0x00000400: use_palette_tint
+      0x00000800: no_shadow
+      0x00001000: start_at_random_frame
+      0x00002000: mirror
+    size: 4
+    offset: 0x0034
+
+  - name: height
+    type: word
+    size: 2
+    offset: 0x0038
+
+  - name: transparency
+    type: word
+    size: 2
+    offset: 0x003a
+
+  - name: starting_frame
+    type: word
+    size: 2
+    offset: 0x003c
+
+  - name: chance_of_looping
+    type: byte
+    size: 1
+    offset: 0x003e
+
+  - name: skip_cycles
+    type: byte
+    size: 1
+    offset: 0x003f
+
+  - name: palette
+    type: resref
+    size: 8
+    offset: 0x0040
+
+  - name: unused
+    type: dword
+    size: 4
+    offset: 0x0048
+
+automap_notes:
+  offset_field: offset_to_automap_notes
+  count_field: count_of_automap_notes
+  fields:
+
+  - name: x_coordinate
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: y_coordinate
+    type: word
+    size: 2
+    offset: 0x0002
+
+  - name: text
+    type: strref
+    size: 4
+    offset: 0x0004
+
+  - name: marker_location
+    type: word
+    size: 2
+    offset: 0x0008
+
+  - name: marker_color
+    type: word
+    size: 2
+    offset: 0x000a
+
+  - name: unknown
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: unused
+    type: bytes
+    size: 36
+    offset: 0x0010
+
+tiled_objects:
+  offset_field: offset_to_tiled_objects
+  count_field: count_of_tiled_object
+  fields:
+
+  - name: name
+    type: char_array
+    size: 32
+    offset: 0x0000
+
+  - name: tile_id
+    type: resref
+    size: 8
+    offset: 0x0020
+
+  - name: flags
+    type: dword
+    size: 4
+    offset: 0x0028
+
+  - name: index_of_first
+    type: dword
+    size: 4
+    offset: 0x002c
+
+  - name: count_of_impeded_cells_set_to_0_to_disable
+    type: word
+    size: 2
+    offset: 0x0030
+
+  - name: count_of_impeded_cells_set_to_0_to_disable_2
+    type: word
+    size: 2
+    offset: 0x0032
+
+  - name: index_of_first_2
+    type: dword
+    size: 4
+    offset: 0x0034
+
+  - name: unused
+    type: bytes
+    size: 48
+    offset: 0x0038
+
+song_entries:
+  offset_field: offset_to_song_entries
+  fields:
+
+  - name: day_song_reference_number
+    type: dword
+    size: 4
+    offset: 0x0000
+
+  - name: night_song_reference_number
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: win_song_reference_number
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: battle_song_reference_number
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: lose_song_reference_number
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: music_1
+    type: dword
+    size: 4
+    offset: 0x0014
+
+  - name: music_2
+    type: dword
+    size: 4
+    offset: 0x0018
+
+  - name: music_3
+    type: dword
+    size: 4
+    offset: 0x001c
+
+  - name: music_4
+    type: dword
+    size: 4
+    offset: 0x0020
+
+  - name: music_5
+    type: dword
+    size: 4
+    offset: 0x0024
+
+  - name: day_ambient_1
+    type: resref
+    size: 8
+    offset: 0x0028
+
+  - name: day_ambient_2
+    type: resref
+    size: 8
+    offset: 0x0030
+
+  - name: day_ambient_volume
+    type: dword
+    size: 4
+    offset: 0x0038
+
+  - name: night_ambient_1
+    type: resref
+    size: 8
+    offset: 0x003c
+
+  - name: night_ambient_2
+    type: resref
+    size: 8
+    offset: 0x0044
+
+  - name: night_ambient_volume
+    type: dword
+    size: 4
+    offset: 0x004c
+
+  - name: reverb_id
+    type: dword
+    size: 4
+    offset: 0x0050
+
+  - name: unused
+    type: bytes
+    size: 60
+    offset: 0x0054
+
+rest_interruptions:
+  offset_field: offset_to_rest_interruptions
+  fields:
+
+  - name: name
+    type: bytes
+    size: 32
+    offset: 0x0000
+
+  - name: explanation_text
+    type: strref_array
+    count: 10
+    size: 40
+    offset: 0x0020
+
+  - name: creature_resrefs
+    type: bytes
+    size: 80
+    offset: 0x0048
+
+  - name: count_of_creatures_in_spawn
+    type: word
+    size: 2
+    offset: 0x0098
+
+  - name: unknown
+    type: word
+    size: 2
+    offset: 0x009a
+
+  - name: unknown_2
+    type: dword
+    size: 4
+    offset: 0x009c
+
+  - name: unknown_3
+    type: word
+    size: 2
+    offset: 0x00a0
+
+  - name: unknown_4
+    type: word
+    size: 2
+    offset: 0x00a2
+
+  - name: maximum_number_of_creatures_to_spawn
+    type: word
+    size: 2
+    offset: 0x00a4
+
+  - name: unknown_5
+    type: word
+    size: 2
+    offset: 0x00a6
+
+  - name: probability_per_hour
+    type: word
+    size: 2
+    offset: 0x00a8
+
+  - name: probability_per_hour_2
+    type: word
+    size: 2
+    offset: 0x00aa
+
+  - name: unused
+    type: bytes
+    size: 56
+    offset: 0x00ac
