@@ -1,11 +1,10 @@
-**/__pycache__
-**/logs
-.venv
+__pycache__/
+logs/
+.venv/
 *.pyc
 *.code-workspace
 *.ITM
 *.BIF
 *.KEY
 *.log
-**/.cache
-
+.cache/
