@@ -711,9 +711,13 @@ known_spells:
     offset: 0x0008
 
   - name: spell_type
-    type: word
+    type: enum
     size: 2
     offset: 0x000a
+    values:
+      0: Priest
+      1: Wizard
+      2: Innate
 
 spell_memorization_info:
   offset_field: offset_to_spell_memorization_info
@@ -736,9 +740,13 @@ spell_memorization_info:
     offset: 0x0004
 
   - name: spell_type
-    type: word
+    type: enum
     size: 2
     offset: 0x0006
+    values:
+      0: Priest
+      1: Wizard
+      2: Innate
 
   - name: index_into_memorized_spells
     type: dword
@@ -761,9 +769,12 @@ memorized_spells:
     offset: 0x0000
 
   - name: memorized
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0008
+    flags:
+      0x00000001: memorized
+      0x00000002: disabled
 
 items:
   offset_field: offset_to_items
@@ -796,9 +807,14 @@ items:
     offset: 0x000e
 
   - name: flags
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0010
+    flags:
+      0x00000001: identified
+      0x00000002: unstealable
+      0x00000004: stolen
+      0x00000008: undroppable
 
 item_slots:
   offset_field: offset_to_item_slots

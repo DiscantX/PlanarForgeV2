@@ -1,0 +1,471 @@
+name: SPL
+version: V1
+games: [BG2EE, BGEE, IWDEE, PSTEE]
+
+header:
+  fields:
+
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: spell_name
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: spell_name_identified_usually
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: completion_sound
+    type: resref
+    size: 8
+    offset: 0x0010
+
+  - name: flags
+    type: bitmask
+    size: 4
+    offset: 0x0018
+    flags:
+      0x00000200: breaks_sanctuary_invisibility
+      0x00000400: hostile
+      0x00000800: no_los_required
+      0x00001000: allow_spotting
+      0x00002000: outdoors_only
+      0x00004000: ignore_dead_magic_and_wild_surge
+      0x00008000: ignore_wild_surge
+      0x00010000: not_in_combat
+      0x01000000: can_target_invisible
+      0x02000000: castable_when_silenced
+
+  - name: spell_type
+    type: enum
+    size: 2
+    offset: 0x001c
+    values:
+      0: Special
+      1: Wizard
+      2: Priest
+      3: Psionic
+      4: Innate
+      5: Bard song
+
+  - name: exclusion_flags
+    type: bitmask
+    size: 4
+    offset: 0x001e
+    flags:
+      0x00000001: exclude_chaotic_priests
+      0x00000002: exclude_evil_priests
+      0x00000004: exclude_good_priests
+      0x00000008: exclude_good_evil_neutral_priests
+      0x00000010: exclude_lawful_priests
+      0x00000020: exclude_lawful_chaotic_neutral_priests
+      0x00000040: exclude_abjurers
+      0x00000080: exclude_conjurers
+      0x00000100: exclude_diviners
+      0x00000200: exclude_enchanters
+      0x00000400: exclude_illusionists
+      0x00000800: exclude_invokers
+      0x00001000: exclude_necromancers
+      0x00002000: exclude_transmuters
+      0x00004000: wild_magic_exclude_generalists
+      0x40000000: exclude_cleric_paladin
+      0x80000000: exclude_druid_ranger
+
+  - name: casting_graphics
+    type: word
+    size: 2
+    offset: 0x0022
+
+  - name: min_level
+    type: char
+    size: 1
+    offset: 0x0024
+
+  - name: primary_type
+    type: byte
+    size: 1
+    offset: 0x0025
+
+  - name: min_strength
+    type: byte
+    size: 1
+    offset: 0x0026
+
+  - name: secondary_type
+    type: char
+    size: 1
+    offset: 0x0027
+
+  - name: min_strength_bonus
+    type: byte
+    size: 1
+    offset: 0x0028
+
+  - name: usability_1
+    type: byte
+    size: 1
+    offset: 0x0029
+
+  - name: min_int
+    type: byte
+    size: 1
+    offset: 0x002a
+
+  - name: usability_2
+    type: byte
+    size: 1
+    offset: 0x002b
+
+  - name: min_dex
+    type: byte
+    size: 1
+    offset: 0x002c
+
+  - name: usability_3
+    type: byte
+    size: 1
+    offset: 0x002d
+
+  - name: min_wis
+    type: byte
+    size: 1
+    offset: 0x002e
+
+  - name: usability_4
+    type: byte
+    size: 1
+    offset: 0x002f
+
+  - name: min_con
+    type: word
+    size: 2
+    offset: 0x0030
+
+  - name: min_cha
+    type: word
+    size: 2
+    offset: 0x0032
+
+  - name: spell_level
+    type: dword
+    size: 4
+    offset: 0x0034
+
+  - name: stack_amount
+    type: word
+    size: 2
+    offset: 0x0038
+
+  - name: spellbook_icon_the_engine_replaces_the_last_character_of_this_filename_with_a_c
+    type: resref
+    size: 8
+    offset: 0x003a
+
+  - name: lore_to_id
+    type: word
+    size: 2
+    offset: 0x0042
+
+  - name: ground_icon
+    type: resref
+    size: 8
+    offset: 0x0044
+
+  - name: weight
+    type: dword
+    size: 4
+    offset: 0x004c
+
+  - name: spell_description_unidentified
+    type: dword
+    size: 4
+    offset: 0x0050
+
+  - name: spell_description_identified_usually
+    type: dword
+    size: 4
+    offset: 0x0054
+
+  - name: description_icon
+    type: resref
+    size: 8
+    offset: 0x0058
+
+  - name: enchantment
+    type: dword
+    size: 4
+    offset: 0x0060
+
+  - name: offset_to_extended_header
+    type: dword
+    size: 4
+    offset: 0x0064
+
+  - name: count_of_extended_header
+    type: word
+    size: 2
+    offset: 0x0068
+
+  - name: offset_to_feature_block
+    type: dword
+    size: 4
+    offset: 0x006a
+
+  - name: index_into_casting_feature_blocks
+    type: word
+    size: 2
+    offset: 0x006e
+
+  - name: count_of_casting_feature_block
+    type: word
+    size: 2
+    offset: 0x0070
+
+extended_header:
+  offset_field: offset_to_extended_header
+  count_field: count_of_extended_header
+  fields:
+
+  - name: spell_form
+    type: char
+    size: 1
+    offset: 0x0000
+
+  - name: bit_2_friendly_ability
+    type: char
+    size: 1
+    offset: 0x0001
+
+  - name: location
+    type: word
+    size: 2
+    offset: 0x0002
+
+  - name: memorized_icon_the_engine_replaces_the_last_character_of_this_filename_with_a_b
+    type: resref
+    size: 8
+    offset: 0x0004
+
+  - name: target
+    type: char
+    size: 1
+    offset: 0x000c
+
+  - name: count_of_target
+    type: char
+    size: 1
+    offset: 0x000d
+
+  - name: range
+    type: word
+    size: 2
+    offset: 0x000e
+
+  - name: level_required
+    type: word
+    size: 2
+    offset: 0x0010
+
+  - name: casting_time
+    type: word
+    size: 2
+    offset: 0x0012
+
+  - name: times_per_day
+    type: word
+    size: 2
+    offset: 0x0014
+
+  - name: dice_sides
+    type: word
+    size: 2
+    offset: 0x0016
+
+  - name: dice_thrown
+    type: word
+    size: 2
+    offset: 0x0018
+
+  - name: enchanted
+    type: word
+    size: 2
+    offset: 0x001a
+
+  - name: damage_type
+    type: enum
+    size: 2
+    offset: 0x001c
+    values:
+      0: None
+      1: Piercing
+      2: Crushing
+      3: Slashing
+      4: Missile
+      5: Fist
+      6: Piercing/Crushing (Better)
+      7: Piercing/Slashing (Better)
+      8: Crushing/Slashing (Worse)
+      9: Blunt missile
+
+  - name: count_of_feature_block
+    type: word
+    size: 2
+    offset: 0x001e
+
+  - name: index_into_feature_blocks
+    type: word
+    size: 2
+    offset: 0x0020
+
+  - name: charges
+    type: word
+    size: 2
+    offset: 0x0022
+
+  - name: charge_depletion_behaviour
+    type: word
+    size: 2
+    offset: 0x0024
+
+  - name: projectile
+    type: word
+    size: 2
+    offset: 0x0026
+
+feature_block:
+  offset_field: offset_to_feature_block
+  count_field: count_of_feature_block
+  fields:
+
+  - name: opcode_number
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: target_type
+    type: enum
+    size: 1
+    offset: 0x0002
+    values:
+      0: None
+      1: Self
+      2: Projectile target
+      3: Party
+      4: Everyone
+      5: Everyone except party
+      6: Caster group
+      7: Target group
+      8: Everyone except self
+      9: Original caster
+
+  - name: power
+    type: char
+    size: 1
+    offset: 0x0003
+
+  - name: parameter_1
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: parameter_2
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: timing_mode
+    type: enum
+    size: 1
+    offset: 0x000c
+    values:
+      0: Instant/Limited
+      1: Instant/Permanent
+      2: Instant/While equipped
+      3: Delay/Limited
+      4: Delay/Permanent
+      5: Delay/While equipped
+      6: Limited after duration
+      7: Permanent after duration
+      8: Equipped after duration
+      9: Instant/Permanent (after Death)
+      10: Instant/Limited (ticks)
+
+  - name: dispel_resistance
+    type: enum
+    size: 1
+    offset: 0x000d
+    values:
+      0: Natural/Nonmagical
+      1: Can be dispelled/Affected by resistance
+      2: Cannot be dispelled/Ignores resistance
+      3: Can be dispelled/Ignores resistance
+
+  - name: duration
+    type: dword
+    size: 4
+    offset: 0x000e
+
+  - name: probability_1
+    type: char
+    size: 1
+    offset: 0x0012
+
+  - name: probability_2
+    type: char
+    size: 1
+    offset: 0x0013
+
+  - name: resource
+    type: resref
+    size: 8
+    offset: 0x0014
+
+  - name: dice_thrown_maximum_level
+    type: dword
+    size: 4
+    offset: 0x001c
+
+  - name: dice_sides_minimum_level
+    type: dword
+    size: 4
+    offset: 0x0020
+
+  - name: saving_throw_type
+    type: bitmask
+    size: 4
+    offset: 0x0024
+    flags:
+      0x00000001: spells
+      0x00000002: breath
+      0x00000004: paralyze_poison_death
+      0x00000008: wands
+      0x00000010: petrify_polymorph
+      0x00000020: alternate_spells
+      0x00000040: alternate_breath
+      0x00000080: alternate_paralyze_poison_death
+      0x00000100: alternate_wands
+      0x00000200: alternate_petrify_polymorph
+      0x00000400: ignore_primary_target
+      0x00000800: ignore_secondary_target
+      0x01000000: bypass_mirror_image
+      0x02000000: ignore_difficulty
+
+  - name: saving_throw_bonus
+    type: dword
+    size: 4
+    offset: 0x0028
+
+  - name: tobex_stacking_id
+    type: dword
+    size: 4
+    offset: 0x002c
