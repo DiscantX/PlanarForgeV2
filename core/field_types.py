@@ -210,17 +210,29 @@ class Enum(BaseIntField):
     def read(self, reader, field, context=None):
         index = super().read(reader, field, context)
         values = field.attributes["values"]
+
+        if isinstance(values, dict):
+            return values.get(index, index)
+
         if index >= len(values):
-            # Gracefully handle corrupted data or invalid indices
-            return None
+            # Preserve unknown values rather than hiding them.
+            return index
+
         return values[index]
 
     def write(self, writer, value, field):
         values = field.attributes["values"]
-        try:
-            index = values.index(value)
-        except ValueError:
-            index = 0 # Default to first value if the provided one is invalid
+
+        if isinstance(value, int):
+            index = value
+        elif isinstance(values, dict):
+            index = next((key for key, label in values.items() if label == value), 0)
+        else:
+            try:
+                index = values.index(value)
+            except ValueError:
+                index = 0 # Default to first value if the provided one is invalid
+
         super().write(writer, index, field)
 
 class PointerString(FieldType):

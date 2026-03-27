@@ -7,4 +7,5 @@
 *.BIF
 *.KEY
 *.log
+**/.cache
 

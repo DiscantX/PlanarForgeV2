@@ -716,9 +716,13 @@ known_spells:
     offset: 0x0008
 
   - name: spell_type
-    type: word
+    type: enum
     size: 2
     offset: 0x000a
+    values:
+      0: Priest
+      1: Wizard
+      2: Innate
 
 spell_memorization_info:
   offset_field: offset_to_spell_memorization_info
@@ -741,9 +745,13 @@ spell_memorization_info:
     offset: 0x0004
 
   - name: spell_type
-    type: word
+    type: enum
     size: 2
     offset: 0x0006
+    values:
+      0: Priest
+      1: Wizard
+      2: Innate
 
   - name: index_into_memorized_spells
     type: dword
@@ -766,9 +774,12 @@ memorized_spells:
     offset: 0x0000
 
   - name: memorized
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0008
+    flags:
+      0x00000001: memorized
+      0x00000002: disabled
 
 effects:
   offset_field: offset_to_effects
@@ -781,9 +792,20 @@ effects:
     offset: 0x0000
 
   - name: target_type
-    type: char
+    type: enum
     size: 1
     offset: 0x0002
+    values:
+      0: None
+      1: Self
+      2: Projectile target
+      3: Party
+      4: Everyone
+      5: Everyone except party
+      6: Caster group
+      7: Target group
+      8: Everyone except self
+      9: Original caster
 
   - name: power
     type: char
@@ -801,14 +823,31 @@ effects:
     offset: 0x0008
 
   - name: timing_mode
-    type: char
+    type: enum
     size: 1
     offset: 0x000c
+    values:
+      0: Instant/Limited
+      1: Instant/Permanent
+      2: Instant/While equipped
+      3: Delay/Limited
+      4: Delay/Permanent
+      5: Delay/While equipped
+      6: Limited after duration
+      7: Permanent after duration
+      8: Equipped after duration
+      9: Instant/Permanent (after Death)
+      10: Instant/Limited (ticks)
 
   - name: dispel_resistance
-    type: char
+    type: enum
     size: 1
     offset: 0x000d
+    values:
+      0: Natural/Nonmagical
+      1: Can be dispelled/Affected by resistance
+      2: Cannot be dispelled/Ignores resistance
+      3: Can be dispelled/Ignores resistance
 
   - name: duration
     type: dword
@@ -841,9 +880,24 @@ effects:
     offset: 0x0020
 
   - name: saving_throw_type
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0024
+    flags:
+      0x00000001: spells
+      0x00000002: breath
+      0x00000004: paralyze_poison_death
+      0x00000008: wands
+      0x00000010: petrify_polymorph
+      0x00000020: alternate_spells
+      0x00000040: alternate_breath
+      0x00000080: alternate_paralyze_poison_death
+      0x00000100: alternate_wands
+      0x00000200: alternate_petrify_polymorph
+      0x00000400: ignore_primary_target
+      0x00000800: ignore_secondary_target
+      0x01000000: bypass_mirror_image
+      0x02000000: ignore_difficulty
 
   - name: saving_throw_bonus
     type: dword
@@ -891,9 +945,14 @@ items:
     offset: 0x000e
 
   - name: flags
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0010
+    flags:
+      0x00000001: identified
+      0x00000002: unstealable
+      0x00000004: stolen
+      0x00000008: undroppable
 
 item_slots:
   offset_field: offset_to_item_slots

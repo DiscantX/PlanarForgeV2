@@ -3684,9 +3684,14 @@ items:
     offset: 0x000e
 
   - name: flags
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0010
+    flags:
+      0x00000001: identified
+      0x00000002: unstealable
+      0x00000004: stolen
+      0x00000008: undroppable
 
 effects:
   offset_field: offset_to_effects
@@ -3699,9 +3704,20 @@ effects:
     offset: 0x0000
 
   - name: target_type
-    type: char
+    type: enum
     size: 1
     offset: 0x0002
+    values:
+      0: None
+      1: Self (pre-projectile)
+      2: Pre-target
+      3: Party
+      4: Everyone (including party)
+      5: Everyone (excluding party)
+      6: Caster group
+      7: Target group
+      8: Everyone except self
+      9: Self (post-projectile)
 
   - name: power
     type: char
@@ -3719,14 +3735,32 @@ effects:
     offset: 0x0008
 
   - name: timing_mode
-    type: char
+    type: enum
     size: 1
     offset: 0x000c
+    values:
+      0: Duration
+      1: Permanent
+      2: While equipped
+      3: Delayed duration
+      4: Delayed
+      5: Delayed (transforms to 8)
+      6: Duration?
+      7: Permanent?
+      8: Permanent (unsaved)
+      9: Permanent (after Death)
+      10: Trigger
+      4096: Absolute duration
 
   - name: dispel_resistance
-    type: char
+    type: enum
     size: 1
     offset: 0x000d
+    values:
+      0: Nonmagical
+      1: Can be dispelled/Affected by resistance
+      2: Cannot be dispelled/Ignores resistance
+      3: Can be dispelled/Ignores resistance
 
   - name: duration
     type: dword
@@ -3759,9 +3793,14 @@ effects:
     offset: 0x0020
 
   - name: saving_throw_type
-    type: dword
+    type: bitmask
     size: 4
     offset: 0x0024
+    flags:
+      0x00000001: unknown
+      0x00000002: fortitude
+      0x00000004: reflex
+      0x00000008: will
 
   - name: saving_throw_bonus
     type: dword
