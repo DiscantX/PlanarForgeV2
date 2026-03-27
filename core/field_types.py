@@ -58,7 +58,7 @@ class FieldType:
     def measure(self, value, field, context=None):
         return field.attributes.get("size", 0)
 
-    def serialize(self, value, field):
+    def serialize(self, value, field, resource=None):
         return value
 
 class BaseIntField(FieldType):
@@ -72,6 +72,29 @@ class BaseIntField(FieldType):
         size = field.attributes.get("size", self.default_size)
         writer.write_uint(value, size)
 
+    def serialize(self, value, field, resource=None):
+        display_value_map = field.attributes.get("display_value_map", {})
+        if not display_value_map or isinstance(value, (dict, list)):
+            return value
+        return display_value_map.get(value, value)
+
+class SignedBaseIntField(FieldType):
+    default_size = 4
+
+    def read(self, reader, field, context=None):
+        size = field.attributes.get("size", self.default_size)
+        return reader.read_int(size)
+
+    def write(self, writer, value, field):
+        size = field.attributes.get("size", self.default_size)
+        writer.write_int(value, size)
+
+    def serialize(self, value, field, resource=None):
+        display_value_map = field.attributes.get("display_value_map", {})
+        if not display_value_map or isinstance(value, (dict, list)):
+            return value
+        return display_value_map.get(value, value)
+
 class UInt8(BaseIntField):
     names = ["byte", "char"]
     default_size = 1
@@ -82,6 +105,18 @@ class UInt16(BaseIntField):
 
 class UInt32(BaseIntField):
     names = ["dword"]
+    default_size = 4
+
+class Int8(SignedBaseIntField):
+    names = ["sbyte", "schar"]
+    default_size = 1
+
+class Int16(SignedBaseIntField):
+    names = ["sword"]
+    default_size = 2
+
+class Int32(SignedBaseIntField):
+    names = ["sdword"]
     default_size = 4
     
 class Bitfield(BaseIntField):
@@ -205,6 +240,204 @@ class Bytes(FieldType):
         if value is None:
             value = b'\x00' * size
         writer.write(value)
+
+class ByteArray(FieldType):
+    names = ["byte_array"]
+
+    def _count(self, field):
+        count = field.attributes.get("count")
+        if count is not None:
+            return count
+
+        size = field.attributes.get("size")
+        if size is None:
+            raise ValueError(f"{field.name} requires a valid 'count' or 'size'")
+        return size
+
+    def _labels(self, field):
+        labels = field.attributes.get("labels", {}) or {}
+        if isinstance(labels, list):
+            return {index: label for index, label in enumerate(labels)}
+        return labels
+
+    def _values(self, field):
+        return field.attributes.get("values", {}) or {}
+
+    def _parse_index(self, key, field):
+        if isinstance(key, int):
+            return key
+
+        if isinstance(key, str):
+            if key.isdigit():
+                return int(key)
+
+            reverse_labels = {label: index for index, label in self._labels(field).items()}
+            if key in reverse_labels:
+                return reverse_labels[key]
+
+        raise ValueError(f"Unsupported key for {field.name}: {key!r}")
+
+    def read(self, reader, field, context=None):
+        return [reader.read_uint8() for _ in range(self._count(field))]
+
+    def write(self, writer, value, field):
+        count = self._count(field)
+        pad_value = field.attributes.get("pad_value", 0)
+
+        if value is None:
+            entries = [pad_value] * count
+        elif isinstance(value, dict):
+            entries = [pad_value] * count
+            values = self._values(field)
+            reverse_values = {label: index for index, label in values.items()}
+            for key, entry in value.items():
+                index = self._parse_index(key, field)
+                if 0 <= index < count:
+                    if isinstance(entry, str) and entry in reverse_values:
+                        entries[index] = reverse_values[entry]
+                    else:
+                        entries[index] = pad_value if entry is None else int(entry)
+        else:
+            entries = list(value)[:count]
+            if len(entries) < count:
+                entries.extend([pad_value] * (count - len(entries)))
+
+        for entry in entries:
+            writer.write_uint8(pad_value if entry is None else int(entry))
+
+    def measure(self, value, field, context=None):
+        return self._count(field)
+
+    def serialize(self, value, field, resource=None):
+        if value is None:
+            return {}
+
+        labels = self._labels(field)
+        values = self._values(field)
+        display_empty_values = set(field.attributes.get("display_empty_values", []))
+        display_sparse = field.attributes.get("display_sparse", False)
+        display_as_mapping = field.attributes.get("display_as_mapping", bool(labels))
+        entries = list(value)[:self._count(field)]
+
+        def display_value(entry):
+            if entry is None or entry in display_empty_values:
+                return None
+            return values.get(entry, entry)
+
+        if display_as_mapping:
+            serialized = {}
+            for index, entry in enumerate(entries):
+                rendered = display_value(entry)
+                if rendered is None and display_sparse:
+                    continue
+                serialized[labels.get(index, f"entry_{index}")] = rendered
+            return serialized
+
+        return [display_value(entry) for entry in entries]
+
+class WordArray(FieldType):
+    names = ["word_array"]
+
+    def _entry_size(self, field):
+        return 2
+
+    def _count(self, field):
+        count = field.attributes.get("count")
+        if count is not None:
+            return count
+
+        size = field.attributes.get("size")
+        if size is None or size % self._entry_size(field) != 0:
+            raise ValueError(f"{field.name} requires a valid 'count' or divisible 'size'")
+        return size // self._entry_size(field)
+
+    def _labels(self, field):
+        labels = field.attributes.get("labels", {}) or {}
+        if isinstance(labels, list):
+            return {index: label for index, label in enumerate(labels)}
+        return labels
+
+    def _parse_index(self, key, field):
+        if isinstance(key, int):
+            return key
+
+        if isinstance(key, str):
+            if key.isdigit():
+                return int(key)
+            if key.startswith("slot_") and key[5:].isdigit():
+                return int(key[5:])
+
+            reverse_labels = {label: index for index, label in self._labels(field).items()}
+            if key in reverse_labels:
+                return reverse_labels[key]
+
+        raise ValueError(f"Unsupported key for {field.name}: {key!r}")
+
+    def read(self, reader, field, context=None):
+        return [reader.read_uint16() for _ in range(self._count(field))]
+
+    def write(self, writer, value, field):
+        count = self._count(field)
+        pad_value = field.attributes.get("pad_value", 0)
+
+        if value is None:
+            entries = [pad_value] * count
+        elif isinstance(value, dict):
+            entries = [pad_value] * count
+            for key, entry in value.items():
+                index = self._parse_index(key, field)
+                if 0 <= index < count:
+                    entries[index] = pad_value if entry is None else int(entry)
+        else:
+            entries = list(value)[:count]
+            if len(entries) < count:
+                entries.extend([pad_value] * (count - len(entries)))
+
+        for entry in entries:
+            writer.write_uint16(pad_value if entry is None else int(entry))
+
+    def measure(self, value, field, context=None):
+        return self._count(field) * self._entry_size(field)
+
+    def _resolve_entry(self, entry, field, resource):
+        if resource is None or not isinstance(entry, int):
+            return entry
+
+        section_name = field.attributes.get("resolve_indices_from_section")
+        target_field = field.attributes.get("resolve_indices_to_field")
+        if not section_name or not target_field:
+            return entry
+
+        section_entries = resource.get_section(section_name) or []
+        if 0 <= entry < len(section_entries):
+            resolved = section_entries[entry].get(target_field, entry)
+            return resolved
+
+        return entry
+
+    def serialize(self, value, field, resource=None):
+        if value is None:
+            return {}
+
+        labels = self._labels(field)
+        empty_values = set(field.attributes.get("display_empty_values", []))
+        display_sparse = field.attributes.get("display_sparse", False)
+        display_as_mapping = field.attributes.get("display_as_mapping", bool(labels))
+        entries = list(value)[:self._count(field)]
+
+        if display_as_mapping:
+            serialized = {}
+            for index, entry in enumerate(entries):
+                key = labels.get(index, f"slot_{index}")
+                if entry is None or entry in empty_values:
+                    if display_sparse:
+                        continue
+                    serialized[key] = None
+                else:
+                    serialized[key] = self._resolve_entry(entry, field, resource)
+            return serialized
+
+        return [None if entry in empty_values else entry for entry in entries]
 
 class Enum(BaseIntField):
     names = ["enum"]

@@ -4,6 +4,20 @@ Automatically registered with core.field_types.FieldTypes when imported.
 """
 from core.field_types import FieldType
 
+
+def _resolve_strref_display(value, resource):
+    if value is None or resource is None:
+        return value
+
+    resolver = getattr(resource, "strref_resolver", None)
+    if callable(resolver):
+        resolved = resolver(value)
+        if resolved is not None:
+            text = str(resolved)
+            return f"({value}) {text}" if text else f"({value})"
+
+    return value
+
 class ResRef(FieldType):
     names = ["resref"]
 
@@ -83,6 +97,9 @@ class StrRef(FieldType):
 
         writer.write_uint32(0 if value is None else value)
 
+    def serialize(self, value, field, resource=None):
+        return _resolve_strref_display(value, resource)
+
 class StrRefArray(FieldType):
     names = ["strref_array"]
 
@@ -149,7 +166,7 @@ class StrRefArray(FieldType):
     def measure(self, value, field, context=None):
         return self._count(field) * self._entry_size(field)
 
-    def serialize(self, value, field):
+    def serialize(self, value, field, resource=None):
         if value is None:
             return {}
 
@@ -164,7 +181,7 @@ class StrRefArray(FieldType):
             label = labels.get(index, f"slot_{index}")
             if label in serialized:
                 label = f"{label}[{index}]"
-            serialized[label] = entry
+            serialized[label] = _resolve_strref_display(entry, resource)
 
         return serialized
 
