@@ -80,7 +80,12 @@ def _resolve_strrefs(data: Any, loader: ResourceLoader, game_id: str) -> Any:
     Recursively walks a data structure. If it finds a key ending in 'name', 'desc', etc.
     with an integer value, it attempts to resolve it via the loader's TLK handler.
     """
-    strref_suffixes = ("_name", "_description", "identified_desc", "unidentified_desc", "_text", "_tooltip")
+    strref_suffixes = (
+        "_name", "_description", "identified_desc", "unidentified_desc", "_text", "_tooltip", 
+        "_strref", "_msg", "_message", "identified_name", "unidentified_name", 
+        "identified_description", "unidentified_description", "journal_text", 
+        "dialog_text", "encounter_text"
+    )
     
     if isinstance(data, dict):
         new_dict = {}
@@ -89,7 +94,7 @@ def _resolve_strrefs(data: Any, loader: ResourceLoader, game_id: str) -> Any:
             new_dict[k] = new_val
             
             # Heuristic: Check if this field looks like a StrRef
-            if isinstance(v, int) and v > 0 and (k.lower().endswith(strref_suffixes) or k in ("name", "description")):
+            if isinstance(v, int) and v > 0 and (k.lower().endswith(strref_suffixes) or k.lower() in ("name", "description", "strref", "area_name", "long_name")):
                 resolved = loader.get_string(v, game=game_id)
                 if resolved:
                     # Add a synthetic key for display
@@ -251,7 +256,7 @@ class ResourceExplorer:
         if not self.indexer:
             return
         
-        types_to_index = [restype] if restype and restype != "ALL" else ["ITM", "SPL", "CRE"]
+        types_to_index = [restype] if restype and restype != "ALL" else ["ITM", "SPL", "CRE", "ARE"]
         self.indexer.build_index(types=types_to_index)
 
     def run_repl(self):
@@ -320,7 +325,7 @@ Available Commands:
                     Ops: =, !=, <, >, <=, >=, ~ (contains)
                     Ex: where header.price > 100
   open <resref>     Load and inspect a resource
-  type <type|ALL>   Filter by resource type (ITM, SPL, CRE...)
+  type <type|ALL>   Filter by resource type (ITM, SPL, CRE, ARE...)
   game              Switch active game
   random            Pick a random resource
   cls               Clear screen
