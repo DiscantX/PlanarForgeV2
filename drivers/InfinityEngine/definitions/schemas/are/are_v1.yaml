@@ -1,6 +1,6 @@
 name: ARE
 version: V1
-games: [BG1, BG2, BG2EE, BGEE, IWD, IWDEE, PST]
+games: [BG1, BG2, IWD, PST]
 
 header:
   fields:
@@ -1411,29 +1411,39 @@ automap_notes:
   fields:
 
   - name: x_coordinate
-    type: dword
-    size: 4
+    type: word
+    size: 2
     offset: 0x0000
 
   - name: y_coordinate
-    type: dword
+    type: word
+    size: 2
+    offset: 0x0002
+
+  - name: text
+    type: strref
     size: 4
     offset: 0x0004
 
-  - name: text
-    type: char_array
-    size: 500
+  - name: strref_location
+    type: word
+    size: 2
     offset: 0x0008
 
   - name: note_colour
     type: dword
-    size: 4
-    offset: 0x01fc
+    size: 2
+    offset: 0x000a
 
-  - name: unknown
-    type: bytes
-    size: 5
-    offset: 0x0200
+  - name: note_count_plus_ten
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: unused
+    type: dword
+    size: 36
+    offset: 0x0010
 
 tiled_objects:
   offset_field: offset_to_tiled_objects
