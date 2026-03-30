@@ -482,8 +482,9 @@ regions:
     offset: 0x0020
 
   - name: bounding_box
-    type: byte_array
-    count: 8
+    type: word_array
+    count: 4
+    labels: [left, top, right, bottom]
     size: 8
     offset: 0x0022
 
@@ -932,8 +933,9 @@ containers:
     offset: 0x0036
 
   - name: bounding_box
-    type: byte_array
-    count: 8
+    type: word_array
+    count: 4
+    labels: [left, top, right, bottom]
     size: 8
     offset: 0x0038
 
@@ -1241,15 +1243,17 @@ doors:
     size: 4
     offset: 0x0034
 
-  - name: minimum_bounding_box_of_the_door_polygon
-    type: byte_array
-    count: 8
+  - name: bounding_box
+    type: word_array
+    count: 4
+    labels: [left, top, right, bottom]
     size: 8
     offset: 0x0038
 
-  - name: minimum_bounding_box_of_the_door_polygon_2
-    type: byte_array
-    count: 8
+  - name: bounding_box_2
+    type: word_array
+    count: 4
+    labels: [left, top, right, bottom]
     size: 8
     offset: 0x0040
 
@@ -1349,8 +1353,9 @@ doors:
     offset: 0x008c
 
   - name: two_points
-    type: byte_array
-    count: 8
+    type: word_array
+    count: 4
+    labels: [left, top, right, bottom]
     size: 8
     offset: 0x0090
 
