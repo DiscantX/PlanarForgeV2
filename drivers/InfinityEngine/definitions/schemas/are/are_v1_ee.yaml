@@ -1223,56 +1223,56 @@ doors:
     size: 4
     offset: 0x0028
 
-  - name: index_of_first
+  - name: index_of_first_vertex
     type: dword
     size: 4
     offset: 0x002c
 
-  - name: count_of_vertices
+  - name: count_of_vertices_open
     type: word
     size: 2
     offset: 0x0030
 
-  - name: count_of_vertices_2
+  - name: count_of_vertices_closed
     type: word
     size: 2
     offset: 0x0032
 
-  - name: index_of_first_2
+  - name: index_of_first_vertex_closed
     type: dword
     size: 4
     offset: 0x0034
 
-  - name: bounding_box
+  - name: bounding_box_open
     type: word_array
     count: 4
     labels: [left, top, right, bottom]
     size: 8
     offset: 0x0038
 
-  - name: bounding_box_2
+  - name: bounding_box_closed
     type: word_array
     count: 4
     labels: [left, top, right, bottom]
     size: 8
     offset: 0x0040
 
-  - name: index_of_first_3
+  - name: index_of_first_vertex_open
     type: dword
     size: 4
     offset: 0x0048
 
-  - name: count_of_vertices_3
+  - name: count_of_vertices_open
     type: word
     size: 2
     offset: 0x004c
 
-  - name: count_of_vertices_4
+  - name: count_of_vertices_closed
     type: word
     size: 2
     offset: 0x004e
 
-  - name: index_of_first_4
+  - name: index_of_first_vertex_closed
     type: dword
     size: 4
     offset: 0x0050
