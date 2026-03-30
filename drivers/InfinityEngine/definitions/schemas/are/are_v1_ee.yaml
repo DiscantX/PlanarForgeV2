@@ -1798,3 +1798,16 @@ rest_interruptions:
     type: bytes
     size: 56
     offset: 0x00ac
+
+vertices:
+  offset_field: offset_to_vertices
+  count_field: count_of_vertices
+  fields:
+
+  - name: x
+    type: word
+    size: 2
+
+  - name: y
+    type: word
+    size: 2
