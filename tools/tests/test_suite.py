@@ -491,6 +491,9 @@ class TestPlanarForge(unittest.TestCase):
                                 self.log_file.write(f"  - Hashes:  Original={orig_hash}, Saved={saved_hash}\n")
                                 self.log_file.write(f"  - Sizes:   Original={len(original_bytes)}, Saved={len(saved_bytes)}\n")
                                 
+                                if hasattr(resource, "trailing_data"):
+                                    self.log_file.write(f"  - Trailing: Found {len(resource.trailing_data)} bytes of unmapped data at end of file\n")
+
                                 limit = min(len(original_bytes), len(saved_bytes))
                                 diff_idx = next((i for i in range(limit) if original_bytes[i] != saved_bytes[i]), -1)
 

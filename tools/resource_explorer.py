@@ -431,6 +431,14 @@ Available Commands:
                 return
                 
             data = resource.to_dict()
+
+            # Expose unmapped trailing data for manual inspection
+            if hasattr(resource, "trailing_data"):
+                data["_unmapped_trailing_data"] = {
+                    "size_bytes": len(resource.trailing_data),
+                    "data_hex": resource.trailing_data.hex(' ').upper()
+                }
+
             # Resolve StrRefs for readable display
             data = _resolve_strrefs(data, self.loader, self.active_game)
             
