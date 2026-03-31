@@ -229,7 +229,7 @@ header:
     size: 4
     offset: 0x009c
 
-  - name: index_into_tiled_object_flags
+  - name: offset_to_tiled_object_flags
     type: word
     size: 2
     offset: 0x00a0
@@ -274,7 +274,7 @@ header:
     size: 4
     offset: 0x00c0
 
-  - name: count_of_tiled_object
+  - name: count_of_tiled_objects
     type: dword
     size: 4
     offset: 0x00c4
@@ -1160,12 +1160,12 @@ doors:
     size: 4
     offset: 0x002c
 
-  - name: count_of_vertices_open
+  - name: count_of_outline_vertices_open
     type: word
     size: 2
     offset: 0x0030
 
-  - name: count_of_vertices_closed
+  - name: count_of_outline_vertices_closed
     type: word
     size: 2
     offset: 0x0032
@@ -1199,7 +1199,7 @@ doors:
     size: 2
     offset: 0x004c
 
-  - name: count_of_vertices_closed
+  - name: count_of_impeded_vertices_closed
     type: word
     size: 2
     offset: 0x004e
@@ -1453,7 +1453,7 @@ automap_notes:
 
 tiled_objects:
   offset_field: offset_to_tiled_objects
-  count_field: count_of_tiled_object
+  count_field: count_of_tiled_objects
   fields:
 
   - name: name
@@ -1495,6 +1495,15 @@ tiled_objects:
     type: bytes
     size: 48
     offset: 0x0038
+
+tiled_object_flags:
+  offset_field: offset_to_tiled_object_flags
+  count_field: count_of_tiled_object_flags
+  fields:
+
+  - name: flags
+    type: word
+    size: 2    
 
 song_entries:
   offset_field: offset_to_song_entries

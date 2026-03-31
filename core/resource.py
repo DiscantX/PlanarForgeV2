@@ -208,6 +208,10 @@ class Resource:
         if not value:
             return ""
 
+        # Summarize large blocks of null bytes for better readability
+        if len(value) > 8 and all(b == 0 for b in value):
+            return f"<zeroed ({len(value)} bytes)>"
+
         return f"0x{value.hex()}"
 
     def _serialize_resref(self, value):
