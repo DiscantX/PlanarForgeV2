@@ -115,12 +115,12 @@ header:
     offset: 0x0050
 
   - name: overlay_transparency
-    type: word
+    type: byte
     size: 1
     offset: 0x0052
   
   - name: unused
-    type: word
+    type: byte
     size: 1
     offset: 0x0053
 
@@ -811,7 +811,7 @@ spawn_points:
     offset: 0x00a1
 
   - name: unused
-    type: byte
+    type: bytes
     size: 38
     offset: 0x00a2         
 
@@ -1510,7 +1510,7 @@ automap_notes:
     offset: 0x0008
 
   - name: note_colour
-    type: dword
+    type: word
     size: 2
     offset: 0x000a
 
@@ -1520,7 +1520,7 @@ automap_notes:
     offset: 0x000c
 
   - name: unused
-    type: dword
+    type: bytes
     size: 36
     offset: 0x0010
 
@@ -1798,6 +1798,15 @@ rest_interruptions:
     type: bytes
     size: 56
     offset: 0x00ac
+
+explored_bitmask:
+  offset_field: offset_to_explored_bitmask
+  count_field: size_of_explored_bitmask
+  fields:
+
+  - name: data
+    type: byte
+    size: 1
 
 vertices:
   offset_field: offset_to_vertices

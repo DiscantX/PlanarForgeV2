@@ -341,3 +341,31 @@ By internalizing these lessons, we can approach future troubleshooting with grea
 *   Full official fidelity run:
     *   `python tools/tests/test_suite.py --test 2 --schema CRE --game IWD2`
     *   Result: `0/1622` failures
+
+### 2026-03-31: ARE Bounding Box and Rect Type Fidelity
+
+**Problem:** `ARE` bounding boxes were producing incorrect coordinate data.
+**Analysis:** The IESDP defines the `rect` type as 8 bytes, which the initial schema interpreted as a `byte_array` of length 8. In reality, the Infinity Engine treats these as four 16-bit unsigned integers (Words) representing Left, Top, Right, and Bottom. Reading them as individual bytes caused incorrect coordinate calculations in the serialized output.
+**Solution:** Changed `bounding_box` and similar fields from `byte_array` (count 8) to `word_array` (count 4). Added semantic `labels` ([left, top, right, bottom]) to improve readability.
+
+### 2026-03-31: ARE Vertex Pool Resolution
+
+**Problem:** Indices for door and region polygons were "dead links" to unresolved data.
+**Analysis:** Door and Region structures in `ARE` files don't store coordinates locally; they store an index and count pointing into a global vertex pool defined in the Area Header. Because the schema lacked a `vertices` section, this data was being skipped during parsing and zeroed out on write if it created an offset gap.
+**Solution:** Added a `vertices` section to all `ARE` schema versions, linked to the `offset_to_vertices` and `count_of_vertices` header fields. This allows the parser to resolve polygon coordinates for all spatial triggers and doors.
+
+### 2026-03-31: ARE Field Type and Padding Fidelity
+
+**Problem:** Round-trip tests showed `0x00` bytes being saved where the original file contained `0xFF`.
+**Analysis:** 
+1. Several 1-byte and 2-byte fields were incorrectly typed (e.g., `dword` for a 2-byte `word` field).
+2. Large "unused" padding blocks were defined as scalar types (like `byte` with a large `size`). The parser failed to read these correctly, defaulting to `0`.
+**Solution:** 
+* Corrected field types for `overlay_transparency` and `note_colour`.
+* Converted all large `unused` or `unknown` blocks from scalar types to the `bytes` type to ensure raw binary preservation of padding values (including `0xFF`).
+
+### 2026-03-31: ARE Explored Bitmask Resolution
+
+**Problem:** Fidelity mismatches persisted in files with map exploration data.
+**Analysis:** The `explored_bitmask` is a variable-length blob of bytes stored between major sections. Its offset and size are defined in the header. Like the vertex pool, because this wasn't defined as a section, the writer treated it as a gap and filled it with zeros.
+**Solution:** Added an `explored_bitmask` section using `count_field: size_of_explored_bitmask`. This ensures the map exploration state is correctly preserved during round-trips.
