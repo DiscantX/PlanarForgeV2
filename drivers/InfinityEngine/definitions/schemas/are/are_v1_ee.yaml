@@ -214,7 +214,7 @@ header:
     size: 4
     offset: 0x008c
 
-  - name: index_into_tiled_object_flags
+  - name: offset_to_tiled_object_flags
     type: word
     size: 2
     offset: 0x0090
@@ -1576,6 +1576,15 @@ tiled_objects:
     type: bytes
     size: 48
     offset: 0x0038
+
+tiled_object_flags:
+  offset_field: offset_to_tiled_object_flags
+  count_field: count_of_tiled_object_flags
+  fields:
+
+  - name: flags
+    type: word
+    size: 2    
 
 projectile_traps:
   offset_field: offset_to_projectile_traps

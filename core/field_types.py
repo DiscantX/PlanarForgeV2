@@ -93,6 +93,12 @@ class BaseIntField(FieldType):
         if lookup_value is not None:
             return lookup_value
 
+        # Convert max unsigned value to -1 for sentinel representation
+        if isinstance(value, int) and not isinstance(value, bool):
+            size = field.attributes.get("size", self.default_size)
+            if value == (1 << (8 * size)) - 1:
+                value = -1
+
         display_value_map = field.attributes.get("display_value_map", {})
         if not display_value_map or isinstance(value, (dict, list)):
             return value
@@ -113,6 +119,12 @@ class SignedBaseIntField(FieldType):
         lookup_value = _serialize_lookup(value, field, resource)
         if lookup_value is not None:
             return lookup_value
+
+        # Ensure sentinel representation consistency
+        if isinstance(value, int) and not isinstance(value, bool):
+            size = field.attributes.get("size", self.default_size)
+            if value == (1 << (8 * size)) - 1:
+                value = -1
 
         display_value_map = field.attributes.get("display_value_map", {})
         if not display_value_map or isinstance(value, (dict, list)):
