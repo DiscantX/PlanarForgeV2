@@ -549,9 +549,10 @@ class TestPlanarForge(unittest.TestCase):
                 
                 schema_total_tested += tested
                 schema_total_failed += failed
+                crash_count = sum(len(refs) for msg, refs in errors.items() if "CRASH" in msg)
                 
                 if failed > 0:
-                    print(f"{Colors.LABEL}Game:{Colors.ENDC} {Colors.VALUE}{game:<6}{Colors.ENDC} | {Colors.LABEL}Schema:{Colors.ENDC} {Colors.VALUE}{schema_name:<4}{Colors.ENDC} | {Colors.FAILURE_LABEL}Failed:{Colors.ENDC} {Colors.FAILURE_COUNT}{failed}{Colors.ENDC}/{Colors.TOTAL_COUNT}{tested}{Colors.ENDC}")
+                    print(f"{Colors.LABEL}Game:{Colors.ENDC} {Colors.VALUE}{game:<6}{Colors.ENDC} | {Colors.LABEL}Schema:{Colors.ENDC} {Colors.VALUE}{schema_name:<4}{Colors.ENDC} | {Colors.FAILURE_LABEL}Failed:{Colors.ENDC} {Colors.FAILURE_COUNT}{failed}{Colors.ENDC}/{Colors.TOTAL_COUNT}{tested}{Colors.ENDC} (Crashes: {crash_count})")
                     
                     for msg, resrefs in errors.items():
                         count = len(resrefs)
