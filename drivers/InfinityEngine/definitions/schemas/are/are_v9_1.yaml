@@ -351,7 +351,7 @@ actors:
 
   - name: has_spawned
     type: dword
-    size: 4
+    size: 2
     offset: 0x002c
 
   - name: cre_resref_first_letter
