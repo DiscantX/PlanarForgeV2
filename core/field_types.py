@@ -259,6 +259,28 @@ class CharArray(FieldType):
         size = field.attributes["size"]
         writer.write_string(value, size)
 
+    def serialize(self, value, field, resource=None):
+        if not isinstance(value, str):
+            return value
+
+        # Truncate at the first null byte (C-string style)
+        # This eliminates "zombie data" trailing after the terminator
+        clean_value = value.split('\x00', 1)[0]
+
+        if not clean_value:
+            return ""
+
+        # If the string contains non-printable ASCII or control characters,
+        # it's likely a misaligned schema reading binary data.
+        # We allow printable ASCII (32-126).
+        if all(32 <= ord(c) <= 126 for c in clean_value):
+            return clean_value
+
+        # Fallback for "dirty" strings to aid schema debugging.
+        # We preserve the raw bytes in hex format for visibility.
+        raw_hex = clean_value.encode('latin-1', errors='replace').hex(' ').upper()
+        return f"<binary data: {raw_hex}>"
+
 class Bytes(FieldType):
     names = ["bytes"]
 
