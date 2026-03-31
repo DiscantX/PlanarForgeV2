@@ -347,8 +347,10 @@ actors:
   - name: actor_flags
     type: bitmask
     flags:
-      0x00000001: cre_external
-      0x00000002: cre_embedded
+      0x00000001: cre_embedd
+      0x00000002: seen_party
+      0x00000004: invulnerable
+      0x00000008: script_override
     size: 4
     offset: 0x0028
 
@@ -367,13 +369,19 @@ actors:
     size: 1
     offset: 0x002f
 
-  - name: actor_animation
+  - name: animation
     type: dword
+    lookup:
+      kind: ids
+      file: ANIMATE.IDS
     size: 4
     offset: 0x0030
 
-  - name: actor_orientation
+  - name: orientation
     type: word
+    lookup:
+      kind: ids
+      file: DIR.IDS
     size: 2
     offset: 0x0034
   

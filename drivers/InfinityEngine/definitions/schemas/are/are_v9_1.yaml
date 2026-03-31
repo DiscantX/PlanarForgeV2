@@ -342,22 +342,38 @@ actors:
   - name: actor_flags
     type: bitmask
     flags:
-      0x00000001: cre_external
-      0x00000002: cre_embedded
+      0x00000001: cre_embedded
+      0x00000002: unknown
+      0x00000004: unknown_2
+      0x00000008: script_override
     size: 4
     offset: 0x0028
 
-  - name: spawned
+  - name: has_spawned
     type: dword
     size: 4
     offset: 0x002c
 
-  - name: animation_id
-    type: word
+  - name: cre_resref_first_letter
+    type: byte
+    size: 1
+    offset: 0x002e
+
+  - name: area_difficulty
+    type: bitmask
+    flags:
+      0x00000001: spawn_lvl_1
+      0x00000002: spawn_lvl_2
+      0x00000004: spawn_lvl_3
+    size: 1
+    offset: 0x002f    
+
+  - name: animation
+    type: dword
     lookup:
       kind: ids
       file: ANIMATE.IDS
-    size: 2
+    size: 4
     offset: 0x0030
 
   - name: orientation
@@ -366,87 +382,97 @@ actors:
       kind: ids
       file: DIR.IDS
     size: 2
-    offset: 0x0032
+    offset: 0x0034
+
+  - name: unused
+    type: word
+    size: 2
+    offset: 0x0036
 
   - name: expiry_timer
     type: dword
     size: 4
-    offset: 0x0034
-
-  - name: wander_range
-    type: word
-    size: 2
     offset: 0x0038
 
-  - name: follow_range
+  - name: movement_range
     type: word
     size: 2
-    offset: 0x003a
-
-  - name: times_present_schedule
-    type: dword
-    size: 4
     offset: 0x003c
 
-  - name: num_times_talked_to
+  - name: move_to_range
+    type: word
+    size: 2
+    offset: 0x003e
+
+  - name: appearance_schedule
     type: dword
     size: 4
     offset: 0x0040
 
+  - name: num_times_talked_to
+    type: dword
+    size: 4
+    offset: 0x0044
+
   - name: dialog_file
     type: resref
     size: 8
-    offset: 0x0044
+    offset: 0x0048
 
   - name: script_override
     type: resref
     size: 8
-    offset: 0x004c
+    offset: 0x0050
 
-  - name: script_general
+  - name: script_special_3
     type: resref
     size: 8
-    offset: 0x0054
+    offset: 0x0058
 
-  - name: script_class
+  - name: script_special_2
     type: resref
     size: 8
-    offset: 0x005c
+    offset: 0x0060
 
-  - name: script_race
+  - name: script_combat
     type: resref
     size: 8
-    offset: 0x0064
+    offset: 0x0068
 
-  - name: script_default
+  - name: script_movement
     type: resref
     size: 8
-    offset: 0x006c
+    offset: 0x0070
 
-  - name: script_specific
+  - name: script_team
     type: resref
     size: 8
-    offset: 0x0074
+    offset: 0x0078
 
   - name: cre_file
     type: resref
     size: 8
-    offset: 0x007c
+    offset: 0x0080
 
   - name: cre_offset
     type: dword
     size: 4
-    offset: 0x0084
+    offset: 0x0088
 
   - name: cre_size
     type: dword
     size: 4
-    offset: 0x0088
+    offset: 0x008c
+
+  - name: script_special_1
+    type: resref
+    size: 8
+    offset: 0x0090
 
   - name: unknown
     type: bytes
-    size: 128
-    offset: 0x008c
+    size: 120
+    offset: 0x0098
 
 regions:
   count_field: count_of_regions
