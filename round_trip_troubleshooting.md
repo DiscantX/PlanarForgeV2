@@ -369,3 +369,15 @@ By internalizing these lessons, we can approach future troubleshooting with grea
 **Problem:** Fidelity mismatches persisted in files with map exploration data.
 **Analysis:** The `explored_bitmask` is a variable-length blob of bytes stored between major sections. Its offset and size are defined in the header. Like the vertex pool, because this wasn't defined as a section, the writer treated it as a gap and filled it with zeros.
 **Solution:** Added an `explored_bitmask` section using `count_field: size_of_explored_bitmask`. This ensures the map exploration state is correctly preserved during round-trips.
+
+### 2026-03-31: PSTEE "Zombie" Data / Trailing Garbage Preservation
+
+**Problem:** `AR13WZ.ARE` (PSTEE) and similar files failed fidelity tests due to trailing bytes (offset 0xDE8+) marked as "unused" in NearInfinity.
+**Analysis:** The file contains structured actor data that is no longer referenced by the header. Because the parser is logic-driven, it stopped at the last referenced section, leading to a smaller saved file and an MD5 mismatch.
+**Solution:** Implemented "Automatic Tail Preservation" in `BinaryParser`. The parser now captures any bytes remaining after the last schema section into a `trailing_data` buffer. This buffer is appended during `write` if the resource is unmodified. This preserves binary fidelity without requiring schema changes for unreferenced data.
+
+### 2026-03-31: ARE Fidelity Regression (Trailing Data Logic)
+
+**Problem:** Recent fixes caused all `ARE` files to fail fidelity tests with massive size increases and data corruption.
+**Analysis:** The "Automatic Tail Preservation" logic was using `reader.tell()` after the last schema section was parsed. Because `vertices` was at the bottom of the YAML but physically early in the file, the parser was left pointing to the middle of the file. The "tail" capture then included sections physically following that point, leading to double-writing.
+**Solution:** Modified `BinaryParser.read` to track `max_pos` (the highest offset reached by any section) instead of relying on the final position of the reader. This ensures the trailing data buffer only contains bytes physically following the entire structured part of the file.

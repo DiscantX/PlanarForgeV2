@@ -5,6 +5,7 @@ logs/
 *.code-workspace
 *.ITM
 *.BIF
+*.ARE
 *.KEY
 *.log
 .cache/

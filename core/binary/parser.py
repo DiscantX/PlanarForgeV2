@@ -12,6 +12,7 @@ class BinaryParser:
         resource = self.resource_class(self.schema, name=name, source=source)
         resource.sections = {}
 
+        max_pos = reader.tell()
         filesize = reader.size()
 
         # -----------------------------
@@ -25,6 +26,7 @@ class BinaryParser:
             header_data = self._read_section(reader, header_section, resource)
             resource.sections["header"] = [header_data]
             resource.values.update(header_data)
+            max_pos = max(max_pos, reader.tell())
 
         # -----------------------------
         # Parse remaining sections
@@ -69,6 +71,7 @@ class BinaryParser:
                     continue
 
                 reader.seek(offset)
+                max_pos = max(max_pos, reader.tell())
 
             # Determine entry count
             count = self._determine_section_count(section, resource, reader)
@@ -79,6 +82,15 @@ class BinaryParser:
                 entries.append(entry)
 
             resource.sections[section.name] = entries
+            max_pos = max(max_pos, reader.tell())
+
+        # Capture any unreferenced trailing data at the end of the file.
+        # This ensures binary fidelity for files with "zombie" data or editor leftovers
+        # without requiring a schema change for every one-off case.
+        remaining_bytes = filesize - max_pos
+        if remaining_bytes > 0:
+            reader.seek(max_pos)
+            resource.trailing_data = reader.read(remaining_bytes)
 
         return resource
 
@@ -256,3 +268,9 @@ class BinaryParser:
                 for field in section.fields:
                     value = entry if field.attributes.get("flatten") else entry.get(field.name)
                     field.type.write(writer, value, field)
+
+        # Append trailing data if it exists and we are in fidelity mode (unmodified).
+        # We typically discard trailing garbage when a file is modified/repacked
+        # as the internal offsets and physical context of that data are lost.
+        if not resource.modified and hasattr(resource, "trailing_data"):
+            writer.write(resource.trailing_data)
