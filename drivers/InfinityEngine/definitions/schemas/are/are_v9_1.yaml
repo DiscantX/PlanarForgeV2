@@ -1634,6 +1634,15 @@ rest_interruptions:
     size: 56
     offset: 0x00ac
 
+explored_bitmask:
+  offset_field: offset_to_explored_bitmask
+  count_field: size_of_explored_bitmask
+  fields:
+
+  - name: data
+    type: byte
+    size: 1
+
 vertices:
   offset_field: offset_to_vertices
   count_field: count_of_vertices
