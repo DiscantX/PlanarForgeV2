@@ -390,6 +390,6 @@ By internalizing these lessons, we can approach future troubleshooting with grea
 ### 2026-03-31: IWD2 ARE V9.1 Region Alignment (Cumulative Drift)
 
 **Problem:** IWD2 ARE files showed nonsensical field values (e.g., `index_of_first: 1852403536`) that worsened with each subsequent entry in the `regions` list.
-**Analysis:** Converting the erroneous integer values to ASCII revealed they were fragments of string data (e.g., `1852403536` -> `Pinn`). This confirmed "ASCII leakage," where the parser's read head was out of sync due to a size mismatch. NearInfinity confirmed the `regions` structure in IWD2 is 196 bytes ($0xC4$), whereas the schema was only accounting for 184 bytes ($0xB8$).
+**Analysis:** NearInfinity confirmed the `regions` structure in IWD2 is 196 bytes ($0xC4$), whereas the schema was only accounting for 184 bytes ($0xB8$).
 **Solution:** Updated `are_v9_1.yaml` to increase the `unknown` block size at offset `0x0090` from 40 to 52 bytes.
 **Status:** **FIXED**. This resolved the cumulative drift for the `regions` section. Only one known IWD2 fidelity error remains in the test suite.
