@@ -55,7 +55,12 @@ class ResourceIndexer:
             print(f"Building index for {restype}...")
             count = 0
             for resref in resrefs:
-                resource = self.loader.load(resref, restype=restype, game=self.game_id)
+                try:
+                    resource = self.loader.load(resref, restype=restype, game=self.game_id)
+                except Exception as e:
+                    # Prevent a single bad file from crashing the entire indexer
+                    resource = None
+                
                 if resource:
                     # Resolve display name from common fields
                     name_strref = resource.get("identified_name") or resource.get("name")
