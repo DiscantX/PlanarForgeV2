@@ -240,6 +240,20 @@ class ResourceLoader:
                 if legacy_iwd_schema is not None:
                     return legacy_iwd_schema
 
+        # PSTEE ARE files often use the legacy PST V1.0 header layout.
+        # We use a heuristic to distinguish them from standard EE layouts:
+        # Legacy PST has Actor offset at 0x84, standard EE has it at 0x54.
+        if restype == "ARE" and game == "PSTEE" and len(raw_bytes) >= 0x88:
+            version = raw_bytes[4:8].decode("latin-1", errors="ignore").rstrip("\x00")
+            if version == "V1.0":
+                ee_actor_off = int.from_bytes(raw_bytes[0x54:0x58], 'little')
+                pst_actor_off = int.from_bytes(raw_bytes[0x84:0x88], 'little')
+                
+                if ee_actor_off == 0 and pst_actor_off > 0:
+                    legacy_pst_schema = self.schema_loader.get("ARE", game="PST")
+                    if legacy_pst_schema is not None:
+                        return legacy_pst_schema
+
         return resolved
             
     def _find_bif_file(self, res_entry, game=None):
@@ -305,10 +319,12 @@ class ResourceLoader:
             return None
 
         if restype:
-            target_code = RESOURCE_TYPE_MAP_REV.get(restype, restype)
+            target_code = RESOURCE_TYPE_MAP_REV.get(restype)
+            if target_code is not None:
+                target_code = int(target_code)
 
             for entry in entries:
-                if entry.get("resource_type") == target_code:
+                if int(entry.get("resource_type", -1)) == target_code:
                     return entry
             
         if restype:
@@ -328,12 +344,17 @@ class ResourceLoader:
         if not entries:
             return None
 
-        target_code = RESOURCE_TYPE_MAP_REV.get(restype, restype)
+        # Ensure target_code and entry types are comparable (integers)
+        target_code = RESOURCE_TYPE_MAP_REV.get(restype)
+        if target_code is not None:
+            target_code = int(target_code)
+
         for entry in entries:
-            if entry.get("resource_type") == target_code:
+            if int(entry.get("resource_type", -1)) == target_code:
                 return entry
 
         return None
+
     
     def _get_install_path(self, game):
         if game in self.install_paths:
