@@ -197,10 +197,10 @@ class Resource:
             return self._serialize_bytes(value)
 
         if isinstance(value, str):
-            return value.rstrip('\x00')
+            return value.split('\x00', 1)[0]
 
         if not isinstance(value, (int, float, bool, type(None))):
-            return str(value).rstrip('\x00')
+            return str(value).split('\x00', 1)[0]
 
         return value
 
