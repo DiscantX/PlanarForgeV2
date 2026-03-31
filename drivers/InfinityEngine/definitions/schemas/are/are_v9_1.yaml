@@ -342,7 +342,7 @@ actors:
   - name: actor_flags
     type: bitmask
     flags:
-      0x00000001: cre_embedded
+      0x00000001: cre_external
       0x00000002: unknown
       0x00000004: unknown_2
       0x00000008: script_override
