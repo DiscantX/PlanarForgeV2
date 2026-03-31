@@ -609,7 +609,7 @@ regions:
 
   - name: unknown
     type: bytes
-    size: 40
+    size: 52
     offset: 0x0090
 
 spawn_points:

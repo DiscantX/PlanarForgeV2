@@ -386,3 +386,10 @@ By internalizing these lessons, we can approach future troubleshooting with grea
 **Analysis:** Investigation showed `cre_offset` and `cre_size` fields contained suspicious ASCII-like fragments (e.g., "EDN2"). This was diagnosed as "Offset Drift" identical to an issue previously solved in the `ARE V1 EE` schema.
 **Root Cause:** The Actor entry size in the `ARE V9.1` schema was incorrect. Fields were missing, misaligned, or misnamed, causing the parser's read head to drift further with each subsequent entry in the Actor list. Because the parser was reading from incorrect offsets, it failed to identify the embedded CRE data, leading the writer to treat that space as an unreferenced "gap" and fill it with null bytes.
 **Solution:** Corrected the Actor entry field definitions to ensure a consistent 272-byte structure. This aligned the pointers correctly and preserved the embedded character data during round-trips.
+
+### 2026-03-31: IWD2 ARE V9.1 Region Alignment (Cumulative Drift)
+
+**Problem:** IWD2 ARE files showed nonsensical field values (e.g., `index_of_first: 1852403536`) that worsened with each subsequent entry in the `regions` list.
+**Analysis:** Converting the erroneous integer values to ASCII revealed they were fragments of string data (e.g., `1852403536` -> `Pinn`). This confirmed "ASCII leakage," where the parser's read head was out of sync due to a size mismatch. NearInfinity confirmed the `regions` structure in IWD2 is 196 bytes ($0xC4$), whereas the schema was only accounting for 184 bytes ($0xB8$).
+**Solution:** Updated `are_v9_1.yaml` to increase the `unknown` block size at offset `0x0090` from 40 to 52 bytes.
+**Status:** **FIXED**. This resolved the cumulative drift for the `regions` section. Only one known IWD2 fidelity error remains in the test suite.
