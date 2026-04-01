@@ -1728,7 +1728,8 @@ rest_interruptions:
     offset: 0x0020
 
   - name: creature_resrefs
-    type: bytes
+    type: resref_array
+    count: 10
     size: 80
     offset: 0x0048
 

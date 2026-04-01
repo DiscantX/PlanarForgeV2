@@ -668,7 +668,7 @@ regions:
     offset: 0x00b8
 
   - name: dialog_file
-    type: resrref
+    type: resref
     size: 8
     offset: 0x00bc
 
@@ -1940,16 +1940,16 @@ rest_interruptions:
     size: 32
     offset: 0x0000
 
-  - name: interruption_explantion_text
+  - name: explanation_text
     type: strref_array
     count: 10
-    size: 4
+    size: 40
     offset: 0x0020
 
   - name: creature_resrefs
-    type: resref
+    type: resref_array
     count: 10
-    size: 8
+    size: 80
     offset: 0x0048
 
   - name: count_of_creatures_in_spawn_table
