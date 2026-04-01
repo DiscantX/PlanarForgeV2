@@ -185,6 +185,106 @@ class StrRefArray(FieldType):
 
         return serialized
 
+class ResRefArray(FieldType):
+    names = ["resref_array"]
+
+    def _entry_size(self, field):
+        return field.attributes.get("entry_size", 8)
+
+    def _count(self, field):
+        count = field.attributes.get("count")
+        if count is not None:
+            return count
+
+        size = field.attributes.get("size")
+        entry_size = self._entry_size(field)
+        if size is None or size % entry_size != 0:
+            raise ValueError(f"{field.name} requires a valid 'count' or divisible 'size'")
+        return size // entry_size
+
+    def _labels(self, field):
+        return field.attributes.get("labels", {}) or {}
+
+    def _parse_index(self, key, field):
+        if isinstance(key, int):
+            return key
+
+        if isinstance(key, str):
+            if key.isdigit():
+                return int(key)
+            if key.startswith("slot_") and key[5:].isdigit():
+                return int(key[5:])
+
+            reverse_labels = {label: index for index, label in self._labels(field).items()}
+            if key in reverse_labels:
+                return reverse_labels[key]
+
+        raise ValueError(f"Unsupported key for {field.name}: {key!r}")
+
+    def read(self, reader, field, context=None):
+        count = self._count(field)
+        entry_size = self._entry_size(field)
+        
+        results = []
+        for _ in range(count):
+            raw = reader.read(entry_size)
+            if entry_size == 8:
+                stripped = raw.rstrip(b"\x00")
+                val = stripped.decode("latin-1")
+                results.append(ResRefString(val))
+            else:
+                results.append(raw)
+        return results
+
+    def write(self, writer, value, field):
+        count = self._count(field)
+        entry_size = self._entry_size(field)
+        pad_value = b"\x00" * entry_size
+
+        if value is None:
+            entries = [None] * count
+        elif isinstance(value, dict):
+            entries = [None] * count
+            for key, entry in value.items():
+                index = self._parse_index(key, field)
+                if 0 <= index < count:
+                    entries[index] = entry
+        else:
+            entries = list(value)[:count]
+            if len(entries) < count:
+                entries.extend([None] * (count - len(entries)))
+
+        for entry in entries:
+            if entry is None:
+                writer.write(pad_value)
+            elif isinstance(entry, str):
+                writer.write_string(entry, entry_size)
+            else:
+                writer.write(bytes(entry)[:entry_size].ljust(entry_size, b"\x00"))
+
+    def measure(self, value, field, context=None):
+        return self._count(field) * self._entry_size(field)
+
+    def serialize(self, value, field, resource=None):
+        if value is None:
+            return {}
+
+        labels = self._labels(field)
+        display_empty_values = set(field.attributes.get("display_empty_values", ["", None]))
+        serialized = {}
+
+        for index, entry in enumerate(list(value)[:self._count(field)]):
+            display = str(entry) if entry is not None else None
+            if display in display_empty_values:
+                continue
+
+            label = labels.get(index, f"slot_{index}")
+            if label in serialized:
+                label = f"{label}[{index}]"
+            serialized[label] = display
+
+        return serialized
+
 class EffectExtraData(FieldType):
     names = ["effect_extra_data"]
 

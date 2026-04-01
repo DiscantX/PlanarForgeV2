@@ -1676,14 +1676,15 @@ rest_interruptions:
     size: 32
     offset: 0x0000
 
-  - name: interruption_explantion_text
+  - name: explanation_text
     type: strref_array
     count: 10
     size: 40
     offset: 0x0020
 
   - name: creature_resrefs
-    type: bytes
+    type: resref_array
+    count: 10
     size: 80
     offset: 0x0048
 
