@@ -1,0 +1,267 @@
+name: WED
+version: V1.3
+games: [BG1, BG2, IWD, IWD2, PST, BGEE, BG2EE, IWDEE, PSTEE]
+
+header:
+  fields:
+
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: count_of_overlays
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: count_of_doors
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: offset_to_overlays
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: offset_to_secondary_header
+    type: dword
+    size: 4
+    offset: 0x0014
+
+  - name: offset_to_doors
+    type: dword
+    size: 4
+    offset: 0x0018
+
+  - name: offset_to_door_tile_cell_indices
+    type: dword
+    size: 4
+    offset: 0x001c
+
+overlays:
+  offset_field: offset_to_overlays
+  count_field: count_of_overlays
+  fields:
+
+  - name: width
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: height
+    type: word
+    size: 2
+    offset: 0x0002
+
+  - name: name_of_tileset
+    type: resref
+    size: 8
+    offset: 0x0004
+
+  - name: count_of_unique_tiles
+    type: word
+    size: 2
+    offset: 0x000c
+
+  - name: movement_type
+    type: word
+    size: 2
+    offset: 0x000e
+
+  - name: offset_to_tilemap
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: offset_to_tile_index_lookup
+    type: dword
+    size: 4
+    offset: 0x0014
+
+secondary_header:
+  offset_field: offset_to_secondary_header
+  fields:
+
+  - name: count_of_polygons
+    type: dword
+    size: 4
+    offset: 0x0000
+
+  - name: offset_to_polygons
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: offset_to_vertices
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: offset_to_wall_groups
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: offset_to_polygon_indices_lookup
+    type: dword
+    size: 4
+    offset: 0x0010
+
+doors:
+  offset_field: offset_to_doors
+  count_field: count_of_doors
+  fields:
+
+  - name: name_of_door
+    type: char_array
+    size: 8
+    offset: 0x0000
+
+  - name: is_closed
+    type: word
+    size: 2
+    offset: 0x0008
+
+  - name: index_of_first_door_tile_cell
+    type: word
+    size: 2
+    offset: 0x000a
+
+  - name: count_of_door_tile_cells
+    type: word
+    size: 2
+    offset: 0x000c
+
+  - name: count_of_polygons_open
+    type: word
+    size: 2
+    offset: 0x000e
+
+  - name: count_of_polygons_closed
+    type: word
+    size: 2
+    offset: 0x0010
+
+  - name: offset_to_polygons_open
+    type: dword
+    size: 4
+    offset: 0x0012
+
+  - name: offset_to_polygons_closed
+    type: dword
+    size: 4
+    offset: 0x0016
+
+tilemap_structures:
+  fields:
+
+  - name: index_of_start_of_default_tile
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: count_of_default_tile_entries
+    type: word
+    size: 2
+    offset: 0x0002
+
+  - name: tis_index_of_alternate_tile
+    type: word
+    size: 2
+    offset: 0x0004
+
+  - name: draw_overlay
+    type: bitmask
+    flags:
+      0x00000001: unused_0
+      0x00000002: draw_overlay_1
+      0x00000004: draw_overlay_2
+      0x00000008: draw_overlay_3
+      0x00000010: draw_overlay_4
+      0x00000020: draw_overlay_5
+      0x00000040: draw_overlay_6
+      0x00000080: draw_overlay_7
+    size: 1
+    offset: 0x0006
+
+  - name: unknown
+    type: bytes
+    size: 3
+    offset: 0x0007
+
+wall_groups:
+  offset_field: offset_to_wall_groups
+  fields:
+
+  - name: start
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: index_into_polygon_index_counts
+    type: word
+    size: 2
+    offset: 0x0002
+
+polygons:
+  offset_field: offset_to_polygons
+  count_field: count_of_polygons
+  fields:
+
+  - name: starting_vertex_index
+    type: dword
+    size: 4
+    offset: 0x0000
+
+  - name: count_of_vertices
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: polygon_behavior_flags
+    type: bitmask
+    flags:
+      0x00000001: shade_wall
+      0x00000002: hovering
+      0x00000004: cover_animations_1
+      0x00000008: cover_animations_2
+      0x00000010: unknown_4
+      0x00000020: unknown_5
+      0x00000040: unknown_6
+      0x00000080: door
+    size: 1
+    offset: 0x0008
+
+  - name: height
+    type: byte
+    size: 1
+    offset: 0x0009
+
+  - name: min_bounding_box
+    type: word_array
+    count: 4
+    labels: [left, right, top, bottom]
+    size: 8
+    offset: 0x000a
+
+vertices:
+  offset_field: offset_to_vertices
+  count_field: count_of_vertices
+  fields:
+
+  - name: x_coordinate
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: y_coordinate
+    type: word
+    size: 2
+    offset: 0x0002
