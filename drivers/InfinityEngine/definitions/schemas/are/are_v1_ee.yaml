@@ -639,7 +639,7 @@ regions:
 
   - name: unknown_2
     type: bytes
-    size: 32
+    size: 56
     offset: 0x008c # BG/IWD Regions are 196 (0xC4) bytes. 0x8C + 32 + (0xC4-0xAC)
 
 spawn_points:

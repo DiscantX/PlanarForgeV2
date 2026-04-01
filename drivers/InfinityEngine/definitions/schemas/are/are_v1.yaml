@@ -590,33 +590,8 @@ regions:
 
   - name: unknown_2
     type: bytes
-    size: 32
+    size: 56
     offset: 0x008c
-
-  - name: sound
-    type: resref
-    size: 8
-    offset: 0x00ac
-
-  - name: talk_location_point_x_coordinate
-    type: word
-    size: 2
-    offset: 0x00b4
-
-  - name: talk_location_point_y_coordinate
-    type: word
-    size: 2
-    offset: 0x00b6
-
-  - name: speaker_name
-    type: strref
-    size: 4
-    offset: 0x00b8
-
-  - name: dialog_file
-    type: resref
-    size: 8
-    offset: 0x00bc
 
 spawn_points:
   offset_field: offset_to_spawn_points
