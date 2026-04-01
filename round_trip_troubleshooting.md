@@ -393,3 +393,10 @@ By internalizing these lessons, we can approach future troubleshooting with grea
 **Analysis:** NearInfinity confirmed the `regions` structure in IWD2 is 196 bytes ($0xC4$), whereas the schema was only accounting for 184 bytes ($0xB8$).
 **Solution:** Updated `are_v9_1.yaml` to increase the `unknown` block size at offset `0x0090` from 40 to 52 bytes.
 **Status:** **FIXED**. This resolved the cumulative drift for the `regions` section. Only one known IWD2 fidelity error remains in the test suite.
+
+### 2026-03-31: PSTEE ARE V1 Automap Note Alignment (Cumulative Drift)
+
+**Problem:** PSTEE ARE files showed offset drift errors in files with multiple automap notes.
+**Analysis:** While PSTEE identifies as version `V1`, its automap note structure is 68 bytes ($0x44$), whereas Baldur's Gate uses 52 bytes ($0x34$). Using the shared `are_v1_ee.yaml` was causing a 16-byte drift per entry.
+**Solution:** Created a dedicated `are_pstee.yaml` schema that specifically models the 68-byte Torment note and Torment-specific region fields. Removed `PSTEE` from the generic `are_v1_ee.yaml` games list.
+**Status:** **FIXED**.
