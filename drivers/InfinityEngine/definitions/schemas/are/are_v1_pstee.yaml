@@ -38,7 +38,7 @@ header:
       0x00000080: rest_message_cannot_rest_here
       0x00000100: rest_message_too_dangerous
       # composite (non-standard, but sometimes useful)
-      0x00000180: rest_message_permission_required
+      # 0x00000180: rest_message_permission_required
     size: 4
     offset: 0x0014
 
