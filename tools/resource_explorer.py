@@ -90,11 +90,14 @@ def _resolve_strrefs(data: Any, loader: ResourceLoader, game_id: str) -> Any:
     if isinstance(data, dict):
         new_dict = {}
         for k, v in data.items():
+            if not isinstance(k, str):
+                print(f"DEBUG: Non-string key found! Key: {k} (Type: {type(k)}), Value: {v}")
+
             new_val = _resolve_strrefs(v, loader, game_id)
             new_dict[k] = new_val
             
             # Heuristic: Check if this field looks like a StrRef
-            if isinstance(v, int) and v > 0 and (k.lower().endswith(strref_suffixes) or k.lower() in ("name", "description", "strref", "area_name", "long_name")):
+            if isinstance(k, str) and isinstance(v, int) and v > 0 and (k.lower().endswith(strref_suffixes) or k.lower() in ("name", "description", "strref", "area_name", "long_name")):
                 resolved = loader.get_string(v, game=game_id)
                 if resolved:
                     # Add a synthetic key for display
@@ -440,7 +443,11 @@ Available Commands:
                 }
 
             # Resolve StrRefs for readable display
-            data = _resolve_strrefs(data, self.loader, self.active_game)
+            try:
+                data = _resolve_strrefs(data, self.loader, self.active_game)
+            except Exception as e:
+                print(f"Error resolving StrRefs in {resref}.{restype}: {e}")
+                # Proceed with unresolved data so the user can still see the raw dump
             
             print("\n" + "="*60)
             print(f"FILE: {resref}.{restype}")
