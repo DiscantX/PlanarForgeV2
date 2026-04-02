@@ -71,6 +71,7 @@ class ResourceLoader:
         reader = BinaryReader(io.BytesIO(raw_bytes))
         parser = BinaryParser(schema, resource_class=Resource)
         resource = parser.read(reader, name=resref, source=file_path)
+        resource._original_bytes = raw_bytes
         return self._attach_runtime_context(resource, game)
 
     def save_file(self, resource, file_path):
@@ -190,6 +191,7 @@ class ResourceLoader:
             
             # Parse the final resource and return it.
             resource = parser.read(bytes_reader, name=resref, source=f"BIF: {source_path}")
+            resource._original_bytes = raw_bytes
             return self._attach_runtime_context(resource, game)
 
     def iter_resources(self, game=None):
