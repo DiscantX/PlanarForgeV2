@@ -1,11 +1,277 @@
+import math
+
 from core.resource import Resource
 
 
 class BinaryParser:
 
-    def __init__(self, schema, resource_class=Resource):
+    def __init__(
+        self,
+        schema,
+        resource_class=Resource,
+        audit_unknown_gaps=False,
+        gap_audit_max_entries=10,
+        gap_audit_sample_size=4096,
+        unknown_gap_policy="allow",
+    ):
         self.schema = schema
         self.resource_class = resource_class
+        self.audit_unknown_gaps = bool(audit_unknown_gaps)
+        self.gap_audit_max_entries = max(1, int(gap_audit_max_entries or 10))
+        self.gap_audit_sample_size = max(64, int(gap_audit_sample_size or 4096))
+        self.unknown_gap_policy = (unknown_gap_policy or "allow").strip().lower()
+        if self.unknown_gap_policy not in {"allow", "warn", "fail_nonzero"}:
+            raise ValueError(
+                "unknown_gap_policy must be one of: allow, warn, fail_nonzero"
+            )
+
+    def _append_byte_claim(self, resource, section_name, entry_index, field_name, field_type, start, end):
+        if end <= start:
+            return
+        resource.byte_claims.append(
+            {
+                "start": int(start),
+                "end": int(end),
+                "size": int(end - start),
+                "section": section_name,
+                "entry_index": int(entry_index),
+                "field": field_name,
+                "field_type": field_type,
+            }
+        )
+
+    @staticmethod
+    def _merge_claimed_ranges(claims):
+        if not claims:
+            return []
+
+        sorted_claims = sorted(claims, key=lambda c: (c["start"], c["end"]))
+        merged = [{"start": sorted_claims[0]["start"], "end": sorted_claims[0]["end"]}]
+
+        for claim in sorted_claims[1:]:
+            last = merged[-1]
+            if claim["start"] <= last["end"]:
+                if claim["end"] > last["end"]:
+                    last["end"] = claim["end"]
+            else:
+                merged.append({"start": claim["start"], "end": claim["end"]})
+
+        for rng in merged:
+            rng["size"] = rng["end"] - rng["start"]
+        return merged
+
+    @staticmethod
+    def _ascii_preview(data, limit=64):
+        snippet = data[:limit]
+        return "".join(chr(b) if 32 <= b <= 126 else "." for b in snippet)
+
+    def _summarize_gap_bytes(self, data):
+        size = len(data)
+        if size == 0:
+            return {
+                "size": 0,
+                "zero_bytes": 0,
+                "ff_bytes": 0,
+                "nonzero_bytes": 0,
+                "nonzero_ratio": 0.0,
+                "entropy": 0.0,
+                "head_hex": "",
+                "tail_hex": "",
+                "ascii_preview": "",
+            }
+
+        counts = [0] * 256
+        for b in data:
+            counts[b] += 1
+
+        zero_bytes = counts[0]
+        ff_bytes = counts[0xFF]
+        nonzero_bytes = size - zero_bytes
+        nonzero_ratio = nonzero_bytes / size
+
+        entropy = 0.0
+        for count in counts:
+            if count:
+                p = count / size
+                entropy -= p * math.log2(p)
+
+        head_len = min(32, size)
+        tail_len = min(32, size)
+        head_hex = data[:head_len].hex(" ")
+        tail_hex = data[-tail_len:].hex(" ") if size > head_len else head_hex
+
+        return {
+            "size": size,
+            "zero_bytes": zero_bytes,
+            "ff_bytes": ff_bytes,
+            "nonzero_bytes": nonzero_bytes,
+            "nonzero_ratio": round(nonzero_ratio, 6),
+            "entropy": round(entropy, 6),
+            "head_hex": head_hex,
+            "tail_hex": tail_hex,
+            "ascii_preview": self._ascii_preview(data),
+        }
+
+    @staticmethod
+    def _serialize_claim_ref(claim):
+        if not claim:
+            return None
+        return {
+            "section": claim["section"],
+            "entry_index": claim["entry_index"],
+            "field": claim["field"],
+            "field_type": claim["field_type"],
+            "start": claim["start"],
+            "end": claim["end"],
+            "size": claim["size"],
+        }
+
+    def _collect_gap_pointer_hits(self, resource, gap_start, gap_end):
+        hits = []
+        for section_name, entries in resource.sections.items():
+            if not isinstance(entries, list):
+                continue
+            for entry_idx, entry in enumerate(entries):
+                if not isinstance(entry, dict):
+                    continue
+                for key, value in entry.items():
+                    if not isinstance(value, int):
+                        continue
+                    if "offset" not in key.lower():
+                        continue
+                    if gap_start <= value < gap_end:
+                        hits.append(
+                            {
+                                "section": section_name,
+                                "entry_index": entry_idx,
+                                "field": key,
+                                "value": value,
+                                "offset_in_gap": value - gap_start,
+                            }
+                        )
+        return hits
+
+    def _detect_gap_candidates(self, schema_name, gap_size, pointer_hit_count, nonzero_ratio):
+        candidates = []
+
+        def add_candidate(name, stride):
+            if stride <= 0 or gap_size == 0 or gap_size % stride != 0:
+                return
+
+            confidence = "medium"
+            if pointer_hit_count > 0 and nonzero_ratio > 0:
+                confidence = "high"
+            elif nonzero_ratio == 0:
+                confidence = "low"
+
+            candidates.append(
+                {
+                    "type": name,
+                    "entry_size": stride,
+                    "entry_count": gap_size // stride,
+                    "confidence": confidence,
+                }
+            )
+
+        add_candidate("word_scalar_array", 2)
+        add_candidate("dword_array", 4)
+        add_candidate("qword_array", 8)
+
+        if schema_name == "WED":
+            add_candidate("wed_tilemap_entry", 10)
+            add_candidate("wed_polygon_entry", 18)
+            add_candidate("wed_vertex_entry", 4)
+
+        return candidates[: self.gap_audit_max_entries]
+
+    def _build_unknown_gap_report(self, resource, full_bytes):
+        filesize = len(full_bytes)
+        claims = sorted(resource.byte_claims, key=lambda c: (c["start"], c["end"]))
+        merged = self._merge_claimed_ranges(claims)
+        resource.claimed_ranges = merged
+
+        gaps = []
+        cursor = 0
+        for rng in merged:
+            if rng["start"] > cursor:
+                gaps.append({"start": cursor, "end": rng["start"]})
+            cursor = max(cursor, rng["end"])
+        if cursor < filesize:
+            gaps.append({"start": cursor, "end": filesize})
+
+        max_claim_end = max((c["end"] for c in claims), default=0)
+        detailed_gaps = []
+        for idx, gap in enumerate(gaps):
+            start = gap["start"]
+            end = gap["end"]
+            size = end - start
+            gap_bytes = full_bytes[start:end]
+            byte_summary = self._summarize_gap_bytes(gap_bytes)
+            pointer_hits = self._collect_gap_pointer_hits(resource, start, end)
+            candidates = self._detect_gap_candidates(
+                resource.schema.name,
+                size,
+                len(pointer_hits),
+                byte_summary["nonzero_ratio"],
+            )
+
+            prev_claim = next(
+                (c for c in reversed(claims) if c["end"] <= start),
+                None,
+            )
+            next_claim = next(
+                (c for c in claims if c["start"] >= end),
+                None,
+            )
+
+            if byte_summary["nonzero_bytes"] == 0:
+                classification = "all_zero_padding"
+                risk = "low"
+            elif pointer_hits:
+                classification = "pointer_referenced_nonzero"
+                risk = "high"
+            else:
+                classification = "nonzero_unreferenced"
+                risk = "medium"
+
+            detailed_gaps.append(
+                {
+                    "gap_id": idx,
+                    "start": start,
+                    "end": end,
+                    "size": size,
+                    "kind": "tail_gap" if start >= max_claim_end else "internal_gap",
+                    "classification": classification,
+                    "risk": risk,
+                    "zero_bytes": byte_summary["zero_bytes"],
+                    "ff_bytes": byte_summary["ff_bytes"],
+                    "nonzero_bytes": byte_summary["nonzero_bytes"],
+                    "nonzero_ratio": byte_summary["nonzero_ratio"],
+                    "entropy": byte_summary["entropy"],
+                    "head_hex": byte_summary["head_hex"],
+                    "tail_hex": byte_summary["tail_hex"],
+                    "ascii_preview": byte_summary["ascii_preview"],
+                    "previous_claim": self._serialize_claim_ref(prev_claim),
+                    "next_claim": self._serialize_claim_ref(next_claim),
+                    "pointers_into_gap": pointer_hits[: self.gap_audit_max_entries],
+                    "pointer_hit_count": len(pointer_hits),
+                    "candidates": candidates,
+                }
+            )
+
+        resource.unknown_gaps = detailed_gaps
+        resource.gap_audit_summary = {
+            "filesize": filesize,
+            "claimed_bytes": sum(r["size"] for r in merged),
+            "unknown_bytes": sum(g["size"] for g in detailed_gaps),
+            "total_gaps": len(detailed_gaps),
+            "internal_gaps": sum(1 for g in detailed_gaps if g["kind"] == "internal_gap"),
+            "tail_gaps": sum(1 for g in detailed_gaps if g["kind"] == "tail_gap"),
+            "nonzero_gaps": sum(1 for g in detailed_gaps if g["nonzero_bytes"] > 0),
+            "pointer_referenced_gaps": sum(1 for g in detailed_gaps if g["pointer_hit_count"] > 0),
+            "high_risk_gaps": sum(1 for g in detailed_gaps if g["risk"] == "high"),
+            "largest_gap_size": max((g["size"] for g in detailed_gaps), default=0),
+        }
 
     def read(self, reader, name=None, source=None):
  
@@ -20,7 +286,7 @@ class BinaryParser:
         # ------------------------------------------------------------------
         header_section = self.schema.get_section("header")
         if header_section:
-            header_data = self._read_section(reader, header_section, resource)
+            header_data = self._read_section(reader, header_section, resource, entry_index=0)
             resource.sections["header"] = [header_data]
             resource.values.update(header_data)
             max_pos = max(max_pos, reader.tell())
@@ -85,8 +351,8 @@ class BinaryParser:
             # --- Determine entry count ------------------------------------
             count   = self._determine_section_count(section, resource, reader)
             entries = []
-            for _ in range(count):
-                entry = self._read_section(reader, section, resource)
+            for entry_index in range(count):
+                entry = self._read_section(reader, section, resource, entry_index=entry_index)
                 entries.append(entry)
  
             resource.sections[section.name] = entries
@@ -105,6 +371,13 @@ class BinaryParser:
         if remaining_bytes > 0:
             reader.seek(max_pos)
             resource.trailing_data = reader.read(remaining_bytes)
+
+        if self.audit_unknown_gaps:
+            original_pos = reader.tell()
+            reader.seek(0)
+            full_bytes = reader.read(filesize)
+            reader.seek(original_pos)
+            self._build_unknown_gap_report(resource, full_bytes)
  
         return resource
 
@@ -337,7 +610,7 @@ class BinaryParser:
         return 1
 
 
-    def _read_section(self, reader, section, resource):
+    def _read_section(self, reader, section, resource, entry_index=0):
 
         section_data = {}
 
@@ -349,6 +622,16 @@ class BinaryParser:
                 context = dict(resource.values)
                 context.update(section_data)
                 value = field.type.read(reader, field, context)
+                end_offset = reader.tell()
+                self._append_byte_claim(
+                    resource,
+                    section_name=section.name,
+                    entry_index=entry_index,
+                    field_name=field.name,
+                    field_type=field.type_name,
+                    start=current_offset,
+                    end=end_offset,
+                )
             except Exception as e:
                 # Re-raise with more context for better error reporting
                 error_message = f"Parsing field '{field.name}' at offset {hex(current_offset)} failed: {e}"
@@ -376,6 +659,17 @@ class BinaryParser:
         Modified resources: repacks the file cleanly, recalculating all
         offsets and counts.
         """
+        if resource.modified and self.unknown_gap_policy in {"warn", "fail_nonzero"}:
+            unknown_gaps = getattr(resource, "unknown_gaps", []) or []
+            nonzero_gaps = [g for g in unknown_gaps if int(g.get("nonzero_bytes", 0) or 0) > 0]
+            if nonzero_gaps:
+                message = (
+                    f"Modified save blocked by unknown-gap policy: "
+                    f"{len(nonzero_gaps)} non-zero unknown gap(s) detected."
+                )
+                if self.unknown_gap_policy == "fail_nonzero":
+                    raise ValueError(message)
+                print(f"Warning: {message}")
  
         # ==================================================================
         # Helper: resolve the physical offset of a section for writing.

@@ -68,6 +68,10 @@ class TestPlanarForge(unittest.TestCase):
     game_filter = None
     log_file = None
     fidelity_stats = None
+    gap_audit_stats = None
+    audit_gaps = False
+    gap_policy = "allow"
+    gap_detail_limit = 5
     
     @classmethod
     def setUpClass(cls):
@@ -102,7 +106,14 @@ class TestPlanarForge(unittest.TestCase):
         cls.schema_loader = SchemaLoader(schema_path)
         cls.schema_loader.load_all()
         cls.schema_loader.resolve_types(FieldTypes)
-        cls.loader = ResourceLoader(schema_loader=cls.schema_loader)
+        parser_options = {}
+        if cls.audit_gaps:
+            parser_options = {
+                "audit_unknown_gaps": True,
+                "unknown_gap_policy": cls.gap_policy,
+            }
+
+        cls.loader = ResourceLoader(schema_loader=cls.schema_loader, parser_options=parser_options)
         
         # Find all installed games
         all_found_games = [inst.game_id for inst in cls.loader.install_finder.find_all()]
@@ -203,6 +214,66 @@ class TestPlanarForge(unittest.TestCase):
         log_file.write(f"- {total_errors_found}/{total_tested_overall}\n")
         log_file.write("+" * 96 + "\n")
 
+        if cls.audit_gaps and cls.gap_audit_stats:
+            gap_stats = cls.gap_audit_stats
+            log_file.write("\n" + "=" * 96 + "\n")
+            log_file.write("GAP AUDIT SUMMARY\n")
+            log_file.write("=" * 96 + "\n")
+
+            aggregate = {
+                "audited": 0,
+                "files_with_gaps": 0,
+                "files_with_nonzero_gaps": 0,
+                "high_risk_files": 0,
+                "total_gaps": 0,
+                "nonzero_gaps": 0,
+                "high_risk_gaps": 0,
+                "unknown_bytes": 0,
+            }
+
+            for schema_name in sorted(gap_stats.keys()):
+                schema_totals = {k: 0 for k in aggregate}
+                for game in sorted(gap_stats[schema_name].keys()):
+                    gs = gap_stats[schema_name][game]
+                    for key in schema_totals:
+                        schema_totals[key] += gs.get(key, 0)
+                    log_file.write(
+                        f"Schema: {schema_name:<4} | Game: {game:<6} | "
+                        f"Audited={gs.get('audited', 0)} | "
+                        f"GapFiles={gs.get('files_with_gaps', 0)} | "
+                        f"NonZeroFiles={gs.get('files_with_nonzero_gaps', 0)} | "
+                        f"HighRiskFiles={gs.get('high_risk_files', 0)} | "
+                        f"UnknownBytes={gs.get('unknown_bytes', 0)}\n"
+                    )
+
+                if schema_totals["audited"] > 0:
+                    log_file.write(
+                        f"  Schema Totals -> Audited={schema_totals['audited']}, "
+                        f"GapFiles={schema_totals['files_with_gaps']}, "
+                        f"NonZeroFiles={schema_totals['files_with_nonzero_gaps']}, "
+                        f"HighRiskFiles={schema_totals['high_risk_files']}, "
+                        f"TotalGaps={schema_totals['total_gaps']}, "
+                        f"NonZeroGaps={schema_totals['nonzero_gaps']}, "
+                        f"HighRiskGaps={schema_totals['high_risk_gaps']}, "
+                        f"UnknownBytes={schema_totals['unknown_bytes']}\n"
+                    )
+
+                for key in aggregate:
+                    aggregate[key] += schema_totals[key]
+
+            log_file.write("-" * 96 + "\n")
+            log_file.write(
+                "Global Totals -> "
+                f"Audited={aggregate['audited']}, "
+                f"GapFiles={aggregate['files_with_gaps']}, "
+                f"NonZeroFiles={aggregate['files_with_nonzero_gaps']}, "
+                f"HighRiskFiles={aggregate['high_risk_files']}, "
+                f"TotalGaps={aggregate['total_gaps']}, "
+                f"NonZeroGaps={aggregate['nonzero_gaps']}, "
+                f"HighRiskGaps={aggregate['high_risk_gaps']}, "
+                f"UnknownBytes={aggregate['unknown_bytes']}\n"
+            )
+
     def test_03_biff_caching_real_files(self):
         """
         Iterates through all BIF files in the installation.
@@ -282,6 +353,92 @@ class TestPlanarForge(unittest.TestCase):
         else:
             return f"{pre_context} | EOF"
 
+    @staticmethod
+    def _format_claim_ref(claim):
+        if not claim:
+            return "None"
+        return (
+            f"{claim.get('section')}[{claim.get('entry_index')}].{claim.get('field')} "
+            f"@ {hex(claim.get('start', 0))}-{hex(claim.get('end', 0))}"
+        )
+
+    def _log_gap_audit_details(self, game, schema_name, resref, resource):
+        if not self.log_file:
+            return
+
+        summary = getattr(resource, "gap_audit_summary", {}) or {}
+        gaps = list(getattr(resource, "unknown_gaps", []) or [])
+        if not summary:
+            return
+
+        self.log_file.write(f"[GAP-AUDIT] Game: {game}, Schema: {schema_name}, Resref: {resref}\n")
+        self.log_file.write(
+            "  - Summary: "
+            f"gaps={summary.get('total_gaps', 0)}, "
+            f"internal={summary.get('internal_gaps', 0)}, "
+            f"tail={summary.get('tail_gaps', 0)}, "
+            f"nonzero={summary.get('nonzero_gaps', 0)}, "
+            f"high_risk={summary.get('high_risk_gaps', 0)}, "
+            f"unknown_bytes={summary.get('unknown_bytes', 0)}, "
+            f"claimed_bytes={summary.get('claimed_bytes', 0)}\n"
+        )
+
+        ranked = sorted(
+            gaps,
+            key=lambda g: (
+                g.get("risk") != "high",
+                g.get("nonzero_bytes", 0) == 0,
+                -int(g.get("size", 0) or 0),
+            ),
+        )
+
+        for gap in ranked[: self.gap_detail_limit]:
+            self.log_file.write(
+                f"  - Gap #{gap.get('gap_id')} "
+                f"{gap.get('kind')} "
+                f"[{hex(gap.get('start', 0))}-{hex(gap.get('end', 0))}] "
+                f"size={gap.get('size')} "
+                f"class={gap.get('classification')} "
+                f"risk={gap.get('risk')}\n"
+            )
+            self.log_file.write(
+                f"    nonzero={gap.get('nonzero_bytes')}/{gap.get('size')} "
+                f"({gap.get('nonzero_ratio')}), "
+                f"ff={gap.get('ff_bytes')}, "
+                f"entropy={gap.get('entropy')}\n"
+            )
+            self.log_file.write(
+                f"    prev={self._format_claim_ref(gap.get('previous_claim'))}\n"
+            )
+            self.log_file.write(
+                f"    next={self._format_claim_ref(gap.get('next_claim'))}\n"
+            )
+
+            pointer_hits = gap.get("pointers_into_gap", []) or []
+            if pointer_hits:
+                ptr_desc = ", ".join(
+                    f"{p.get('section')}[{p.get('entry_index')}].{p.get('field')}="
+                    f"{hex(p.get('value', 0))}"
+                    for p in pointer_hits
+                )
+                self.log_file.write(
+                    f"    pointers ({gap.get('pointer_hit_count', 0)}): {ptr_desc}\n"
+                )
+
+            candidates = gap.get("candidates", []) or []
+            if candidates:
+                cand_desc = ", ".join(
+                    f"{c.get('type')}:{c.get('entry_count')}x{c.get('entry_size')}({c.get('confidence')})"
+                    for c in candidates
+                )
+                self.log_file.write(f"    candidates: {cand_desc}\n")
+
+            self.log_file.write(f"    head: {gap.get('head_hex', '')}\n")
+            self.log_file.write(f"    tail: {gap.get('tail_hex', '')}\n")
+            self.log_file.write(f"    ascii: {gap.get('ascii_preview', '')}\n")
+
+        self.log_file.write("\n")
+
     def test_01_biff_parsing_and_decompression(self):
         if self.skip_all:
             self.skipTest("No game installation found")
@@ -343,7 +500,18 @@ class TestPlanarForge(unittest.TestCase):
             'tested': 0,
             'errors': defaultdict(list)
         }))
+        self.__class__.gap_audit_stats = defaultdict(lambda: defaultdict(lambda: {
+            'audited': 0,
+            'files_with_gaps': 0,
+            'files_with_nonzero_gaps': 0,
+            'high_risk_files': 0,
+            'total_gaps': 0,
+            'nonzero_gaps': 0,
+            'high_risk_gaps': 0,
+            'unknown_bytes': 0,
+        }))
         stats = self.__class__.fidelity_stats # local alias
+        gap_stats = self.__class__.gap_audit_stats
         any_tests_run = False
 
         for game in self.games_to_test:
@@ -449,6 +617,24 @@ class TestPlanarForge(unittest.TestCase):
                                 self.log_file.write(f"  - Output: {f.getvalue().strip()}\n\n")
                             continue
 
+                        if self.audit_gaps:
+                            summary = getattr(resource, "gap_audit_summary", {}) or {}
+                            audited = bool(summary)
+                            if audited:
+                                gs = gap_stats[schema_name][game]
+                                gs['audited'] += 1
+                                gs['total_gaps'] += int(summary.get('total_gaps', 0) or 0)
+                                gs['nonzero_gaps'] += int(summary.get('nonzero_gaps', 0) or 0)
+                                gs['high_risk_gaps'] += int(summary.get('high_risk_gaps', 0) or 0)
+                                gs['unknown_bytes'] += int(summary.get('unknown_bytes', 0) or 0)
+                                if int(summary.get('total_gaps', 0) or 0) > 0:
+                                    gs['files_with_gaps'] += 1
+                                if int(summary.get('nonzero_gaps', 0) or 0) > 0:
+                                    gs['files_with_nonzero_gaps'] += 1
+                                    self._log_gap_audit_details(game, schema_name, resref, resource)
+                                if int(summary.get('high_risk_gaps', 0) or 0) > 0:
+                                    gs['high_risk_files'] += 1
+
                         try:
                             original_bytes, _, _ = self.loader.get_raw_bytes(resref, restype=schema_name, game=game)
                             if not original_bytes:
@@ -466,7 +652,7 @@ class TestPlanarForge(unittest.TestCase):
                         try:
                             output = io.BytesIO()
                             writer = BinaryWriter(output)
-                            parser = BinaryParser(resource.schema)
+                            parser = BinaryParser(resource.schema, **self.loader.parser_options)
                             parser.write(writer, resource)
                             saved_bytes = output.getvalue()
                         except Exception as e:
@@ -612,6 +798,68 @@ class TestPlanarForge(unittest.TestCase):
         print(f"- {Colors.FAILURE_COUNT}{total_errors_found}{Colors.ENDC}/{Colors.TOTAL_COUNT}{total_tested_overall}{Colors.ENDC}")
         print(Colors.HEADER + "+" * 96 + Colors.ENDC)
 
+        if self.audit_gaps:
+            print(Colors.HEADER + "=" * 96 + Colors.ENDC)
+            print(f"{Colors.HEADER}GAP AUDIT SUMMARY{Colors.ENDC}")
+            print(Colors.HEADER + "=" * 96 + Colors.ENDC)
+
+            agg = {
+                "audited": 0,
+                "files_with_gaps": 0,
+                "files_with_nonzero_gaps": 0,
+                "high_risk_files": 0,
+                "total_gaps": 0,
+                "nonzero_gaps": 0,
+                "high_risk_gaps": 0,
+                "unknown_bytes": 0,
+            }
+
+            for schema_name in sorted(gap_stats.keys()):
+                schema_total = {
+                    "audited": 0,
+                    "files_with_gaps": 0,
+                    "files_with_nonzero_gaps": 0,
+                    "high_risk_files": 0,
+                    "total_gaps": 0,
+                    "nonzero_gaps": 0,
+                    "high_risk_gaps": 0,
+                    "unknown_bytes": 0,
+                }
+                for game in sorted(gap_stats[schema_name].keys()):
+                    gs = gap_stats[schema_name][game]
+                    for key in schema_total:
+                        schema_total[key] += gs.get(key, 0)
+
+                if schema_total["audited"] == 0:
+                    continue
+
+                for key in agg:
+                    agg[key] += schema_total[key]
+
+                print(
+                    f"{Colors.LABEL}Schema:{Colors.ENDC} {Colors.VALUE}{schema_name:<4}{Colors.ENDC} | "
+                    f"{Colors.LABEL}Audited:{Colors.ENDC} {schema_total['audited']} | "
+                    f"{Colors.LABEL}GapFiles:{Colors.ENDC} {schema_total['files_with_gaps']} | "
+                    f"{Colors.FAILURE_LABEL}NonZeroFiles:{Colors.ENDC} {schema_total['files_with_nonzero_gaps']} | "
+                    f"{Colors.FAILURE_LABEL}HighRiskFiles:{Colors.ENDC} {schema_total['high_risk_files']} | "
+                    f"{Colors.LABEL}UnknownBytes:{Colors.ENDC} {schema_total['unknown_bytes']}"
+                )
+
+            print(Colors.HEADER + "-" * 96 + Colors.ENDC)
+            print(
+                f"{Colors.LABEL}Audited Files:{Colors.ENDC} {agg['audited']} | "
+                f"{Colors.LABEL}Files With Gaps:{Colors.ENDC} {agg['files_with_gaps']} | "
+                f"{Colors.FAILURE_LABEL}Files With NonZero Gaps:{Colors.ENDC} {agg['files_with_nonzero_gaps']} | "
+                f"{Colors.FAILURE_LABEL}High Risk Files:{Colors.ENDC} {agg['high_risk_files']}"
+            )
+            print(
+                f"{Colors.LABEL}Total Gaps:{Colors.ENDC} {agg['total_gaps']} | "
+                f"{Colors.FAILURE_LABEL}NonZero Gaps:{Colors.ENDC} {agg['nonzero_gaps']} | "
+                f"{Colors.FAILURE_LABEL}High Risk Gaps:{Colors.ENDC} {agg['high_risk_gaps']} | "
+                f"{Colors.LABEL}Unknown Bytes:{Colors.ENDC} {agg['unknown_bytes']}"
+            )
+            print(Colors.HEADER + "=" * 96 + Colors.ENDC)
+
         if total_errors_found > 0:
             sys.exit(1)
 
@@ -694,6 +942,9 @@ Examples:
   Run the fidelity test (test #2) for a single resource:
     python tests/test_suite.py --test 2 --resref BAG29
 
+  Run WED fidelity with unknown-gap audit enabled:
+    python tests/test_suite.py --test 2 --schema WED --audit-gaps
+
 Available Tests:
   1: BIF Parsing & Decompression
   2: Resource Fidelity Round-trip
@@ -704,6 +955,9 @@ Available Tests:
     parser.add_argument('--schema', type=str, help='Limit fidelity test to a specific schema (e.g., ITM, SPL).')
     parser.add_argument('--resref', type=str, help='Limit fidelity test to a specific resource reference (e.g., BAG29).')
     parser.add_argument('--game', type=str, help='Limit tests to a specific game ID or comma-separated list (e.g., BG2EE,IWDEE). Defaults to all found games.')
+    parser.add_argument('--audit-gaps', action='store_true', help='Enable unknown-gap byte audit during parse and show audit summaries.')
+    parser.add_argument('--gap-policy', choices=['allow', 'warn', 'fail_nonzero'], default='allow', help='Write policy when modified resources contain non-zero unknown gaps.')
+    parser.add_argument('--gap-detail-limit', type=int, default=5, help='Max detailed gaps per file written to the log when gap audit is enabled.')
 
     # Separate custom args from unittest args
     args, unknown = parser.parse_known_args()
@@ -711,6 +965,9 @@ Available Tests:
     TestPlanarForge.schema_filter = args.schema
     TestPlanarForge.resref_filter = args.resref
     TestPlanarForge.game_filter = args.game
+    TestPlanarForge.audit_gaps = args.audit_gaps
+    TestPlanarForge.gap_policy = args.gap_policy
+    TestPlanarForge.gap_detail_limit = max(1, args.gap_detail_limit)
     
     # NOTE: setUpClass is called by unittest.main(), so it will have access
     # to these class variables when initializing the log file.
