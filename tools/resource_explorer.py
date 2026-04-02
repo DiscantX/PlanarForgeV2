@@ -259,13 +259,13 @@ class ResourceExplorer:
         if not self.indexer:
             return
         
-        types_to_index = [restype] if restype and restype != "ALL" else ["ITM", "SPL", "CRE", "ARE"]
+        types_to_index = [restype] if restype and restype != "ALL" else ["ITM", "SPL", "CRE", "ARE", "WED"]
         self.indexer.build_index(types=types_to_index)
 
     def run_repl(self):
         print("\n--- PlanarForge Resource Explorer ---")
         print("Commands: list, search <query>, where <clause>, open <resref>, type <type>, game, exit")
-        print("Example: 'where header.price > 5000 and header.weight < 2'")
+        print("Examples: 'where header.price > 5000', 'where overlays.tileset_name ~ AR0700'")
         
         self.ensure_index(self.active_type)
 
@@ -327,8 +327,9 @@ Available Commands:
   where <clause>    Structured search. 
                     Ops: =, !=, <, >, <=, >=, ~ (contains)
                     Ex: where header.price > 100
+                    Ex: where overlays.tileset_name ~ AR0700
   open <resref>     Load and inspect a resource
-  type <type|ALL>   Filter by resource type (ITM, SPL, CRE, ARE...)
+  type <type|ALL>   Filter by resource type (ITM, SPL, CRE, ARE, WED...)
   game              Switch active game
   random            Pick a random resource
   cls               Clear screen
