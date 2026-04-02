@@ -1,6 +1,7 @@
 import io
+import sys
 import threading
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from core.binary.reader import BinaryReader
 from core.binary.parser import BinaryParser
 from core.binary.writer import BinaryWriter
@@ -36,6 +37,9 @@ class ResourceLoader:
         self.chitins = {}
         self.resource_maps = {}
         self.install_paths = {}
+        self._resolved_bif_paths = {}
+        self._reported_missing_bifs = set()
+        self._mounted_drive_roots = None
         self._lock = threading.RLock()
         self.biff_handler = BiffHandler()
         self.tlk_handlers = {}
@@ -268,14 +272,154 @@ class ResourceLoader:
         if bif_index >= len(bif_entries):
             print(f"BIF index {bif_index} out of range.")
             return None
-        filename =bif_entries[bif_index].get("filename")
+        
+        cache_key = (game, bif_index)
+        cached_path = self._resolved_bif_paths.get(cache_key)
+        if cached_path is not None:
+            if cached_path.exists():
+                return cached_path
+            # Path may disappear if media is unmounted; re-resolve.
+            self._resolved_bif_paths.pop(cache_key, None)
+
+        bif_entry = bif_entries[bif_index]
+        filename = bif_entry.get("filename")
+        file_location = bif_entry.get("file_location")
 
         install_path = self._get_install_path(game)
         if not install_path:
              return None
 
-        file_path = Path(f"{install_path}/{filename}")
-        return file_path
+        candidate_paths = self._build_bif_candidate_paths(
+            install_path=install_path,
+            filename=filename,
+            file_location=file_location,
+        )
+
+        for candidate in candidate_paths:
+            if candidate.exists():
+                self._resolved_bif_paths[cache_key] = candidate
+                return candidate
+
+        if cache_key not in self._reported_missing_bifs:
+            checked = ", ".join(str(path) for path in candidate_paths[:6])
+            if len(candidate_paths) > 6:
+                checked += ", ..."
+            print(
+                f"Unable to resolve BIF path for '{filename}' in {game}. "
+                f"Checked: {checked}"
+            )
+            self._reported_missing_bifs.add(cache_key)
+
+        return None
+
+    def _build_bif_candidate_paths(self, install_path, filename, file_location):
+        filename = self._normalize_bif_filename(filename)
+        if not filename:
+            return []
+
+        candidates = []
+        if self._looks_absolute_path(filename):
+            candidates.append(Path(filename))
+
+        relative_path = self._to_relative_bif_path(filename)
+        if relative_path is None:
+            return self._dedupe_paths(candidates)
+
+        basename = Path(relative_path.name) if relative_path.name else None
+        search_roots = self._build_bif_search_roots(install_path, file_location)
+
+        for root in search_roots:
+            candidates.append(root / relative_path)
+            if basename is not None and basename != relative_path:
+                candidates.append(root / basename)
+
+        return self._dedupe_paths(candidates)
+
+    def _build_bif_search_roots(self, install_path, file_location):
+        file_location = file_location or {}
+        roots = []
+
+        cd_numbers = [
+            cd_number
+            for cd_number in range(1, 7)
+            if file_location.get(f"is_on_cd{cd_number}")
+        ]
+
+        for cd_number in cd_numbers:
+            cd_dir = f"CD{cd_number}"
+            roots.append(install_path / cd_dir)
+            roots.append(install_path.parent / cd_dir)
+
+        if cd_numbers:
+            roots.extend(self._get_mounted_drive_roots())
+
+        if file_location.get("is_in_cache"):
+            roots.append(install_path / "cache")
+
+        if file_location.get("is_in_data"):
+            roots.append(install_path / "data")
+
+        # Always include install root as a generic fallback.
+        roots.append(install_path)
+
+        return self._dedupe_paths(roots)
+
+    def _normalize_bif_filename(self, filename):
+        if filename is None:
+            return None
+
+        normalized = str(filename).split("\x00", 1)[0].strip()
+        return normalized or None
+
+    def _looks_absolute_path(self, path_text):
+        path_obj = Path(path_text)
+        windows_path = PureWindowsPath(path_text)
+        return path_obj.is_absolute() or windows_path.is_absolute()
+
+    def _to_relative_bif_path(self, filename):
+        normalized = filename.replace("\\", "/").strip()
+        if len(normalized) >= 3 and normalized[1] == ":" and normalized[2] == "/":
+            normalized = normalized[3:]
+
+        normalized = normalized.lstrip("/")
+        if not normalized:
+            return None
+
+        parts = [part for part in normalized.split("/") if part not in ("", ".")]
+        if not parts:
+            return None
+
+        return Path(*parts)
+
+    def _get_mounted_drive_roots(self):
+        if self._mounted_drive_roots is not None:
+            return self._mounted_drive_roots
+
+        if sys.platform != "win32":
+            self._mounted_drive_roots = []
+            return self._mounted_drive_roots
+
+        drive_roots = []
+        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            root = Path(f"{letter}:/")
+            if root.exists():
+                drive_roots.append(root)
+
+        self._mounted_drive_roots = drive_roots
+        return self._mounted_drive_roots
+
+    def _dedupe_paths(self, paths):
+        unique_paths = []
+        seen = set()
+        for path in paths:
+            if path is None:
+                continue
+            key = str(path).replace("\\", "/").lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_paths.append(path)
+        return unique_paths
 
     def _get_tlk_handler(self, game):
         if game in self.tlk_handlers:
