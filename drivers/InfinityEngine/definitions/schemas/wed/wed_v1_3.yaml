@@ -45,6 +45,12 @@ header:
     size: 4
     offset: 0x001c
 
+# ---------------------------------------------------------------------------
+# Overlays
+# Each overlay describes one layer of the map (base + up to 4 water/overlay
+# layers).  The first overlay is the base terrain.
+# Entry size: 24 bytes (0x18).
+# ---------------------------------------------------------------------------
 overlays:
   offset_field: offset_to_overlays
   count_field: count_of_overlays
@@ -60,12 +66,12 @@ overlays:
     size: 2
     offset: 0x0002
 
-  - name: name_of_tileset
+  - name: tileset_name
     type: resref
     size: 8
     offset: 0x0004
 
-  - name: count_of_unique_tiles
+  - name: unique_tile_count
     type: word
     size: 2
     offset: 0x000c
@@ -85,8 +91,25 @@ overlays:
     size: 4
     offset: 0x0014
 
+  # Virtual field: tile_count = width * height.
+  # Used by count_expr on the tilemaps and tile_index_lookup sections.
+  # size: 0 means it reads nothing from the stream and is not written.
+  - name: tile_count
+    type: computed
+    expr: "width * height"
+    size: 0
+
+# ---------------------------------------------------------------------------
+# Secondary header  (promote: true)
+# Contains offsets for polygons, vertices, wall groups, and the polygon
+# index lookup table.  These are merged into resource.values after parsing
+# so that the dependent sections can reference them via offset_field /
+# count_field in the normal way.
+# Entry size: 20 bytes (0x14).
+# ---------------------------------------------------------------------------
 secondary_header:
   offset_field: offset_to_secondary_header
+  promote: true
   fields:
 
   - name: count_of_polygons
@@ -109,17 +132,21 @@ secondary_header:
     size: 4
     offset: 0x000c
 
-  - name: offset_to_polygon_indices_lookup
+  - name: offset_to_polygon_index_lookup
     type: dword
     size: 4
     offset: 0x0010
 
+# ---------------------------------------------------------------------------
+# Doors
+# Entry size: 26 bytes (0x1a).
+# ---------------------------------------------------------------------------
 doors:
   offset_field: offset_to_doors
   count_field: count_of_doors
   fields:
 
-  - name: name_of_door
+  - name: name
     type: char_array
     size: 8
     offset: 0x0000
@@ -129,7 +156,7 @@ doors:
     size: 2
     offset: 0x0008
 
-  - name: index_of_first_door_tile_cell
+  - name: first_door_tile_cell_index
     type: word
     size: 2
     offset: 0x000a
@@ -159,57 +186,156 @@ doors:
     size: 4
     offset: 0x0016
 
-tilemap_structures:
+# ---------------------------------------------------------------------------
+# Tilemaps
+# One entry per tile cell across ALL overlays (sum of width*height for each).
+# Physical position: immediately after the doors section.
+# The offset is taken from overlays[0].offset_to_tilemap.
+#
+# Entry size: 10 bytes (NearInfinity-verified; IESDP incorrectly states 8).
+# ---------------------------------------------------------------------------
+tilemaps:
+  offset_from:
+    section: overlays
+    index: 0
+    field: offset_to_tilemap
+  count_expr:
+    sum:
+      section: overlays
+      field: tile_count
+  offset_update:
+    section: overlays
+    field: offset_to_tilemap
+    stride_expr:
+      field: tile_count
   fields:
 
-  - name: index_of_start_of_default_tile
+  - name: primary_tile_index
     type: word
     size: 2
     offset: 0x0000
 
-  - name: count_of_default_tile_entries
+  - name: primary_tile_count
     type: word
     size: 2
     offset: 0x0002
 
-  - name: tis_index_of_alternate_tile
+  - name: secondary_tile_index
     type: word
     size: 2
     offset: 0x0004
 
-  - name: draw_overlay
+  - name: draw_overlays
     type: bitmask
-    flags:
-      0x00000001: unused_0
-      0x00000002: draw_overlay_1
-      0x00000004: draw_overlay_2
-      0x00000008: draw_overlay_3
-      0x00000010: draw_overlay_4
-      0x00000020: draw_overlay_5
-      0x00000040: draw_overlay_6
-      0x00000080: draw_overlay_7
     size: 1
     offset: 0x0006
+    flags:
+      0x01: unused
+      0x02: draw_overlay_1
+      0x04: draw_overlay_2
+      0x08: draw_overlay_3
+      0x10: draw_overlay_4
+      0x20: draw_overlay_5
+      0x40: draw_overlay_6
+      0x80: draw_overlay_7
 
-  - name: unknown
-    type: bytes
-    size: 3
+  - name: animation_speed
+    type: byte
+    size: 1
     offset: 0x0007
 
-wall_groups:
-  offset_field: offset_to_wall_groups
+  - name: unknown
+    type: word
+    size: 2
+    offset: 0x0008
+
+# ---------------------------------------------------------------------------
+# Door tile cell indices
+# Flat array of words.  Each word is an index into the tilemap array
+# identifying a tile cell whose state toggles when the door opens/closes.
+# Total count = sum of count_of_door_tile_cells across all doors.
+#
+# Physical position: immediately after tilemaps.
+# The offset comes from the header field offset_to_door_tile_cell_indices.
+# ---------------------------------------------------------------------------
+door_tile_cell_indices:
+  offset_field: offset_to_door_tile_cell_indices
+  count_expr:
+    sum:
+      section: doors
+      field: count_of_door_tile_cells
   fields:
 
-  - name: start
+  - name: tile_cell_index
     type: word
     size: 2
     offset: 0x0000
 
-  - name: index_into_polygon_index_counts
+# ---------------------------------------------------------------------------
+# Tile index lookup
+# Flat array of words.  For each tile cell, maps the WED tile index to the
+# TIS (tileset) index.  Total count = sum of width*height across all overlays
+# (same as tilemaps count).
+#
+# Physical position: immediately after door_tile_cell_indices.
+# The offset comes from overlays[0].offset_to_tile_index_lookup.
+# offset_update rewrites each overlay's offset_to_tile_index_lookup pointer
+# after repacking.
+# ---------------------------------------------------------------------------
+tile_index_lookup:
+  offset_from:
+    section: overlays
+    index: 0
+    field: offset_to_tile_index_lookup
+  count_expr:
+    sum:
+      section: overlays
+      field: tile_count
+  offset_update:
+    section: overlays
+    field: offset_to_tile_index_lookup
+    stride_expr:
+      field: tile_count
+  fields:
+
+  - name: tis_index
+    type: word
+    size: 2
+    offset: 0x0000
+
+# ---------------------------------------------------------------------------
+# Wall groups
+# One wall group per 10×7.5 tile block of the base overlay.
+# Count = ceil(width/10) * ceil(height/7.5) using overlay 0 dimensions.
+# Entry size: 4 bytes.
+# ---------------------------------------------------------------------------
+wall_groups:
+  offset_field: offset_to_wall_groups
+  count_expr:
+    ceil_product:
+      section: overlays
+      index: 0
+      numerators: [width, height]
+      denominators: [10, 7.5]
+  fields:
+
+  - name: start_polygon_index
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: polygon_index_count
     type: word
     size: 2
     offset: 0x0002
 
+# ---------------------------------------------------------------------------
+# Polygons
+# Global pool: wall polygons followed by door open/closed polygons.
+# Count comes from secondary_header.count_of_polygons (promoted to
+# resource.values, so count_field works normally).
+# Entry size: 18 bytes (0x12).
+# ---------------------------------------------------------------------------
 polygons:
   offset_field: offset_to_polygons
   count_field: count_of_polygons
@@ -225,43 +351,84 @@ polygons:
     size: 4
     offset: 0x0004
 
-  - name: polygon_behavior_flags
+  - name: polygon_flags
     type: bitmask
-    flags:
-      0x00000001: shade_wall
-      0x00000002: hovering
-      0x00000004: cover_animations_1
-      0x00000008: cover_animations_2
-      0x00000010: unknown_4
-      0x00000020: unknown_5
-      0x00000040: unknown_6
-      0x00000080: door
     size: 1
     offset: 0x0008
+    flags:
+      0x01: shade_wall
+      0x02: hovering
+      0x04: cover_animations
+      0x08: cover_animations_2
+      0x10: unknown_4
+      0x20: unknown_5
+      0x40: unknown_6
+      0x80: door
 
   - name: height
     type: byte
     size: 1
     offset: 0x0009
 
-  - name: min_bounding_box
-    type: word_array
-    count: 4
-    labels: [left, right, top, bottom]
-    size: 8
+  # Bounding box: min_x, max_x, min_y, max_y per IESDP.
+  - name: bounding_box_min_x
+    type: word
+    size: 2
     offset: 0x000a
 
-vertices:
-  offset_field: offset_to_vertices
-  count_field: count_of_vertices
+  - name: bounding_box_max_x
+    type: word
+    size: 2
+    offset: 0x000c
+
+  - name: bounding_box_min_y
+    type: word
+    size: 2
+    offset: 0x000e
+
+  - name: bounding_box_max_y
+    type: word
+    size: 2
+    offset: 0x0010
+
+# ---------------------------------------------------------------------------
+# Polygon index lookup
+# Flat array of words.  Maps wall group (start, count) pairs into polygon
+# indices.  Count = sum of polygon_index_count across all wall groups.
+# ---------------------------------------------------------------------------
+polygon_index_lookup:
+  offset_field: offset_to_polygon_index_lookup
+  count_expr:
+    sum:
+      section: wall_groups
+      field: polygon_index_count
   fields:
 
-  - name: x_coordinate
+  - name: polygon_index
     type: word
     size: 2
     offset: 0x0000
 
-  - name: y_coordinate
+# ---------------------------------------------------------------------------
+# Vertices
+# Global pool referenced by polygon.starting_vertex_index.
+# Count = sum of count_of_vertices across all polygons.
+# Entry size: 4 bytes.
+# ---------------------------------------------------------------------------
+vertices:
+  offset_field: offset_to_vertices
+  count_expr:
+    sum:
+      section: polygons
+      field: count_of_vertices
+  fields:
+
+  - name: x
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: y
     type: word
     size: 2
     offset: 0x0002

@@ -562,3 +562,245 @@ class PointerString(FieldType):
         # PointerString is a virtual field that reads from an offset.
         # Writing does not happen in-line with the struct; string data management is handled externally.
         pass
+    
+    """
+Additions to core/field_types.py
+
+Insert these classes at the end of the file, before any closing code.
+
+These three new FieldType subclasses support the WED V1.3 schema:
+
+  - Computed      : a virtual field with size=0 that derives its value from
+                    sibling fields already parsed in the same section entry.
+                    Reads nothing from the stream; skipped by write/measure.
+
+  - WordScalarArray : a flat array of little-endian 16-bit words with no
+                    internal structure.  Used for tile_index_lookup,
+                    door_tile_cell_indices, and polygon_index_lookup.
+                    count comes from count_field (resolved by the parser
+                    against resource.values, exactly like any other section).
+
+Both types are registered automatically via __init_subclass__.
+"""
+
+import operator
+import ast
+
+
+# ---------------------------------------------------------------------------
+# Simple expression evaluator for computed fields
+# ---------------------------------------------------------------------------
+
+_ALLOWED_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.FloorDiv: operator.floordiv,
+    ast.Div: operator.truediv,
+    ast.Mod: operator.mod,
+}
+
+
+def _eval_expr(node, context):
+    """
+    Recursively evaluate a restricted arithmetic AST against a context dict.
+
+    Supported: integer/float literals, Name lookups in context,
+    BinOp with +, -, *, //, /, %.  Nothing else is permitted.
+    """
+    if isinstance(node, ast.Expression):
+        return _eval_expr(node.body, context)
+    if isinstance(node, ast.Constant):
+        if not isinstance(node.value, (int, float)):
+            raise ValueError(f"Only numeric literals allowed, got {node.value!r}")
+        return node.value
+    if isinstance(node, ast.Name):
+        if node.id not in context:
+            raise KeyError(f"Unknown variable in computed expr: {node.id!r}")
+        return context[node.id]
+    if isinstance(node, ast.BinOp):
+        op_type = type(node.op)
+        if op_type not in _ALLOWED_OPS:
+            raise ValueError(f"Operator {op_type.__name__} not allowed in computed expr")
+        left = _eval_expr(node.left, context)
+        right = _eval_expr(node.right, context)
+        return _ALLOWED_OPS[op_type](left, right)
+    raise ValueError(f"Unsupported AST node in computed expr: {type(node).__name__}")
+
+
+def evaluate_expr(expr_str, context):
+    """
+    Parse and evaluate a simple arithmetic expression string.
+
+    ``context`` is a dict of variable names to numeric values.
+    Returns a numeric result (int or float).
+
+    >>> evaluate_expr("width * height", {"width": 6, "height": 8})
+    48
+    >>> evaluate_expr("(width + 9) // 10", {"width": 59})
+    6
+    """
+    try:
+        tree = ast.parse(expr_str.strip(), mode="eval")
+    except SyntaxError as exc:
+        raise ValueError(f"Invalid computed expr {expr_str!r}: {exc}") from exc
+    result = _eval_expr(tree.body, context)
+    # Always return int when result is a whole number for cleaner downstream use
+    if isinstance(result, float) and result.is_integer():
+        return int(result)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Computed field type
+# ---------------------------------------------------------------------------
+
+class Computed(FieldType):
+    """
+    A virtual field that derives its value from sibling fields in the same
+    section entry using a simple arithmetic expression.
+
+    Schema usage::
+
+        - name: tile_count
+          type: computed
+          expr: "width * height"
+          size: 0
+
+    Rules:
+    - Reads nothing from the binary stream (size must be 0).
+    - The expression is evaluated against the parsing context, which contains
+      all fields parsed so far in the current section entry.
+    - Not written to the binary output (write() is a no-op).
+    - measure() always returns 0.
+    - Excluded from the schema offset-contiguity validation (size == 0).
+    - Visible in to_dict() output by default.  Set ``hidden: true`` in the
+      schema to suppress it.
+    """
+
+    names = ["computed"]
+
+    def read(self, reader, field, context=None):
+        expr = field.attributes.get("expr")
+        if not expr:
+            raise ValueError(f"Computed field '{field.name}' requires an 'expr' attribute")
+        if context is None:
+            raise ValueError(
+                f"Computed field '{field.name}' requires a parsing context"
+            )
+        result = evaluate_expr(expr, context)
+        return int(result) if isinstance(result, float) and result.is_integer() else result
+
+    def write(self, writer, value, field):
+        # Computed fields are never serialized to the binary stream.
+        pass
+
+    def measure(self, value, field, context=None):
+        return 0
+
+    def serialize(self, value, field, resource=None):
+        if field.attributes.get("hidden"):
+            return value  # will still be in dict; caller can filter if needed
+        return value
+
+
+# ---------------------------------------------------------------------------
+# WordScalarArray field type
+# ---------------------------------------------------------------------------
+
+class WordScalarArray(FieldType):
+    """
+    A flat array of little-endian 16-bit unsigned integers with no internal
+    structure.  Each element is stored and exposed as a plain Python int.
+
+    Used for:
+    - ``tile_index_lookup``   (overlay.off_tile_idx, count = w*h)
+    - ``door_tile_cell_indices`` (header.off_door_tile_cells, count = sum of door tile cell counts)
+    - ``polygon_index_lookup`` (secondary_header.off_polygon_indices_lookup,
+                                count = sum of wall group polygon index counts)
+
+    Schema usage::
+
+        tile_index_lookup:
+          offset_field: offset_to_tile_index_lookup
+          count_field: tile_index_lookup_count   # resolved from resource.values
+          fields:
+          - name: index
+            type: word_scalar_array
+            size: 2
+
+    Because the parser reads one entry per ``count_field`` value and each entry
+    is one field of this type, the count mechanism is handled at section level
+    exactly as for any other section.  The field itself reads one word.
+
+    Alternatively the entire section can be modelled as a single field with
+    ``count`` in its attributes (similar to WordArray / StrRefArray).  Both
+    patterns work; the single-field pattern is simpler for flat scalar arrays.
+
+    Single-field pattern (preferred for these WED sections)::
+
+        tile_index_lookup:
+          offset_field: offset_to_tile_index_lookup
+          fields:
+          - name: indices
+            type: word_scalar_array
+            count_field: tile_index_lookup_count   # read from resource.values at parse time
+
+    The single-field pattern reads all words in one call and stores them as a
+    Python list.
+    """
+
+    names = ["word_scalar_array"]
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _resolve_count(self, field, context):
+        """
+        Determine the number of elements to read/write.
+
+        Priority:
+        1. ``count`` attribute (literal integer in schema)
+        2. ``count_field`` attribute (name of a field in resource.values /
+           context whose value gives the count)
+        """
+        count = field.attributes.get("count")
+        if count is not None:
+            return int(count)
+
+        count_field_name = field.attributes.get("count_field")
+        if count_field_name and context:
+            count = context.get(count_field_name)
+            if count is not None:
+                return int(count)
+
+        raise ValueError(
+            f"WordScalarArray field '{field.name}' requires either a 'count' "
+            f"attribute or a 'count_field' attribute whose value is in context"
+        )
+
+    # ------------------------------------------------------------------
+    # FieldType interface
+    # ------------------------------------------------------------------
+
+    def read(self, reader, field, context=None):
+        count = self._resolve_count(field, context)
+        return [reader.read_uint16() for _ in range(count)]
+
+    def write(self, writer, value, field):
+        if value is None:
+            value = []
+        for item in value:
+            writer.write_uint16(int(item) if item is not None else 0)
+
+    def measure(self, value, field, context=None):
+        if value is None:
+            return 0
+        return len(value) * 2
+
+    def serialize(self, value, field, resource=None):
+        # Return as plain list of ints — already serializable.
+        if value is None:
+            return []
+        return list(value)

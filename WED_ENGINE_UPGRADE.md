@@ -7,8 +7,8 @@ This document tracks the architectural changes required in the `BinaryParser` an
 
 ## Objectives
 1. **Relational Context:** Allow subsequent sections to resolve offsets from any "Header-like" section (e.g., the Secondary Header).
-2. **Nested Data Modeling:** Support "Jump and Return" parsing where an entry (like an Overlay) points to its own data block (like a Tilemap) located elsewhere in the file.
-3. **Computed Counts:** Support field counts derived from sibling data (e.g., `width * height`).
+2. **Pointer Management:** Support `offset_from` and `offset_update` mechanisms to handle sections pointed to by entries in other tables (like per-overlay tilemaps).
+3. **Computed Fields & Counts:** Support virtual fields (`computed`) for intra-entry arithmetic and `count_expr` for inter-section aggregate counts.
 4. **Zero Regression:** Ensure changes do not break existing fidelity for ITM, SPL, CRE, and ARE formats.
 
 ## Brainstorming & Identified Hurdles
@@ -18,12 +18,8 @@ This document tracks the architectural changes required in the `BinaryParser` an
 **Plan:** Modify the parser to "promote" any section with a count of 1 to the global `resource.values` pool if it is defined before the sections that depend on it.
 
 ### 2. The Per-Overlay Tilemap Problem
-**Problem:** `tilemap_structures` are not a single contiguous section. Each Overlay entry has its own `offset_to_tilemap`. The number of entries is `width * height`.
-**Plan:** Implement a "Relational Array" or "Jump Array" field type. This field will:
-- Read an offset and count from the current `context`.
-- Perform a `reader.seek()` to the data.
-- Read the structured data.
-- Perform a `reader.seek()` back to the original position to maintain the parent section's alignment.
+**Problem:** Tilemaps and Lookup tables are described as "windows" into global pools by pointers inside `overlays` and `doors`.
+**Plan:** Move away from "Jump" types. Instead, treat Tilemaps and Lookups as global flat sections whose physical `offset` is derived from the first referencing entry (e.g., `overlays[0].offset_to_tilemap`) and whose `count` is an aggregate (e.g., `sum(width * height)`).
 
 ### 3. Sum-Based Lookup Tables
 **Problem:** Tables like `door_tile_cell_indices` don't have a single count field. Their size is the sum of `count_of_door_tile_cells` across all `doors`.
@@ -36,17 +32,19 @@ This document tracks the architectural changes required in the `BinaryParser` an
 ### Phase 1: Context Promotion
 - [x] Update `BinaryParser.read` to identify single-entry sections (Promote context).
 - [x] Merge promoted fields into `resource.values`.
-- [x] Schema Refinement: Added missing lookup tables and standardized bounding box labels in `wed_v1_3.yaml`.
 
 ### Phase 2: Relational Field Types
-- [x] Create `JumpArray` in `field_types.py`.
-- [x] Update `wed_v1_3.yaml` to move `tilemap_structures` into the `overlays` fields as a nested relational type.
-- [x] Update `BinaryParser.write` to handle the serialization and offset recalculation of "Jumped" data blocks.
+- [x] Create `Computed` field type for intra-entry arithmetic (e.g., `tile_count`).
+- [x] Create `WordScalarArray` for flat lookup tables.
+- [x] Implement `evaluate_expr` (AST-based) for safe schema-defined math.
 
 ### Phase 3: Lookup Table Fidelity
-- [x] Add `door_tile_cell_indices` and `polygon_index_lookup` to `wed_v1_3.yaml`.
-- [x] Implement sum-based count resolution in `_determine_section_count`.
-- [x] Implement specialized `wall_groups` count resolution.
+- [x] Implement `count_expr` (sum/ceil_product) in `BinaryParser._determine_section_count`.
+- [x] Implement `offset_from` in `BinaryParser.read` to locate sections via external fields.
+
+### Phase 4: Full Modding Support (Recomputation)
+- [x] Overhaul `BinaryParser.write` to support `offset_update` logic.
+- [x] Implement pointer recomputation for sections where multiple entries point to different "windows" of a global section.
 
 ---
 
@@ -133,8 +131,25 @@ This document tracks the architectural changes required in the `BinaryParser` an
     - Modified `BinaryParser.write` to explicitly `seek()` to the target offset for every block in fidelity mode.
     - Refactored candidate selection into a unified, sorted pass to ensure the "highest quality" candidate (data-bearing jump blocks) always claims shared offsets.
 ---
-### [2026-04-01] Session Post-Mortem & Reversion
-- **Status:** FAILED - Reverting to last known good state.
+### [2026-04-02] Successful Architecture Overhaul
+- **Status:** RESOLVED.
+- **Core Finding (The 10-Byte Tilemap):** The primary cause of "mystery data" and offset drift was the IESDP stating `tilemap` entries are 8 bytes. NearInfinity and binary analysis confirmed they are **10 bytes** (incorporating `secondary_tile_index`, `animation_speed`, and an `unknown` word).
+- **Structural Findings:**
+    - **Flat Global Pools:** WED files are essentially a sequence of flat, contiguous arrays. There is no physical nesting; `overlays` and `doors` simply store indices and offsets into global sections (`tilemaps`, `vertices`, `polygons`).
+    - **Verified Order:** Header -> Overlays -> Secondary Header -> Doors -> Tilemaps -> Door Tile Cell Indices -> Tile Index Lookup -> Wall Groups -> Polygons -> Polygon Index Lookup -> Vertices.
+
+- **Major Engine Changes:**
+    1. **`Section` Class Upgrades:** Added `promote`, `count_expr`, `offset_from`, and `offset_update` attributes.
+    2. **`Computed` Field Type:** A virtual field (`size: 0`) that evaluates an arithmetic expression (using a safe AST evaluator) against the current entry's context.
+    3. **`WordScalarArray`:** A dedicated type for flat word-lists used in lookup tables.
+    4. **Aggregation Logic:** `BinaryParser` now supports `sum` and `ceil_product` across sections to resolve counts for lookup tables.
+    5. **Relational Writing:** The writer now performs **Pointer Recomputation**. After placing the `tilemaps` section, it iterates through all `overlays` and updates their `offset_to_tilemap` pointers based on a cumulative `stride_expr`. This allows the tool to handle modifications where overlays are resized or data is inserted.
+
+- **Fidelity Status:** `AR4101` and `AR6009` now pass 100% round-trip fidelity tests.
+
+---
+### [2026-04-01] Session Post-Mortem (Legacy - For Context)
+- **Status:** FAILED. (Note: This session's attempt to use "JumpArrays" was abandoned in favor of the [2026-04-02] overhaul).
 - **Final Conclusion:** The current `BinaryParser` architecture is too linear to handle the WED format's shared relational offsets.
 
 ### Detailed Analysis
