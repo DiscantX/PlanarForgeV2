@@ -189,6 +189,9 @@ doors:
 # ---------------------------------------------------------------------------
 # Tilemaps
 # One entry per tile cell across ALL overlays (sum of width*height for each).
+# NOTE: Some files use sparse overlay windows (non-contiguous offsets). The
+# parser therefore resolves count by max physical extent from overlay offsets
+# when that exceeds the plain sum.
 # Physical position: immediately after the doors section.
 # The offset is taken from overlays[0].offset_to_tilemap.
 #
@@ -276,6 +279,8 @@ door_tile_cell_indices:
 # Flat array of words.  For each tile cell, maps the WED tile index to the
 # TIS (tileset) index.  Total count = sum of width*height across all overlays
 # (same as tilemaps count).
+# NOTE: As with tilemaps, sparse overlay windows exist in real files; parser
+# count logic uses max physical extent when needed for fidelity.
 #
 # Physical position: immediately after door_tile_cell_indices.
 # The offset comes from overlays[0].offset_to_tile_index_lookup.
@@ -332,8 +337,9 @@ wall_groups:
 # ---------------------------------------------------------------------------
 # Polygons
 # Global pool: wall polygons followed by door open/closed polygons.
-# Count comes from secondary_header.count_of_polygons (promoted to
-# resource.values, so count_field works normally).
+# In many files, secondary_header.count_of_polygons reflects the wall subset.
+# Additional door polygons are reached via door offsets/counts and are read by
+# max referenced extent for fidelity.
 # Entry size: 18 bytes (0x12).
 # ---------------------------------------------------------------------------
 polygons:
