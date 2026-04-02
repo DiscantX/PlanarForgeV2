@@ -22,8 +22,9 @@ class ResourceLoader:
     default_resref = "CHITIN"
     default_restype = "KEY"
      
-    def __init__(self, install_finder=None, schema_loader=None):
+    def __init__(self, install_finder=None, schema_loader=None, parser_options=None):
         self.install_finder = install_finder or InstallationFinder()
+        self.parser_options = dict(parser_options or {})
         
         if schema_loader:
             self.schema_loader = schema_loader
@@ -69,7 +70,7 @@ class ResourceLoader:
             return None
 
         reader = BinaryReader(io.BytesIO(raw_bytes))
-        parser = BinaryParser(schema, resource_class=Resource)
+        parser = BinaryParser(schema, resource_class=Resource, **self.parser_options)
         resource = parser.read(reader, name=resref, source=file_path)
         resource._original_bytes = raw_bytes
         return self._attach_runtime_context(resource, game)
@@ -82,7 +83,7 @@ class ResourceLoader:
             print("Cannot save resource: Invalid resource or schema missing.")
             return
 
-        parser = BinaryParser(resource.schema)
+        parser = BinaryParser(resource.schema, **self.parser_options)
         
         try:
             with open(file_path, "wb") as f:
@@ -187,7 +188,7 @@ class ResourceLoader:
 
             # Use a BytesIO stream to treat the raw bytes as a file for the parser.
             bytes_reader = BinaryReader(io.BytesIO(raw_bytes))
-            parser = BinaryParser(resource_schema, resource_class=Resource)
+            parser = BinaryParser(resource_schema, resource_class=Resource, **self.parser_options)
             
             # Parse the final resource and return it.
             resource = parser.read(bytes_reader, name=resref, source=f"BIF: {source_path}")

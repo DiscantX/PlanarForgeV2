@@ -22,6 +22,11 @@ class Resource:
         self._listeners = []
         self.values = {}
         self.sections = {}  # header, extended_header, feature_blocks
+        self._original_bytes = None
+        self.byte_claims = []
+        self.claimed_ranges = []
+        self.unknown_gaps = []
+        self.gap_audit_summary = {}
 
     # ------------------------------
     # Section Management
