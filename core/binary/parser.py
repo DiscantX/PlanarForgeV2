@@ -118,6 +118,46 @@ class BinaryParser:
           3. count_field  — standard header/promoted-section field reference
           4. default 1   (header-like single-entry sections)
         """
+
+        def _section_entry_size(sec):
+            return sum(
+                f.attributes.get("size", 0)
+                for f in sec.fields
+                if f.attributes.get("size", 0) != 0
+            )
+
+        def _max_index_extent(entries, index_field, count_field):
+            max_needed = 0
+            for entry in entries:
+                idx = int(entry.get(index_field, 0) or 0)
+                cnt = int(entry.get(count_field, 0) or 0)
+                needed = idx + cnt
+                if needed > max_needed:
+                    max_needed = needed
+            return max_needed
+
+        def _max_offset_extent(entries, offset_field, count_field, base_offset, unit_size):
+            if unit_size <= 0:
+                return 0
+
+            max_needed = 0
+            for entry in entries:
+                offset = int(entry.get(offset_field, 0) or 0)
+                count = int(entry.get(count_field, 0) or 0)
+
+                if count <= 0 or offset < base_offset:
+                    continue
+
+                rel = offset - base_offset
+                if rel % unit_size != 0:
+                    continue
+
+                idx = rel // unit_size
+                needed = idx + count
+                if needed > max_needed:
+                    max_needed = needed
+
+            return max_needed
  
         # ------------------------------------------------------------------
         # 1. count_expr
@@ -136,6 +176,47 @@ class BinaryParser:
                 for entry in entries:
                     val = entry.get(field_name, 0)
                     total += int(val) if val is not None else 0
+
+                # WED uses sparse "windowed" pools in some files:
+                # counts derived as sums can under-read physical data.
+                # We preserve fidelity by honoring the max indexed/offset extent.
+                if resource.schema.name == "WED":
+                    if section.name == "door_tile_cell_indices":
+                        door_entries = resource.sections.get("doors", [])
+                        max_extent = _max_index_extent(
+                            door_entries,
+                            "first_door_tile_cell_index",
+                            "count_of_door_tile_cells",
+                        )
+                        if max_extent > total:
+                            return max_extent
+
+                    if section.name == "tilemaps":
+                        overlay_entries = resource.sections.get("overlays", [])
+                        base_offset = reader.tell() if reader else 0
+                        max_extent = _max_offset_extent(
+                            overlay_entries,
+                            "offset_to_tilemap",
+                            "tile_count",
+                            base_offset,
+                            _section_entry_size(section),
+                        )
+                        if max_extent > total:
+                            return max_extent
+
+                    if section.name == "tile_index_lookup":
+                        overlay_entries = resource.sections.get("overlays", [])
+                        base_offset = reader.tell() if reader else 0
+                        max_extent = _max_offset_extent(
+                            overlay_entries,
+                            "offset_to_tile_index_lookup",
+                            "tile_count",
+                            base_offset,
+                            _section_entry_size(section),
+                        )
+                        if max_extent > total:
+                            return max_extent
+
                 return total
  
             # {"ceil_product": {"section": "X", "index": 0,
@@ -220,7 +301,35 @@ class BinaryParser:
         # 3. count_field
         # ------------------------------------------------------------------
         if section.count_field:
-            return resource.values.get(section.count_field, 0)
+            count = resource.values.get(section.count_field, 0)
+
+            # WED door polygons often extend beyond secondary_header.count_of_polygons.
+            # Preserve all physically referenced polygons by using the max door extent.
+            if resource.schema.name == "WED" and section.name == "polygons":
+                base_offset = reader.tell() if reader else int(resource.values.get(section.offset_field, 0) or 0)
+                entry_size = _section_entry_size(section)
+                if entry_size > 0:
+                    door_entries = resource.sections.get("doors", [])
+                    max_needed = count
+                    for door in door_entries:
+                        for off_field, cnt_field in (
+                            ("offset_to_polygons_open", "count_of_polygons_open"),
+                            ("offset_to_polygons_closed", "count_of_polygons_closed"),
+                        ):
+                            offset = int(door.get(off_field, 0) or 0)
+                            cnt = int(door.get(cnt_field, 0) or 0)
+                            if cnt <= 0 or offset < base_offset:
+                                continue
+                            rel = offset - base_offset
+                            if rel % entry_size != 0:
+                                continue
+                            idx = rel // entry_size
+                            needed = idx + cnt
+                            if needed > max_needed:
+                                max_needed = needed
+                    return max_needed
+
+            return count
  
         # ------------------------------------------------------------------
         # 4. Default: single-entry section (header-like)
@@ -432,7 +541,15 @@ class BinaryParser:
             current_pos    = writer.file.tell()
             padding_needed = target_offset - current_pos
             if padding_needed > 0:
-                writer.write(b'\x00' * padding_needed)
+                if (
+                    not resource.modified and
+                    hasattr(resource, "_original_bytes") and
+                    isinstance(resource._original_bytes, (bytes, bytearray)) and
+                    target_offset <= len(resource._original_bytes)
+                ):
+                    writer.write(resource._original_bytes[current_pos:target_offset])
+                else:
+                    writer.write(b'\x00' * padding_needed)
  
             for entry in resource.sections.get(section.name, []):
                 _write_entry(section, entry)
