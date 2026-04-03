@@ -227,6 +227,37 @@ class ResourceLoader:
         if resolved is None or raw_bytes is None:
             return resolved
 
+        def _field_offset(schema_obj, section_name, field_name):
+            section = schema_obj.get_section(section_name) if schema_obj else None
+            if not section:
+                return None
+            field = section.get_field(field_name)
+            if not field:
+                return None
+            offset = field.attributes.get("offset")
+            return offset if isinstance(offset, int) else None
+
+        def _dword_at(blob, offset):
+            if offset is None or offset < 0 or offset + 4 > len(blob):
+                return None
+            return int.from_bytes(blob[offset:offset + 4], "little")
+
+        def _section_entry_span(schema_obj, section_name):
+            section = schema_obj.get_section(section_name) if schema_obj else None
+            if not section:
+                return 0
+
+            end = 0
+            for field in section.fields:
+                size = field.attributes.get("size", 0) or 0
+                offset = field.attributes.get("offset", 0) or 0
+                if size <= 0:
+                    continue
+                field_end = int(offset) + int(size)
+                if field_end > end:
+                    end = field_end
+            return end
+
         # PSTEE mostly uses a dedicated V1.0 CRE layout, but four legacy CRE
         # resources in the game still use the older PST V1.1/V1.2-style header.
         # Their section offsets live later in the header (0x0344+), so routing
@@ -236,7 +267,29 @@ class ResourceLoader:
             if version == "V1.1":
                 legacy_pst_schema = self.schema_loader.get("CRE", game="PST")
                 if legacy_pst_schema is not None:
-                    return legacy_pst_schema
+                    pst_item_slots_off_field = _field_offset(
+                        legacy_pst_schema, "header", "offset_to_item_slots"
+                    )
+                    pst_item_slots_off = _dword_at(raw_bytes, pst_item_slots_off_field)
+                    pst_item_slots_span = _section_entry_span(legacy_pst_schema, "item_slots")
+
+                    # Route to legacy PST schema only if its item-slots pointer is
+                    # physically valid for that schema's expected entry span.
+                    # Some PSTEE placeholder CRE V1.1 files are zero-filled stubs
+                    # where PST offsets point near EOF and would overrun.
+                    if (
+                        isinstance(pst_item_slots_off, int) and
+                        pst_item_slots_off > 0 and
+                        pst_item_slots_span > 0 and
+                        pst_item_slots_off + pst_item_slots_span <= len(raw_bytes)
+                    ):
+                        return legacy_pst_schema
+
+                    # Keep PSTEE schema for V1.1 stubs/placeholder records.
+                    return resolved
+
+                # No PST fallback available; keep PSTEE schema.
+                return resolved
 
         # IWD2 mostly uses CRE V2.2, but four legacy test creatures are V9.1
         # and match the classic IWD CRE layout.
