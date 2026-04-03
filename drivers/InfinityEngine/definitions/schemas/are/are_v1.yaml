@@ -1,6 +1,6 @@
 name: ARE
 version: V1
-games: [BG1, BG2, IWD, PST]
+games: [BG1, BG2, IWD]
 
 header:
   fields:
@@ -126,7 +126,7 @@ header:
     size: 2
     offset: 0x0050
 
-  - name: music_reverb
+  - name: wind_speed
     type: word
     size: 2
     offset: 0x0052
@@ -221,7 +221,7 @@ header:
     size: 4
     offset: 0x008c
 
-  - name: index_into_tiled_object_flags
+  - name: offset_to_tiled_object_flags
     type: word
     size: 2
     offset: 0x0090
@@ -311,8 +311,8 @@ header:
     size: 8
     offset: 0x00d4
 
-  - name: unknown_header_1
-    type: bytes
+  - name: rest_movie_night
+    type: resref
     size: 8
     offset: 0x00dc
 
@@ -355,21 +355,33 @@ actors:
     type: bitmask
     flags:
       0x00000001: cre_external
-      0x00000002: cre_embedded
+      0x00000002: seen_party
+      0x00000004: invulnerable
+      0x00000008: script_override
     size: 4
     offset: 0x0028
 
-  - name: spawned
-    type: dword
-    size: 4
-    offset: 0x002c
-
-  - name: animation_id
+  - name: is_random_monster
     type: word
+    size: 2
+    offset: 0x002c
+  
+  - name: cre_resref_first_letter
+    type: byte
+    size: 1
+    offset: 0x002e
+  
+  - name: unused
+    type: byte
+    size: 1
+    offset: 0x002f
+
+  - name: animation
+    type: dword
     lookup:
       kind: ids
       file: ANIMATE.IDS
-    size: 2
+    size: 4
     offset: 0x0030
 
   - name: orientation
@@ -378,87 +390,117 @@ actors:
       kind: ids
       file: DIR.IDS
     size: 2
-    offset: 0x0032
+    offset: 0x0034
+  
+  - name: unused_2
+    type: word
+    size: 2
+    offset: 0x0036
 
   - name: expiry_timer
     type: dword
     size: 4
-    offset: 0x0034
-
-  - name: wander_range
-    type: word
-    size: 2
     offset: 0x0038
 
-  - name: follow_range
+  - name: movement_range
     type: word
     size: 2
-    offset: 0x003a
-
-  - name: times_present_schedule
-    type: dword
-    size: 4
     offset: 0x003c
+
+  - name: move_to_range
+    type: word
+    size: 2
+    offset: 0x003e
+
+  - name: appearance_schedule
+    type: bitmask
+    flags:
+      0x00000001: "0030_0129"
+      0x00000002: "0130_0229"
+      0x00000004: "0230_0329"
+      0x00000008: "0330_0429"
+      0x00000010: "0430_0529"
+      0x00000020: "0530_0629_dawn"
+      0x00000040: "0630_0729_day"
+      0x00000080: "0730_0829"
+      0x00000100: "0830_0929"
+      0x00000200: "0930_1029"
+      0x00000400: "1030_1129"
+      0x00000800: "1130_1229"
+      0x00001000: "1230_1329"
+      0x00002000: "1330_1429"
+      0x00004000: "1430_1529"
+      0x00008000: "1530_1629"
+      0x00010000: "1630_1729"
+      0x00020000: "1730_1829"
+      0x00040000: "1830_1929"
+      0x00080000: "1930_2029"
+      0x00100000: "2030_2129_dusk"
+      0x00200000: "2130_2229_night"
+      0x00400000: "2230_2329"
+      0x00800000: "2330_0029"
+    size: 4
+    offset: 0x0040
 
   - name: num_times_talked_to
     type: dword
     size: 4
-    offset: 0x0040
+    offset: 0x0044
 
   - name: dialog_file
     type: resref
     size: 8
-    offset: 0x0044
+    offset: 0x0048
 
   - name: script_override
     type: resref
     size: 8
-    offset: 0x004c
+    offset: 0x0050
 
   - name: script_general
     type: resref
     size: 8
-    offset: 0x0054
+    offset: 0x0058
 
   - name: script_class
     type: resref
     size: 8
-    offset: 0x005c
+    offset: 0x0060
 
   - name: script_race
     type: resref
     size: 8
-    offset: 0x0064
+    offset: 0x0068
 
   - name: script_default
     type: resref
     size: 8
-    offset: 0x006c
+    offset: 0x0070
 
   - name: script_specific
     type: resref
     size: 8
-    offset: 0x0074
+    offset: 0x0078
 
   - name: cre_file
     type: resref
     size: 8
-    offset: 0x007c
+    offset: 0x0080
 
   - name: cre_offset
     type: dword
     size: 4
-    offset: 0x0084
+    offset: 0x0088
 
   - name: cre_size
     type: dword
     size: 4
-    offset: 0x0088
+    offset: 0x008c
 
   - name: unknown
     type: bytes
     size: 128
-    offset: 0x008c
+    offset: 0x0090
 
 regions:
   offset_field: offset_to_regions
