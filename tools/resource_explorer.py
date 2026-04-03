@@ -251,6 +251,7 @@ class ResourceExplorer:
         self.indexer = ResourceIndexer(self.loader, self.active_game)
         
         # Ensure TLK is loaded
+        self.loader.tlk_handler = None # Clear existing TLK handler to force reload for new game
         self.loader.get_string(0, game=self.active_game) 
         
         print(f"Ready. Loaded {self.active_game}.")
@@ -270,6 +271,7 @@ class ResourceExplorer:
             types_to_index = sorted(list(all_types))
 
         self.indexer.build_index(types=types_to_index)
+        self.last_results = [] # Clear last results after rebuilding index
 
     def run_repl(self):
         print("\n--- PlanarForge Resource Explorer ---")
@@ -308,6 +310,7 @@ class ResourceExplorer:
             sys.exit(0)
         elif cmd == "cls":
             _clear_screen()
+            self.last_results = [] # Clear last results on screen clear
         elif cmd == "help":
             self._print_help()
         elif cmd == "game":
@@ -315,6 +318,7 @@ class ResourceExplorer:
         elif cmd == "type":
             self._set_type(arg)
         elif cmd == "list":
+            self.last_results = [] # Clear last results before listing all
             self._search("")
         elif cmd == "search":
             self._search(arg)
@@ -358,6 +362,7 @@ Available Commands:
         self.active_type = arg
         print(f"Active type set to {self.active_type}")
         self.ensure_index(self.active_type)
+        self.last_results = [] # Clear last results when type changes
 
     def _search(self, query):
         print(f"Searching for '{query}' in {self.active_type}...")
