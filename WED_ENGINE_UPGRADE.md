@@ -181,3 +181,58 @@ Secondary Header (Promoted to Context)
 ├── Vertices
 └── Wall Groups
 ```
+
+---
+### [2026-04-02 to 2026-04-03] Gap Audit Closure, Known-Safe Gaps, and Final WED Validation
+- **Status:** RESOLVED.
+- **Problem:** Even after structural WED fixes, several files still reported "internal unmapped gaps". We needed to distinguish parser/schema mistakes from real unknown-but-stable bytes.
+- **What We Added:**
+    1. **Detailed gap audit logging** in the fidelity suite, including:
+        - summary counts (`gaps`, `nonzero`, `high_risk`, `unknown_bytes`)
+        - contextual neighbors (`prev`/`next` claimed fields)
+        - pointer references into gaps
+        - candidate structure guesses
+        - `head`, `tail`, and ASCII previews
+    2. **Targeted gap allowlist** (`tools/tests/gap_allowlist.json`) with exact matching by:
+        - `game`, `schema`, `resref`, `start`, `end`
+        - optional `size`, `kind`, `classification`, `risk`
+    3. **Suppression accounting** in summaries:
+        - `SuppressedFiles`, `SuppressedGaps`, `SuppressedBytes`
+        - per-file details include which allowlist rule matched.
+
+- **WED-specific confirmed safe entries (Near Infinity: "Unused bytes?"):**
+    - `PSTEE/WED/AR0609`: `0x8cc-0x14ac`, `0x164c-0x18ac`, `0x18bc-0x18d4`
+    - `PSTEE/WED/AR0612`: `0x8cc-0x14ac`, `0x164c-0x18ac`, `0x18bc-0x18d4`
+    - `BGEE/WED/AR1215`: `0xb08-0xb1c` (tile-index range previously investigated)
+
+- **Related cross-schema safe entries captured in same allowlist workflow:**
+    - `PSTEE/CRE`: `3PLANEA`, `ARMOIRE`, `SPLINT`, `THORNCO` tail gaps.
+    - `PSTEE/ARE`: `AR0501`, `AR1001`, `AR3017`, `AR13WZ` exact gaps.
+
+- **Result:** WED unknown-gap handling is now explicit, auditable, and non-destructive. Known-safe bytes are suppressed without hiding new issues.
+
+### [2026-04-03] Audit Performance Hardening
+- **Status:** IMPLEMENTED.
+- **Problem:** Gap audit increased round-trip runtime noticeably.
+- **Engine optimizations in `BinaryParser`:**
+    1. **Conditional byte-claim tracking:** claim bookkeeping now runs only when audit is enabled.
+    2. **Pointer pre-indexing:** offset-like fields are indexed once per resource, then reused per gap.
+    3. **Audit detail levels:** `summary`, `nonzero`, `full`.
+        - `summary`: fast counters only
+        - `nonzero`: full details only for non-zero/pointer-referenced gaps
+        - `full`: full details for all gaps
+
+- **Test suite controls added:**
+    - `--gap-detail-level {summary,nonzero,full}`
+    - `--profile-performance`
+    - `--profile-sort {cumulative,tottime}`
+    - `--profile-limit N`
+
+- **Outcome:** Audit remains available, but fast modes are now practical for large runs and general development workflows.
+
+### [2026-04-03] Milestone Status Update
+- **Status:** SUCCESS.
+- **Update:** The current milestone run completed with **all tests passing** after:
+    - WED relational/schema fixes,
+    - targeted allowlisting for confirmed safe gaps,
+    - and parser/test-suite performance tuning.
