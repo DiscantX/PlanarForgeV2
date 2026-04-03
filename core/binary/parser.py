@@ -431,6 +431,85 @@ class BinaryParser:
                     max_needed = needed
 
             return max_needed
+
+        def _max_lookup_needed_from_tilemaps(tilemap_entries, overlay_entries, base_lookup_offset, unit_size):
+            """
+            Derive required tile_index_lookup length from tilemap references.
+
+            Tilemap indices are interpreted relative to each overlay's lookup
+            window (offset_to_tile_index_lookup). We map tilemaps to overlays
+            via cumulative overlay.tile_count.
+            """
+            if unit_size <= 0:
+                return 0
+
+            max_needed = 0
+            tile_cursor = 0
+            for overlay in overlay_entries:
+                tile_count = int(overlay.get("tile_count", 0) or 0)
+                lookup_offset = int(overlay.get("offset_to_tile_index_lookup", 0) or 0)
+
+                if tile_count <= 0:
+                    continue
+                if lookup_offset < base_lookup_offset:
+                    tile_cursor += tile_count
+                    continue
+
+                rel = lookup_offset - base_lookup_offset
+                if rel % unit_size != 0:
+                    tile_cursor += tile_count
+                    continue
+
+                overlay_base_index = rel // unit_size
+                overlay_tilemaps = tilemap_entries[tile_cursor: tile_cursor + tile_count]
+
+                for tilemap in overlay_tilemaps:
+                    primary_idx = int(tilemap.get("primary_tile_index", 0) or 0)
+                    primary_cnt = int(tilemap.get("primary_tile_count", 0) or 0)
+                    need_primary = overlay_base_index + primary_idx + primary_cnt
+                    if need_primary > max_needed:
+                        max_needed = need_primary
+
+                    secondary_idx = tilemap.get("secondary_tile_index")
+                    if isinstance(secondary_idx, int) and secondary_idx not in (0xFFFF, 65535):
+                        need_secondary = overlay_base_index + secondary_idx + 1
+                        if need_secondary > max_needed:
+                            max_needed = need_secondary
+
+                tile_cursor += tile_count
+
+            return max_needed
+
+        def _physical_cap_count(current_section, base_offset, unit_size):
+            """
+            Cap count by next known section offset to avoid overlap.
+            """
+            if unit_size <= 0:
+                return None
+
+            next_offsets = []
+            for sec in self.schema.sections:
+                if sec.name == current_section.name:
+                    continue
+
+                offset = None
+                if sec.offset_field:
+                    offset = resource.values.get(sec.offset_field)
+                elif sec.offset_from:
+                    spec = sec.offset_from
+                    src_entries = resource.sections.get(spec["section"], [])
+                    src_idx = int(spec.get("index", 0))
+                    if src_idx < len(src_entries):
+                        offset = src_entries[src_idx].get(spec["field"])
+
+                if isinstance(offset, int) and offset > base_offset:
+                    next_offsets.append(offset)
+
+            if not next_offsets:
+                return None
+
+            next_offset = min(next_offsets)
+            return max(0, (next_offset - base_offset) // unit_size)
  
         # ------------------------------------------------------------------
         # 1. count_expr
@@ -487,6 +566,35 @@ class BinaryParser:
                             base_offset,
                             _section_entry_size(section),
                         )
+                        # Some files have stale/zero unique_tile_count and/or sparse
+                        # lookup windows. Derive required extent from tilemap indices.
+                        # This captures real lookup payload past sum(width*height).
+                        tilemap_entries = resource.sections.get("tilemaps", [])
+                        max_from_tilemaps = _max_lookup_needed_from_tilemaps(
+                            tilemap_entries,
+                            overlay_entries,
+                            base_offset,
+                            _section_entry_size(section),
+                        )
+
+                        # Also consider offset windows that may be keyed by
+                        # unique_tile_count when present.
+                        max_from_unique = _max_offset_extent(
+                            overlay_entries,
+                            "offset_to_tile_index_lookup",
+                            "unique_tile_count",
+                            base_offset,
+                            _section_entry_size(section),
+                        )
+
+                        max_extent = max(max_extent, max_from_tilemaps, max_from_unique)
+                        physical_cap = _physical_cap_count(
+                            section,
+                            base_offset,
+                            _section_entry_size(section),
+                        )
+                        if physical_cap is not None and max_extent > physical_cap:
+                            max_extent = physical_cap
                         if max_extent > total:
                             return max_extent
 
