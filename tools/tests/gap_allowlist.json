@@ -55,6 +55,58 @@
       "note": "Unused placeholder CRE; no in-game references found in Near Infinity."
     },
     {
+      "id": "PSTEE-ARE-AR0501-gap-0x5e0-0x62c",
+      "game": "PSTEE",
+      "schema": "ARE",
+      "resref": "AR0501",
+      "start": "0x5e0",
+      "end": "0x62c",
+      "size": 76,
+      "kind": "internal_gap",
+      "classification": "nonzero_unreferenced",
+      "risk": "medium",
+      "note": "Near Infinity marks this region as unused bytes."
+    },
+    {
+      "id": "PSTEE-ARE-AR1001-gap-0x9a0-0xa38",
+      "game": "PSTEE",
+      "schema": "ARE",
+      "resref": "AR1001",
+      "start": "0x9a0",
+      "end": "0xa38",
+      "size": 152,
+      "kind": "tail_gap",
+      "classification": "pointer_referenced_nonzero",
+      "risk": "high",
+      "note": "Near Infinity marks this region as unused bytes."
+    },
+    {
+      "id": "PSTEE-ARE-AR13WZ-gap-0xde8-0xfb0",
+      "game": "PSTEE",
+      "schema": "ARE",
+      "resref": "AR13WZ",
+      "start": "0xde8",
+      "end": "0xfb0",
+      "size": 456,
+      "kind": "tail_gap",
+      "classification": "pointer_referenced_nonzero",
+      "risk": "high",
+      "note": "Near Infinity marks this region as unused bytes."
+    },
+    {
+      "id": "PSTEE-ARE-AR3017-gap-0x82c-0x8c4",
+      "game": "PSTEE",
+      "schema": "ARE",
+      "resref": "AR3017",
+      "start": "0x82c",
+      "end": "0x8c4",
+      "size": 152,
+      "kind": "tail_gap",
+      "classification": "pointer_referenced_nonzero",
+      "risk": "high",
+      "note": "Near Infinity marks this region as unused bytes."
+    },
+    {
       "id": "PSTEE-WED-AR0609-gap0",
       "game": "PSTEE",
       "schema": "WED",
