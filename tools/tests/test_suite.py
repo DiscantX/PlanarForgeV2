@@ -8,6 +8,7 @@ from contextlib import redirect_stdout
 import zlib
 import argparse
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import patch
 import tempfile
 from collections import defaultdict
@@ -73,6 +74,7 @@ class TestPlanarForge(unittest.TestCase):
     gap_policy = "allow"
     gap_detail_limit = 5
     show_progress = True
+    fidelity_threads = 1
     
     @classmethod
     def setUpClass(cls):
@@ -402,17 +404,15 @@ class TestPlanarForge(unittest.TestCase):
             f"@ {hex(claim.get('start', 0))}-{hex(claim.get('end', 0))}"
         )
 
-    def _log_gap_audit_details(self, game, schema_name, resref, resource):
-        if not self.log_file:
-            return
-
+    def _build_gap_audit_details(self, game, schema_name, resref, resource):
         summary = getattr(resource, "gap_audit_summary", {}) or {}
         gaps = list(getattr(resource, "unknown_gaps", []) or [])
         if not summary:
-            return
+            return ""
 
-        self.log_file.write(f"[GAP-AUDIT] Game: {game}, Schema: {schema_name}, Resref: {resref}\n")
-        self.log_file.write(
+        lines = []
+        lines.append(f"[GAP-AUDIT] Game: {game}, Schema: {schema_name}, Resref: {resref}\n")
+        lines.append(
             "  - Summary: "
             f"gaps={summary.get('total_gaps', 0)}, "
             f"internal={summary.get('internal_gaps', 0)}, "
@@ -433,7 +433,7 @@ class TestPlanarForge(unittest.TestCase):
         )
 
         for gap in ranked[: self.gap_detail_limit]:
-            self.log_file.write(
+            lines.append(
                 f"  - Gap #{gap.get('gap_id')} "
                 f"{gap.get('kind')} "
                 f"[{hex(gap.get('start', 0))}-{hex(gap.get('end', 0))}] "
@@ -441,18 +441,14 @@ class TestPlanarForge(unittest.TestCase):
                 f"class={gap.get('classification')} "
                 f"risk={gap.get('risk')}\n"
             )
-            self.log_file.write(
+            lines.append(
                 f"    nonzero={gap.get('nonzero_bytes')}/{gap.get('size')} "
                 f"({gap.get('nonzero_ratio')}), "
                 f"ff={gap.get('ff_bytes')}, "
                 f"entropy={gap.get('entropy')}\n"
             )
-            self.log_file.write(
-                f"    prev={self._format_claim_ref(gap.get('previous_claim'))}\n"
-            )
-            self.log_file.write(
-                f"    next={self._format_claim_ref(gap.get('next_claim'))}\n"
-            )
+            lines.append(f"    prev={self._format_claim_ref(gap.get('previous_claim'))}\n")
+            lines.append(f"    next={self._format_claim_ref(gap.get('next_claim'))}\n")
 
             pointer_hits = gap.get("pointers_into_gap", []) or []
             if pointer_hits:
@@ -461,9 +457,7 @@ class TestPlanarForge(unittest.TestCase):
                     f"{hex(p.get('value', 0))}"
                     for p in pointer_hits
                 )
-                self.log_file.write(
-                    f"    pointers ({gap.get('pointer_hit_count', 0)}): {ptr_desc}\n"
-                )
+                lines.append(f"    pointers ({gap.get('pointer_hit_count', 0)}): {ptr_desc}\n")
 
             candidates = gap.get("candidates", []) or []
             if candidates:
@@ -471,13 +465,170 @@ class TestPlanarForge(unittest.TestCase):
                     f"{c.get('type')}:{c.get('entry_count')}x{c.get('entry_size')}({c.get('confidence')})"
                     for c in candidates
                 )
-                self.log_file.write(f"    candidates: {cand_desc}\n")
+                lines.append(f"    candidates: {cand_desc}\n")
 
-            self.log_file.write(f"    head: {gap.get('head_hex', '')}\n")
-            self.log_file.write(f"    tail: {gap.get('tail_hex', '')}\n")
-            self.log_file.write(f"    ascii: {gap.get('ascii_preview', '')}\n")
+            lines.append(f"    head: {gap.get('head_hex', '')}\n")
+            lines.append(f"    tail: {gap.get('tail_hex', '')}\n")
+            lines.append(f"    ascii: {gap.get('ascii_preview', '')}\n")
 
-        self.log_file.write("\n")
+        lines.append("\n")
+        return "".join(lines)
+
+    def _log_gap_audit_details(self, game, schema_name, resref, resource):
+        if not self.log_file:
+            return
+
+        report = self._build_gap_audit_details(game, schema_name, resref, resource)
+        if report:
+            self.log_file.write(report)
+
+    def _run_fidelity_case(self, game, schema_name, resref):
+        result = {
+            "schema_name": schema_name,
+            "resref": resref,
+            "error_msg": None,
+            "log_text": "",
+            "gap_summary": None,
+            "gap_details": "",
+        }
+
+        try:
+            resource = self.loader.load(resref, restype=schema_name, game=game)
+        except Exception as e:
+            error_msg = f"CRASH loading: {e}"
+            result["error_msg"] = error_msg
+            if self.log_file:
+                lines = [f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> CRASH loading\n"]
+                raw_bytes = None
+                try:
+                    raw_bytes, _, _ = self.loader.get_raw_bytes(resref, restype=schema_name, game=game)
+                except Exception:
+                    pass
+
+                orig_hash = "N/A"
+                orig_size = "N/A"
+                if raw_bytes:
+                    orig_hash = hashlib.md5(raw_bytes).hexdigest()
+                    orig_size = len(raw_bytes)
+
+                lines.append(f"  - Hashes:  Original={orig_hash}, Saved=N/A\n")
+                lines.append(f"  - Sizes:   Original={orig_size}, Saved=N/A\n")
+                lines.append(f"  - Message: {e}\n")
+
+                offset_match = re.search(r"at offset\s+(0x[0-9a-fA-F]+)", str(e))
+                crash_offset = -1
+                if offset_match:
+                    try:
+                        crash_offset = int(offset_match.group(1), 16)
+                    except ValueError:
+                        pass
+
+                if raw_bytes and crash_offset >= 0:
+                    byte_val_str = "N/A"
+                    if crash_offset < len(raw_bytes):
+                        byte_val_str = hex(raw_bytes[crash_offset])
+                    lines.append(
+                        f"  - Details: Crash at offset {hex(crash_offset)} ({crash_offset}). "
+                        f"Original byte: {byte_val_str}, Saved byte: N/A.\n"
+                    )
+                    lines.append("  - Context:\n")
+                    lines.append(f"    - Original: {self._format_byte_context(raw_bytes, crash_offset)}\n")
+                    lines.append("    - Saved:    N/A\n")
+                else:
+                    lines.append(f"  - Details: {e}\n")
+                lines.append("\n")
+                result["log_text"] = "".join(lines)
+            return result
+
+        if resource is None:
+            result["error_msg"] = "Loader returned None (Missing Schema?)"
+            if self.log_file:
+                result["log_text"] = (
+                    f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> "
+                    "Loader returned None (Missing Schema?)\n\n"
+                )
+            return result
+
+        if self.audit_gaps:
+            summary = getattr(resource, "gap_audit_summary", {}) or {}
+            if summary:
+                result["gap_summary"] = summary
+                if int(summary.get("nonzero_gaps", 0) or 0) > 0:
+                    result["gap_details"] = self._build_gap_audit_details(game, schema_name, resref, resource)
+
+        try:
+            original_bytes, _, _ = self.loader.get_raw_bytes(resref, restype=schema_name, game=game)
+            if not original_bytes:
+                return result
+        except Exception as e:
+            result["error_msg"] = f"Error reading raw bytes: {e}"
+            if self.log_file:
+                lines = [f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> {result['error_msg']}\n"]
+                for line in traceback.format_exc().splitlines():
+                    lines.append(f"    {line}\n")
+                lines.append("\n")
+                result["log_text"] = "".join(lines)
+            return result
+
+        try:
+            output = io.BytesIO()
+            writer = BinaryWriter(output)
+            parser = BinaryParser(resource.schema, **self.loader.parser_options)
+            parser.write(writer, resource)
+            saved_bytes = output.getvalue()
+        except Exception as e:
+            result["error_msg"] = f"Error writing: {e}"
+            if self.log_file:
+                lines = [f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> {result['error_msg']}\n"]
+                for line in traceback.format_exc().splitlines():
+                    lines.append(f"    {line}\n")
+                lines.append("\n")
+                result["log_text"] = "".join(lines)
+            return result
+
+        orig_hash = hashlib.md5(original_bytes).hexdigest()
+        saved_hash = hashlib.md5(saved_bytes).hexdigest()
+        if orig_hash != saved_hash:
+            result["error_msg"] = "Fidelity mismatch"
+            if self.log_file:
+                lines = [
+                    f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> Fidelity mismatch\n",
+                    f"  - Version: {resource.get('version', 'N/A')}\n",
+                    f"  - Hashes:  Original={orig_hash}, Saved={saved_hash}\n",
+                    f"  - Sizes:   Original={len(original_bytes)}, Saved={len(saved_bytes)}\n",
+                ]
+                if hasattr(resource, "trailing_data"):
+                    lines.append(
+                        f"  - Trailing: Found {len(resource.trailing_data)} bytes of unmapped data at end of file\n"
+                    )
+
+                limit = min(len(original_bytes), len(saved_bytes))
+                diff_idx = next((i for i in range(limit) if original_bytes[i] != saved_bytes[i]), -1)
+                if diff_idx == -1 and len(original_bytes) != len(saved_bytes):
+                    diff_idx = limit
+
+                if diff_idx != -1:
+                    original_byte = original_bytes[diff_idx] if diff_idx < len(original_bytes) else None
+                    saved_byte = saved_bytes[diff_idx] if diff_idx < len(saved_bytes) else None
+                    original_byte_hex = hex(original_byte) if original_byte is not None else "EOF"
+                    saved_byte_hex = hex(saved_byte) if saved_byte is not None else "EOF"
+                    lines.append(
+                        f"  - Details: Mismatch at offset {hex(diff_idx)} ({diff_idx}). "
+                        f"Original byte: {original_byte_hex}, Saved byte: {saved_byte_hex}.\n"
+                    )
+                    lines.append("  - Context:\n")
+                    if original_byte is not None:
+                        lines.append(f"    - Original: {self._format_byte_context(original_bytes, diff_idx)}\n")
+                    else:
+                        lines.append("    - Original: (file ends before this offset)\n")
+                    if saved_byte is not None:
+                        lines.append(f"    - Saved:    {self._format_byte_context(saved_bytes, diff_idx)}\n")
+                    else:
+                        lines.append("    - Saved:    (file ends before this offset)\n")
+                lines.append("\n")
+                result["log_text"] = "".join(lines)
+
+        return result
 
     def test_01_biff_parsing_and_decompression(self):
         if self.skip_all:
@@ -609,6 +760,74 @@ class TestPlanarForge(unittest.TestCase):
                 total_resources_for_game = sum(len(items) for _, items in schema_worklist)
                 completed_resources_for_game = 0
                 should_show_progress = self.show_progress and total_resources_for_game > 0
+
+                all_tasks = [
+                    (schema_name, resref)
+                    for schema_name, resrefs in schema_worklist
+                    for resref in resrefs
+                ]
+
+                if self.fidelity_threads > 1 and len(all_tasks) > 1:
+                    print(f"--- [{game}] Running fidelity with {self.fidelity_threads} worker threads ---")
+                    with ThreadPoolExecutor(max_workers=self.fidelity_threads) as executor:
+                        futures = {
+                            executor.submit(self._run_fidelity_case, game, schema_name, resref): (schema_name, resref)
+                            for schema_name, resref in all_tasks
+                        }
+
+                        for future in as_completed(futures):
+                            schema_name, resref = futures[future]
+                            completed_resources_for_game += 1
+                            if should_show_progress:
+                                self._print_loading_progress(
+                                    game,
+                                    completed_resources_for_game,
+                                    total_resources_for_game,
+                                )
+
+                            any_tests_run = True
+                            stats[schema_name][game]['tested'] += 1
+
+                            try:
+                                case_result = future.result()
+                            except Exception as e:
+                                error_msg = f"Worker crash: {e}"
+                                stats[schema_name][game]['errors'][error_msg].append(resref)
+                                if self.log_file:
+                                    self.log_file.write(
+                                        f"[ERROR] Game: {game}, Schema: {schema_name}, Resref: {resref} -> {error_msg}\n"
+                                    )
+                                    for line in traceback.format_exc().splitlines():
+                                        self.log_file.write(f"    {line}\n")
+                                    self.log_file.write("\n")
+                                continue
+
+                            gap_summary = case_result.get("gap_summary")
+                            if self.audit_gaps and gap_summary:
+                                gs = gap_stats[schema_name][game]
+                                gs['audited'] += 1
+                                gs['total_gaps'] += int(gap_summary.get('total_gaps', 0) or 0)
+                                gs['nonzero_gaps'] += int(gap_summary.get('nonzero_gaps', 0) or 0)
+                                gs['high_risk_gaps'] += int(gap_summary.get('high_risk_gaps', 0) or 0)
+                                gs['unknown_bytes'] += int(gap_summary.get('unknown_bytes', 0) or 0)
+                                if int(gap_summary.get('total_gaps', 0) or 0) > 0:
+                                    gs['files_with_gaps'] += 1
+                                if int(gap_summary.get('nonzero_gaps', 0) or 0) > 0:
+                                    gs['files_with_nonzero_gaps'] += 1
+                                    if self.log_file and case_result.get("gap_details"):
+                                        self.log_file.write(case_result["gap_details"])
+                                if int(gap_summary.get('high_risk_gaps', 0) or 0) > 0:
+                                    gs['high_risk_files'] += 1
+
+                            if case_result.get("error_msg"):
+                                stats[schema_name][game]['errors'][case_result["error_msg"]].append(resref)
+
+                            if self.log_file and case_result.get("log_text"):
+                                self.log_file.write(case_result["log_text"])
+
+                    if should_show_progress:
+                        self._finish_loading_progress()
+                    continue
                 
                 # Iterate schemas in sorted order for consistent reporting
                 for schema_name, resrefs_to_test in schema_worklist:
@@ -1026,6 +1245,7 @@ Available Tests:
     parser.add_argument('--gap-policy', choices=['allow', 'warn', 'fail_nonzero'], default='allow', help='Write policy when modified resources contain non-zero unknown gaps.')
     parser.add_argument('--gap-detail-limit', type=int, default=5, help='Max detailed gaps per file written to the log when gap audit is enabled.')
     parser.add_argument('--no-progress', action='store_true', help='Disable the fidelity loading indicator.')
+    parser.add_argument('--threads', type=int, default=1, help='Worker threads for fidelity test resources (test #2).')
 
     # Separate custom args from unittest args
     args, unknown = parser.parse_known_args()
@@ -1037,6 +1257,7 @@ Available Tests:
     TestPlanarForge.gap_policy = args.gap_policy
     TestPlanarForge.gap_detail_limit = max(1, args.gap_detail_limit)
     TestPlanarForge.show_progress = not args.no_progress
+    TestPlanarForge.fidelity_threads = max(1, args.threads)
     
     # NOTE: setUpClass is called by unittest.main(), so it will have access
     # to these class variables when initializing the log file.
