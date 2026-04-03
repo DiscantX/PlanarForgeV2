@@ -12,13 +12,20 @@ class BinaryParser:
         audit_unknown_gaps=False,
         gap_audit_max_entries=10,
         gap_audit_sample_size=4096,
+        gap_audit_detail_level="nonzero",
         unknown_gap_policy="allow",
     ):
         self.schema = schema
         self.resource_class = resource_class
         self.audit_unknown_gaps = bool(audit_unknown_gaps)
+        self._track_byte_claims = self.audit_unknown_gaps
         self.gap_audit_max_entries = max(1, int(gap_audit_max_entries or 10))
         self.gap_audit_sample_size = max(64, int(gap_audit_sample_size or 4096))
+        self.gap_audit_detail_level = (gap_audit_detail_level or "nonzero").strip().lower()
+        if self.gap_audit_detail_level not in {"summary", "nonzero", "full"}:
+            raise ValueError(
+                "gap_audit_detail_level must be one of: summary, nonzero, full"
+            )
         self.unknown_gap_policy = (unknown_gap_policy or "allow").strip().lower()
         if self.unknown_gap_policy not in {"allow", "warn", "fail_nonzero"}:
             raise ValueError(
@@ -26,6 +33,8 @@ class BinaryParser:
             )
 
     def _append_byte_claim(self, resource, section_name, entry_index, field_name, field_type, start, end):
+        if not self._track_byte_claims:
+            return
         if end <= start:
             return
         resource.byte_claims.append(
@@ -65,7 +74,7 @@ class BinaryParser:
         snippet = data[:limit]
         return "".join(chr(b) if 32 <= b <= 126 else "." for b in snippet)
 
-    def _summarize_gap_bytes(self, data):
+    def _summarize_gap_bytes(self, data, detailed=False):
         size = len(data)
         if size == 0:
             return {
@@ -80,14 +89,29 @@ class BinaryParser:
                 "ascii_preview": "",
             }
 
+        # Fast path for summary-level audit. The C-implemented count calls are
+        # substantially cheaper than building a full 256-bin histogram.
+        zero_bytes = data.count(0)
+        ff_bytes = data.count(0xFF)
+        nonzero_bytes = size - zero_bytes
+        nonzero_ratio = nonzero_bytes / size
+
+        if not detailed:
+            return {
+                "size": size,
+                "zero_bytes": zero_bytes,
+                "ff_bytes": ff_bytes,
+                "nonzero_bytes": nonzero_bytes,
+                "nonzero_ratio": round(nonzero_ratio, 6),
+                "entropy": 0.0,
+                "head_hex": "",
+                "tail_hex": "",
+                "ascii_preview": "",
+            }
+
         counts = [0] * 256
         for b in data:
             counts[b] += 1
-
-        zero_bytes = counts[0]
-        ff_bytes = counts[0xFF]
-        nonzero_bytes = size - zero_bytes
-        nonzero_ratio = nonzero_bytes / size
 
         entropy = 0.0
         for count in counts:
@@ -126,8 +150,8 @@ class BinaryParser:
             "size": claim["size"],
         }
 
-    def _collect_gap_pointer_hits(self, resource, gap_start, gap_end):
-        hits = []
+    def _index_offset_like_fields(self, resource):
+        offsets = []
         for section_name, entries in resource.sections.items():
             if not isinstance(entries, list):
                 continue
@@ -139,16 +163,30 @@ class BinaryParser:
                         continue
                     if "offset" not in key.lower():
                         continue
-                    if gap_start <= value < gap_end:
-                        hits.append(
-                            {
-                                "section": section_name,
-                                "entry_index": entry_idx,
-                                "field": key,
-                                "value": value,
-                                "offset_in_gap": value - gap_start,
-                            }
-                        )
+                    offsets.append(
+                        {
+                            "section": section_name,
+                            "entry_index": entry_idx,
+                            "field": key,
+                            "value": value,
+                        }
+                    )
+        return offsets
+
+    def _collect_gap_pointer_hits(self, offset_refs, gap_start, gap_end):
+        hits = []
+        for ref in offset_refs:
+            value = ref["value"]
+            if gap_start <= value < gap_end:
+                hits.append(
+                    {
+                        "section": ref["section"],
+                        "entry_index": ref["entry_index"],
+                        "field": ref["field"],
+                        "value": value,
+                        "offset_in_gap": value - gap_start,
+                    }
+                )
         return hits
 
     def _detect_gap_candidates(self, schema_name, gap_size, pointer_hit_count, nonzero_ratio):
@@ -189,6 +227,7 @@ class BinaryParser:
         claims = sorted(resource.byte_claims, key=lambda c: (c["start"], c["end"]))
         merged = self._merge_claimed_ranges(claims)
         resource.claimed_ranges = merged
+        offset_refs = self._index_offset_like_fields(resource)
 
         gaps = []
         cursor = 0
@@ -206,14 +245,9 @@ class BinaryParser:
             end = gap["end"]
             size = end - start
             gap_bytes = full_bytes[start:end]
-            byte_summary = self._summarize_gap_bytes(gap_bytes)
-            pointer_hits = self._collect_gap_pointer_hits(resource, start, end)
-            candidates = self._detect_gap_candidates(
-                resource.schema.name,
-                size,
-                len(pointer_hits),
-                byte_summary["nonzero_ratio"],
-            )
+            byte_summary = self._summarize_gap_bytes(gap_bytes, detailed=False)
+            pointer_hits = self._collect_gap_pointer_hits(offset_refs, start, end)
+            pointer_hit_count = len(pointer_hits)
 
             prev_claim = next(
                 (c for c in reversed(claims) if c["end"] <= start),
@@ -227,12 +261,31 @@ class BinaryParser:
             if byte_summary["nonzero_bytes"] == 0:
                 classification = "all_zero_padding"
                 risk = "low"
-            elif pointer_hits:
+            elif pointer_hit_count:
                 classification = "pointer_referenced_nonzero"
                 risk = "high"
             else:
                 classification = "nonzero_unreferenced"
                 risk = "medium"
+
+            include_details = False
+            if self.gap_audit_detail_level == "full":
+                include_details = True
+            elif self.gap_audit_detail_level == "nonzero":
+                include_details = (byte_summary["nonzero_bytes"] > 0) or (pointer_hit_count > 0)
+
+            if include_details:
+                byte_summary = self._summarize_gap_bytes(gap_bytes, detailed=True)
+                candidates = self._detect_gap_candidates(
+                    resource.schema.name,
+                    size,
+                    pointer_hit_count,
+                    byte_summary["nonzero_ratio"],
+                )
+                pointer_details = pointer_hits[: self.gap_audit_max_entries]
+            else:
+                candidates = []
+                pointer_details = []
 
             detailed_gaps.append(
                 {
@@ -253,9 +306,10 @@ class BinaryParser:
                     "ascii_preview": byte_summary["ascii_preview"],
                     "previous_claim": self._serialize_claim_ref(prev_claim),
                     "next_claim": self._serialize_claim_ref(next_claim),
-                    "pointers_into_gap": pointer_hits[: self.gap_audit_max_entries],
-                    "pointer_hit_count": len(pointer_hits),
+                    "pointers_into_gap": pointer_details,
+                    "pointer_hit_count": pointer_hit_count,
                     "candidates": candidates,
+                    "details_included": include_details,
                 }
             )
 
@@ -271,6 +325,7 @@ class BinaryParser:
             "pointer_referenced_gaps": sum(1 for g in detailed_gaps if g["pointer_hit_count"] > 0),
             "high_risk_gaps": sum(1 for g in detailed_gaps if g["risk"] == "high"),
             "largest_gap_size": max((g["size"] for g in detailed_gaps), default=0),
+            "detail_level": self.gap_audit_detail_level,
         }
 
     def read(self, reader, name=None, source=None):
