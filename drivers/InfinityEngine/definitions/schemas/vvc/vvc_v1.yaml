@@ -1,6 +1,6 @@
 name: VVC
 version: V1
-games: [BG2, BG2EE]
+games: [BG2, BGEE, BG2EE, IWDEE, PSTEE]
 
 header:
   fields:
