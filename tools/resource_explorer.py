@@ -259,7 +259,16 @@ class ResourceExplorer:
         if not self.indexer:
             return
         
-        types_to_index = [restype] if restype and restype != "ALL" else ["ITM", "SPL", "CRE", "ARE", "WED"]
+        if restype and restype != "ALL":
+            types_to_index = [restype]
+        else:
+            # Dynamically determine types based on available schemas
+            all_types = set(self.loader.schema_loader.schemas.keys())
+            for game_map in self.loader.schema_loader.game_schemas.values():
+                all_types.update(game_map.keys())
+            
+            types_to_index = sorted(list(all_types))
+
         self.indexer.build_index(types=types_to_index)
 
     def run_repl(self):
