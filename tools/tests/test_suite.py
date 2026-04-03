@@ -72,6 +72,7 @@ class TestPlanarForge(unittest.TestCase):
     audit_gaps = False
     gap_policy = "allow"
     gap_detail_limit = 5
+    show_progress = True
     
     @classmethod
     def setUpClass(cls):
@@ -119,8 +120,15 @@ class TestPlanarForge(unittest.TestCase):
         all_found_games = [inst.game_id for inst in cls.loader.install_finder.find_all()]
         
         # Load chitin for all found games
+        total_chitins = len(all_found_games)
+        loaded_chitins = 0
         for game_id in all_found_games:
             cls.loader._load_chitin(game_id)
+            loaded_chitins += 1
+            if cls.show_progress and total_chitins > 0:
+                cls._print_loading_progress("SETUP", loaded_chitins, total_chitins)
+        if cls.show_progress and total_chitins > 0:
+            cls._finish_loading_progress()
         
         # Determine which games to test based on CLI arg or all found games
         if cls.game_filter:
@@ -354,6 +362,38 @@ class TestPlanarForge(unittest.TestCase):
             return f"{pre_context} | EOF"
 
     @staticmethod
+    def _print_loading_progress(game, completed, total):
+        if total <= 0:
+            return
+        bar_length = 40
+        percent = completed / total
+        if not sys.stdout.isatty():
+            # Avoid noisy logs in non-interactive runs (CI, redirected output).
+            step = max(1, total // 20)
+            if completed == 1 or completed == total or completed % step == 0:
+                print(f"[{game}] Progress: {completed}/{total} ({percent:.1%})")
+            return
+        filled_length = int(bar_length * percent)
+        bar = '=' * filled_length + '-' * (bar_length - filled_length)
+        sys.stdout.write(
+            f"\r{Colors.HEADER}[{bar}] {Colors.ENDC}"
+            f"{Colors.LABEL}{game}{Colors.ENDC} "
+            f"{Colors.VALUE}{percent:6.1%}{Colors.ENDC} "
+            f"({completed}/{total})"
+        )
+        sys.stdout.flush()
+
+    @staticmethod
+    def _progress_step(total, granularity=40):
+        # Update at most ~granularity times to keep console responsive.
+        return max(1, total // max(1, granularity))
+
+    @staticmethod
+    def _finish_loading_progress():
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
+    @staticmethod
     def _format_claim_ref(claim):
         if not claim:
             return "None"
@@ -522,7 +562,9 @@ class TestPlanarForge(unittest.TestCase):
                 
                 all_resource_entries = chitin.sections.get("resource_entries", [])
                 resources_by_schema = defaultdict(list)
-                for entry in all_resource_entries:
+                total_entries = len(all_resource_entries)
+                prep_step = self._progress_step(total_entries)
+                for idx, entry in enumerate(all_resource_entries, start=1):
                     res_type_code = entry.get("resource_type")
                     res_name = entry.get("resource_name")
                     schema_name = RESOURCE_TYPE_MAP.get(res_type_code)
@@ -530,6 +572,11 @@ class TestPlanarForge(unittest.TestCase):
                         if schema_name not in resources_by_schema:
                             resources_by_schema[schema_name] = []
                         resources_by_schema[schema_name].append(res_name.strip())
+                    if self.show_progress and total_entries > 0:
+                        if idx == 1 or idx == total_entries or (idx % prep_step) == 0:
+                            self._print_loading_progress(f"{game}-prep", idx, total_entries)
+                if self.show_progress and total_entries > 0:
+                    self._finish_loading_progress()
                 
                 if self.resref_filter and not self.schema_filter:
                     print(f"\n--- [{game}] Filtering fidelity test to resource: {self.resref_filter.upper()} ---")
@@ -540,16 +587,16 @@ class TestPlanarForge(unittest.TestCase):
                 all_types = set(self.schema_loader.schemas.keys())
                 for g_map in self.schema_loader.game_schemas.values():
                     all_types.update(g_map.keys())
-                
-                # Iterate schemas in sorted order for consistent reporting
+
+                # Build the filtered worklist once so we can show a lightweight
+                # loading/progress indicator without changing test behavior.
+                schema_worklist = []
                 for schema_name in sorted(all_types):
                     if self.schema_filter and schema_name != self.schema_filter.upper():
                         continue
                     if schema_name not in resources_by_schema:
                         continue
 
-                    # print(f"\n--- [{game}] Testing fidelity for schema: {schema_name} ---") # Reduced verbosity
-                    
                     resrefs_to_test = resources_by_schema[schema_name]
                     if self.resref_filter:
                         resref_filter_upper = self.resref_filter.strip().upper()
@@ -557,8 +604,25 @@ class TestPlanarForge(unittest.TestCase):
                             resrefs_to_test = [resref_filter_upper]
                         else:
                             continue
-                    
+                    schema_worklist.append((schema_name, resrefs_to_test))
+
+                total_resources_for_game = sum(len(items) for _, items in schema_worklist)
+                completed_resources_for_game = 0
+                should_show_progress = self.show_progress and total_resources_for_game > 0
+                
+                # Iterate schemas in sorted order for consistent reporting
+                for schema_name, resrefs_to_test in schema_worklist:
+
+                    # print(f"\n--- [{game}] Testing fidelity for schema: {schema_name} ---") # Reduced verbosity
+
                     for resref in resrefs_to_test:
+                        completed_resources_for_game += 1
+                        if should_show_progress:
+                            self._print_loading_progress(
+                                game,
+                                completed_resources_for_game,
+                                total_resources_for_game,
+                            )
                         any_tests_run = True
                         stats[schema_name][game]['tested'] += 1
                         
@@ -706,6 +770,9 @@ class TestPlanarForge(unittest.TestCase):
                                     else:
                                         self.log_file.write(f"    - Saved:    (file ends before this offset)\n")
                                 self.log_file.write("\n")
+
+                if should_show_progress:
+                    self._finish_loading_progress()
 
         # --- SUMMARY GENERATION ---
         if not any_tests_run:
@@ -958,6 +1025,7 @@ Available Tests:
     parser.add_argument('--audit-gaps', action='store_true', help='Enable unknown-gap byte audit during parse and show audit summaries.')
     parser.add_argument('--gap-policy', choices=['allow', 'warn', 'fail_nonzero'], default='allow', help='Write policy when modified resources contain non-zero unknown gaps.')
     parser.add_argument('--gap-detail-limit', type=int, default=5, help='Max detailed gaps per file written to the log when gap audit is enabled.')
+    parser.add_argument('--no-progress', action='store_true', help='Disable the fidelity loading indicator.')
 
     # Separate custom args from unittest args
     args, unknown = parser.parse_known_args()
@@ -968,6 +1036,7 @@ Available Tests:
     TestPlanarForge.audit_gaps = args.audit_gaps
     TestPlanarForge.gap_policy = args.gap_policy
     TestPlanarForge.gap_detail_limit = max(1, args.gap_detail_limit)
+    TestPlanarForge.show_progress = not args.no_progress
     
     # NOTE: setUpClass is called by unittest.main(), so it will have access
     # to these class variables when initializing the log file.
