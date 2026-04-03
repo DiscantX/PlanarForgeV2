@@ -939,8 +939,16 @@ class BinaryParser:
  
         # --- Write remaining sections in physical order ---
         for target_offset, section in sections_to_write:
-            # Insert padding to reach the target offset.
             current_pos    = writer.file.tell()
+
+            # In fidelity mode, section pointers from legacy/edge-case files can
+            # overlap or move backwards. Re-seek to the declared offset so
+            # subsequent writes do not drift forward from an earlier overlap.
+            if not resource.modified and current_pos > target_offset:
+                writer.file.seek(target_offset)
+                current_pos = target_offset
+
+            # Insert padding to reach the target offset.
             padding_needed = target_offset - current_pos
             if padding_needed > 0:
                 if (
