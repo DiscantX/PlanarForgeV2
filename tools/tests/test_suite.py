@@ -74,11 +74,15 @@ class TestPlanarForge(unittest.TestCase):
     audit_gaps = False
     gap_policy = "allow"
     gap_detail_limit = 5
+    gap_detail_level_mode = "nonzero"
     gap_allowlist_path = None
     gap_allowlist_rules = []
     gap_allowlist_source = None
     show_progress = True
     fidelity_threads = 1
+    profile_performance = False
+    profile_sort = "cumulative"
+    profile_limit = 40
     
     @classmethod
     def setUpClass(cls):
@@ -123,6 +127,7 @@ class TestPlanarForge(unittest.TestCase):
             parser_options = {
                 "audit_unknown_gaps": True,
                 "unknown_gap_policy": cls.gap_policy,
+                "gap_audit_detail_level": cls.gap_detail_level_mode,
             }
 
         cls.loader = ResourceLoader(schema_loader=cls.schema_loader, parser_options=parser_options)
@@ -421,6 +426,28 @@ class TestPlanarForge(unittest.TestCase):
         sys.stdout.write("\n")
         sys.stdout.flush()
 
+    def _emit_profile_report(self, profiler):
+        if profiler is None:
+            return
+        import pstats
+
+        sort_key = getattr(self, "profile_sort", "cumulative")
+        limit = max(1, int(getattr(self, "profile_limit", 40) or 40))
+        stream = io.StringIO()
+        (
+            pstats.Stats(profiler, stream=stream)
+            .strip_dirs()
+            .sort_stats(sort_key)
+            .print_stats(limit)
+        )
+        report = stream.getvalue()
+        print("\n--- Performance Profile (test_02) ---")
+        print(report)
+        if self.log_file:
+            self.log_file.write("\n--- Performance Profile (test_02) ---\n")
+            self.log_file.write(report)
+            self.log_file.write("\n")
+
     @staticmethod
     def _parse_allowlist_int(value):
         if isinstance(value, int):
@@ -626,6 +653,7 @@ class TestPlanarForge(unittest.TestCase):
             f"high_risk={summary.get('high_risk_gaps', 0)}, "
             f"unknown_bytes={summary.get('unknown_bytes', 0)}, "
             f"claimed_bytes={summary.get('claimed_bytes', 0)}, "
+            f"detail_level={summary.get('detail_level', 'n/a')}, "
             f"suppressed={summary.get('suppressed_gaps', 0)}, "
             f"suppressed_unknown_bytes={summary.get('suppressed_unknown_bytes', 0)}\n"
         )
@@ -670,6 +698,10 @@ class TestPlanarForge(unittest.TestCase):
             )
             lines.append(f"    prev={self._format_claim_ref(gap.get('previous_claim'))}\n")
             lines.append(f"    next={self._format_claim_ref(gap.get('next_claim'))}\n")
+
+            if not bool(gap.get("details_included", True)):
+                lines.append("    details: summary-only\n")
+                continue
 
             pointer_hits = gap.get("pointers_into_gap", []) or []
             if pointer_hits:
@@ -914,6 +946,12 @@ class TestPlanarForge(unittest.TestCase):
     def test_02_resource_fidelity_roundtrip(self):
         if self.skip_all:
             self.skipTest("No game installation found")
+
+        profiler = None
+        if self.profile_performance:
+            import cProfile
+            profiler = cProfile.Profile()
+            profiler.enable()
 
         # Data structure for collecting results
         # Use a class member to store stats for tearDownClass
@@ -1243,7 +1281,10 @@ class TestPlanarForge(unittest.TestCase):
 
         # --- SUMMARY GENERATION ---
         if not any_tests_run:
-             return
+            if profiler:
+                profiler.disable()
+                self._emit_profile_report(profiler)
+            return
 
         print("\n" + Colors.HEADER + "="*96 + Colors.ENDC)
         print(f"{Colors.HEADER}FIDELITY TEST SUMMARY{Colors.ENDC}")
@@ -1409,6 +1450,10 @@ class TestPlanarForge(unittest.TestCase):
             )
             print(Colors.HEADER + "=" * 96 + Colors.ENDC)
 
+        if profiler:
+            profiler.disable()
+            self._emit_profile_report(profiler)
+
         if total_errors_found > 0:
             sys.exit(1)
 
@@ -1494,6 +1539,12 @@ Examples:
   Run WED fidelity with unknown-gap audit enabled:
     python tests/test_suite.py --test 2 --schema WED --audit-gaps
 
+  Run audit in summary-only mode (fastest):
+    python tests/test_suite.py --test 2 --schema WED --audit-gaps --gap-detail-level summary
+
+  Run with performance profiling:
+    python tests/test_suite.py --test 2 --schema ARE --game PSTEE --profile-performance
+
   Use a custom gap allowlist:
     python tests/test_suite.py --test 2 --schema WED --audit-gaps --gap-allowlist tools/tests/gap_allowlist.json
 
@@ -1510,9 +1561,13 @@ Available Tests:
     parser.add_argument('--audit-gaps', action='store_true', help='Enable unknown-gap byte audit during parse and show audit summaries.')
     parser.add_argument('--gap-policy', choices=['allow', 'warn', 'fail_nonzero'], default='allow', help='Write policy when modified resources contain non-zero unknown gaps.')
     parser.add_argument('--gap-detail-limit', type=int, default=5, help='Max detailed gaps per file written to the log when gap audit is enabled.')
+    parser.add_argument('--gap-detail-level', choices=['summary', 'nonzero', 'full'], default='nonzero', help='Gap-audit detail mode: summary (fast), nonzero (details only for non-zero/high-risk), full (details for all gaps).')
     parser.add_argument('--gap-allowlist', type=str, default=None, help='Optional JSON path for exact gap suppressions (game/schema/resref/range based).')
     parser.add_argument('--no-progress', action='store_true', help='Disable the fidelity loading indicator.')
     parser.add_argument('--threads', type=int, default=1, help='Worker threads for fidelity test resources (test #2).')
+    parser.add_argument('--profile-performance', action='store_true', help='Enable cProfile output for test #2.')
+    parser.add_argument('--profile-sort', choices=['cumulative', 'tottime'], default='cumulative', help='Sort key for --profile-performance output.')
+    parser.add_argument('--profile-limit', type=int, default=40, help='Top function rows to print when profiling is enabled.')
 
     # Separate custom args from unittest args
     args, unknown = parser.parse_known_args()
@@ -1523,9 +1578,13 @@ Available Tests:
     TestPlanarForge.audit_gaps = args.audit_gaps
     TestPlanarForge.gap_policy = args.gap_policy
     TestPlanarForge.gap_detail_limit = max(1, args.gap_detail_limit)
+    TestPlanarForge.gap_detail_level_mode = args.gap_detail_level
     TestPlanarForge.gap_allowlist_path = args.gap_allowlist
     TestPlanarForge.show_progress = not args.no_progress
     TestPlanarForge.fidelity_threads = max(1, args.threads)
+    TestPlanarForge.profile_performance = args.profile_performance
+    TestPlanarForge.profile_sort = args.profile_sort
+    TestPlanarForge.profile_limit = max(1, args.profile_limit)
     
     # NOTE: setUpClass is called by unittest.main(), so it will have access
     # to these class variables when initializing the log file.
