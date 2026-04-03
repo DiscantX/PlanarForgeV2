@@ -300,18 +300,32 @@ class ResourceLoader:
                 if legacy_iwd_schema is not None:
                     return legacy_iwd_schema
 
-        # PSTEE ARE files often use the legacy PST V1.0 header layout.
-        # We use a heuristic to distinguish them from standard EE layouts:
-        # Legacy PST has Actor offset at 0x84, standard EE has it at 0x54.
+        # PSTEE can include legacy PST-style ARE V1.0 resources.
+        # Prefer the documented PST sentinel at 0x00C4 (0xFFFFFFFF), where
+        # PST stores automap offset/count at 0x00C8/0x00CC. Keep the older
+        # actor-offset heuristic as a fallback.
         if restype == "ARE" and game == "PSTEE" and len(raw_bytes) >= 0x88:
             version = raw_bytes[4:8].decode("latin-1", errors="ignore").rstrip("\x00")
             if version == "V1.0":
-                ee_actor_off = int.from_bytes(raw_bytes[0x54:0x58], 'little')
-                pst_actor_off = int.from_bytes(raw_bytes[0x84:0x88], 'little')
-                
-                if ee_actor_off == 0 and pst_actor_off > 0:
-                    legacy_pst_schema = self.schema_loader.get("ARE", game="PST")
-                    if legacy_pst_schema is not None:
+                legacy_pst_schema = self.schema_loader.get("ARE", game="PST")
+                if legacy_pst_schema is not None:
+                    pst_automap_sentinel = int.from_bytes(raw_bytes[0xC4:0xC8], "little")
+                    pst_automap_off = int.from_bytes(raw_bytes[0xC8:0xCC], "little")
+                    pst_automap_count = int.from_bytes(raw_bytes[0xCC:0xD0], "little")
+
+                    # Primary detector: original PST layout marker.
+                    if pst_automap_sentinel == 0xFFFFFFFF:
+                        # Basic plausibility guard to avoid accidental routing.
+                        if (
+                            pst_automap_off == 0 or
+                            (0 < pst_automap_off <= len(raw_bytes) and pst_automap_count < 0x100000)
+                        ):
+                            return legacy_pst_schema
+
+                    # Legacy fallback heuristic used by earlier builds.
+                    ee_actor_off = int.from_bytes(raw_bytes[0x54:0x58], "little")
+                    legacy_actor_probe = int.from_bytes(raw_bytes[0x84:0x88], "little")
+                    if ee_actor_off == 0 and legacy_actor_probe > 0:
                         return legacy_pst_schema
 
         return resolved
