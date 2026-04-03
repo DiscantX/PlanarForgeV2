@@ -400,3 +400,95 @@ By internalizing these lessons, we can approach future troubleshooting with grea
 **Analysis:** While PSTEE identifies as version `V1`, its automap note structure is 68 bytes ($0x44$), whereas Baldur's Gate uses 52 bytes ($0x34$). Using the shared `are_v1_ee.yaml` was causing a 16-byte drift per entry.
 **Solution:** Created a dedicated `are_pstee.yaml` schema that specifically models the 68-byte Torment note and Torment-specific region fields. Removed `PSTEE` from the generic `are_v1_ee.yaml` games list.
 **Status:** **FIXED**.
+
+### 2026-04-02: Unknown Gap Audit Framework and Reporting
+
+**Problem:** We needed to answer "are unmapped bytes meaningful?" with evidence, not assumptions.
+
+**Solution:**
+1. Implemented unknown-gap auditing in fidelity runs with per-file reports.
+2. Added structured diagnostics per gap:
+   * byte-range and size
+   * nonzero/FF ratio and entropy
+   * neighboring claimed fields (`prev`/`next`)
+   * pointers into the gap
+   * candidate structure hints
+   * hex `head`/`tail` and ASCII preview
+3. Added aggregate gap summaries by game/schema.
+
+**Outcome:** We can now pinpoint exactly what unknown bytes are present and where.
+
+### 2026-04-02: Exact Gap Allowlist (File + Offset Scoped Suppression)
+
+**Problem:** Some gaps were verified as safe (`Near Infinity`: "Unused bytes?"), but we did not want to ignore entire files.
+
+**Solution:**
+* Added `tools/tests/gap_allowlist.json` with exact-rule matching (`game/schema/resref/start/end`, plus optional `size/kind/classification/risk`).
+* Updated test reporting to show:
+  * active gaps vs suppressed gaps
+  * suppressed byte totals
+  * which allowlist rule suppressed each gap
+
+**Initial allowlisted sets:**
+1. `PSTEE/CRE`: `3PLANEA`, `ARMOIRE`, `SPLINT`, `THORNCO`
+2. `PSTEE/WED`: `AR0609`, `AR0612`
+3. `BGEE/WED`: `AR1215`
+
+### 2026-04-03: IWD2 ITM Single-Byte Fidelity Mismatch (`00GENIR`)
+
+**Problem:** `IWD2/ITM/00GENIR` mismatched at offset `0x1c` (`item_type`): original `0x47`, saved `0x0D`.
+
+**Root Cause:**
+* `itm_v2_0.yaml` had duplicate enum labels in `item_type`:
+  * `0x000D: Food`
+  * `0x0047: Food`
+* Enum read/write used label-based reverse lookup, so `Food` resolved to first match (`0x000D`) on write.
+
+**Fix:**
+* Updated `drivers/InfinityEngine/definitions/schemas/itm/itm_v2_0.yaml`:
+  * `0x0047: Food (IWD2)`
+
+**Status:** **FIXED**. `00GENIR` round-trips byte-for-byte.
+
+### 2026-04-03: Final PSTEE ARE Gap Closure
+
+**Problem:** Remaining unexplained PSTEE ARE gaps:
+* `AR0501`
+* `AR1001`
+* `AR3017`
+* `AR13WZ`
+
+**Analysis:** Near Infinity marks these as `Unused bytes?`.
+
+**Action:** Added all four as exact allowlist rules (offset-scoped, not file-wide).
+
+**Status:** **CLOSED**. These no longer show as active unexplained gaps.
+
+### 2026-04-03: Gap Audit Performance Tuning
+
+**Problem:** Gap audit added noticeable runtime overhead.
+
+**Implemented Optimizations:**
+1. Parser only tracks byte-claims when audit is enabled (removed global always-on overhead).
+2. Offset-like fields are indexed once per resource and reused for per-gap pointer checks.
+3. Added configurable audit detail levels:
+   * `summary` (fast)
+   * `nonzero` (default)
+   * `full` (deep diagnostics)
+
+**New test-suite CLI options:**
+* `--gap-detail-level {summary,nonzero,full}`
+* `--profile-performance`
+* `--profile-sort {cumulative,tottime}`
+* `--profile-limit N`
+
+**Outcome:** Faster non-audit runs and tunable audit cost without losing diagnostic capability.
+
+### 2026-04-03: Milestone Result
+
+**Status:** **SUCCESS**
+
+All current round-trip tests completed with **0 failures** for this milestone after:
+1. schema fixes,
+2. targeted gap allowlisting for known-safe unmapped regions,
+3. parser and test-suite performance improvements.
