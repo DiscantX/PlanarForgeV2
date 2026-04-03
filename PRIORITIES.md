@@ -9,12 +9,12 @@ These resources are required to locate files, read strings, or interpret basic g
     - The master index (`CHITIN.KEY`) mapping ResRefs to BIF locations.
 - [x] **BIF** (Archive) - *Confirmed Working*
     - Binary Information File. Holds the actual data.
-- [ ] **TLK** (String Table) - *Debugging*
+- [x] **TLK** (String Table) - *Confirmed Working*
     - Lookup table for all text in the game. Essential for displaying names/descriptions.
-- [ ] **2DA** (2D Array) - *High Priority*
-    - Text-based tables defining game rules (XP caps, UI layouts, etc.).
-- [ ] **IDS** (Identifiers) - *High Priority*
-    - Maps integer IDs to symbolic names (e.g., `144` -> `BERSERKER`).
+- [x] **2DA** (2D Array) - *Confirmed Working (Handler Implemented)*
+    - Text-based tables defining game rules (XP caps, UI layouts, etc.). Handler is implemented, integration with schema system is next.
+- [x] **IDS** (Identifiers) - *Confirmed Working (Handler Implemented)*
+    - Maps integer IDs to symbolic names (e.g., `144` -> `BERSERKER`). Handler is implemented, integration with schema system is next.
 
 ## 2. Game Objects (The "Forge" Core)
 The primary entities users edit.
@@ -23,12 +23,16 @@ The primary entities users edit.
     - Weapons, armor, consumables.
 - [x] **SPL** (Spell) - *Confirmed Working*
     - Magic spells and innate abilities.
-- [x] **CRE** (Creature) - *Working (Draft)*
+- [x] **CRE** (Creature) - *Confirmed Working*
     - Actors, enemies, and NPCs.
 - [ ] **STO** (Store)
     - Merchant inventories and container definitions.
 - [ ] **EFF** (Effect)
     - External effect definitions (often embedded, but can be separate).
+- [x] **ARE** (Area) - *Confirmed Working*
+    - Defines actors, containers, traps, and regions within a map.
+- [x] **WED** (World Environment) - *Confirmed Working*
+    - Visual map definitions (overlays, door polygons).
 - [ ] **PRO** (Projectile)
     - Definition of missiles and spell visual travel speeds/areas.
 - [ ] **VVC** (Visual Effect)
@@ -39,12 +43,8 @@ Resources defining the game world, plot, and logic.
 
 - [ ] **DLG** (Dialog)
     - Conversation trees and triggers. Complex recursive structure.
-- [ ] **ARE** (Area)
-    - Defines actors, containers, traps, and regions within a map.
 - [ ] **BCS** (Bytecode Script)
     - Compiled AI scripts. Requires Decompiler/Compiler to be useful.
-- [ ] **WED** (World Environment)
-    - Visual map definitions (overlays, door polygons).
 - [ ] **WMAP** (World Map)
     - The overworld map and travel times.
 
