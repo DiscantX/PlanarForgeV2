@@ -8,6 +8,7 @@ from contextlib import redirect_stdout
 import zlib
 import argparse
 import traceback
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import patch
 import tempfile
@@ -73,6 +74,9 @@ class TestPlanarForge(unittest.TestCase):
     audit_gaps = False
     gap_policy = "allow"
     gap_detail_limit = 5
+    gap_allowlist_path = None
+    gap_allowlist_rules = []
+    gap_allowlist_source = None
     show_progress = True
     fidelity_threads = 1
     
@@ -109,6 +113,11 @@ class TestPlanarForge(unittest.TestCase):
         cls.schema_loader = SchemaLoader(schema_path)
         cls.schema_loader.load_all()
         cls.schema_loader.resolve_types(FieldTypes)
+        default_gap_allowlist = os.path.join(project_root, "tools", "tests", "gap_allowlist.json")
+        allowlist_path = cls.gap_allowlist_path
+        if not allowlist_path and os.path.isfile(default_gap_allowlist):
+            allowlist_path = default_gap_allowlist
+        cls._load_gap_allowlist(allowlist_path)
         parser_options = {}
         if cls.audit_gaps:
             parser_options = {
@@ -234,11 +243,16 @@ class TestPlanarForge(unittest.TestCase):
                 "audited": 0,
                 "files_with_gaps": 0,
                 "files_with_nonzero_gaps": 0,
+                "files_with_suppressed_gaps": 0,
                 "high_risk_files": 0,
                 "total_gaps": 0,
                 "nonzero_gaps": 0,
                 "high_risk_gaps": 0,
                 "unknown_bytes": 0,
+                "suppressed_gaps": 0,
+                "suppressed_nonzero_gaps": 0,
+                "suppressed_high_risk_gaps": 0,
+                "suppressed_unknown_bytes": 0,
             }
 
             for schema_name in sorted(gap_stats.keys()):
@@ -252,8 +266,10 @@ class TestPlanarForge(unittest.TestCase):
                         f"Audited={gs.get('audited', 0)} | "
                         f"GapFiles={gs.get('files_with_gaps', 0)} | "
                         f"NonZeroFiles={gs.get('files_with_nonzero_gaps', 0)} | "
+                        f"SuppressedFiles={gs.get('files_with_suppressed_gaps', 0)} | "
                         f"HighRiskFiles={gs.get('high_risk_files', 0)} | "
-                        f"UnknownBytes={gs.get('unknown_bytes', 0)}\n"
+                        f"UnknownBytes={gs.get('unknown_bytes', 0)} | "
+                        f"SuppressedBytes={gs.get('suppressed_unknown_bytes', 0)}\n"
                     )
 
                 if schema_totals["audited"] > 0:
@@ -261,11 +277,16 @@ class TestPlanarForge(unittest.TestCase):
                         f"  Schema Totals -> Audited={schema_totals['audited']}, "
                         f"GapFiles={schema_totals['files_with_gaps']}, "
                         f"NonZeroFiles={schema_totals['files_with_nonzero_gaps']}, "
+                        f"SuppressedFiles={schema_totals['files_with_suppressed_gaps']}, "
                         f"HighRiskFiles={schema_totals['high_risk_files']}, "
                         f"TotalGaps={schema_totals['total_gaps']}, "
                         f"NonZeroGaps={schema_totals['nonzero_gaps']}, "
                         f"HighRiskGaps={schema_totals['high_risk_gaps']}, "
-                        f"UnknownBytes={schema_totals['unknown_bytes']}\n"
+                        f"UnknownBytes={schema_totals['unknown_bytes']}, "
+                        f"SuppressedGaps={schema_totals['suppressed_gaps']}, "
+                        f"SuppressedNonZeroGaps={schema_totals['suppressed_nonzero_gaps']}, "
+                        f"SuppressedHighRiskGaps={schema_totals['suppressed_high_risk_gaps']}, "
+                        f"SuppressedBytes={schema_totals['suppressed_unknown_bytes']}\n"
                     )
 
                 for key in aggregate:
@@ -277,11 +298,16 @@ class TestPlanarForge(unittest.TestCase):
                 f"Audited={aggregate['audited']}, "
                 f"GapFiles={aggregate['files_with_gaps']}, "
                 f"NonZeroFiles={aggregate['files_with_nonzero_gaps']}, "
+                f"SuppressedFiles={aggregate['files_with_suppressed_gaps']}, "
                 f"HighRiskFiles={aggregate['high_risk_files']}, "
                 f"TotalGaps={aggregate['total_gaps']}, "
                 f"NonZeroGaps={aggregate['nonzero_gaps']}, "
                 f"HighRiskGaps={aggregate['high_risk_gaps']}, "
-                f"UnknownBytes={aggregate['unknown_bytes']}\n"
+                f"UnknownBytes={aggregate['unknown_bytes']}, "
+                f"SuppressedGaps={aggregate['suppressed_gaps']}, "
+                f"SuppressedNonZeroGaps={aggregate['suppressed_nonzero_gaps']}, "
+                f"SuppressedHighRiskGaps={aggregate['suppressed_high_risk_gaps']}, "
+                f"SuppressedBytes={aggregate['suppressed_unknown_bytes']}\n"
             )
 
     def test_03_biff_caching_real_files(self):
@@ -396,6 +422,182 @@ class TestPlanarForge(unittest.TestCase):
         sys.stdout.flush()
 
     @staticmethod
+    def _parse_allowlist_int(value):
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                raise ValueError("empty integer value")
+            if text.lower().startswith("0x"):
+                return int(text, 16)
+            return int(text, 10)
+        raise ValueError(f"unsupported integer value type: {type(value).__name__}")
+
+    @classmethod
+    def _normalize_gap_allowlist_rule(cls, raw_rule, idx):
+        if not isinstance(raw_rule, dict):
+            raise ValueError("rule must be an object")
+
+        schema = str(raw_rule.get("schema", "")).strip().upper()
+        resref = str(raw_rule.get("resref", "")).strip().upper()
+        if not schema or not resref:
+            raise ValueError("rule requires non-empty 'schema' and 'resref'")
+
+        if "start" not in raw_rule or "end" not in raw_rule:
+            raise ValueError("rule requires both 'start' and 'end'")
+
+        start = cls._parse_allowlist_int(raw_rule.get("start"))
+        end = cls._parse_allowlist_int(raw_rule.get("end"))
+        if start < 0 or end < 0 or end < start:
+            raise ValueError("invalid gap range")
+
+        rule_id = str(raw_rule.get("id", "")).strip()
+        if not rule_id:
+            rule_id = f"{schema}:{resref}:{hex(start)}-{hex(end)}#{idx}"
+
+        game = raw_rule.get("game")
+        game = str(game).strip().upper() if game not in (None, "") else None
+
+        normalized = {
+            "id": rule_id,
+            "game": game,
+            "schema": schema,
+            "resref": resref,
+            "start": start,
+            "end": end,
+        }
+
+        for key in ("size",):
+            if key in raw_rule and raw_rule.get(key) not in (None, ""):
+                normalized[key] = cls._parse_allowlist_int(raw_rule.get(key))
+
+        for key in ("kind", "classification", "risk"):
+            if key in raw_rule and raw_rule.get(key):
+                normalized[key] = str(raw_rule.get(key)).strip().lower()
+
+        if raw_rule.get("note"):
+            normalized["note"] = str(raw_rule.get("note")).strip()
+
+        return normalized
+
+    @classmethod
+    def _load_gap_allowlist(cls, allowlist_path):
+        cls.gap_allowlist_rules = []
+        cls.gap_allowlist_source = None
+        if not allowlist_path:
+            return
+
+        try:
+            with open(allowlist_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        except Exception as e:
+            print(f"Warning: Failed to load gap allowlist '{allowlist_path}': {e}")
+            return
+
+        if isinstance(payload, dict):
+            rules = payload.get("rules", [])
+        elif isinstance(payload, list):
+            rules = payload
+        else:
+            print(f"Warning: Gap allowlist '{allowlist_path}' must be a JSON object or array.")
+            return
+
+        loaded = []
+        for idx, raw_rule in enumerate(rules):
+            try:
+                loaded.append(cls._normalize_gap_allowlist_rule(raw_rule, idx))
+            except ValueError as e:
+                print(f"Warning: Skipping gap allowlist rule #{idx} from '{allowlist_path}': {e}")
+
+        cls.gap_allowlist_rules = loaded
+        cls.gap_allowlist_source = allowlist_path
+        print(f"Loaded gap allowlist: {len(loaded)} rule(s) from {allowlist_path}")
+
+    @staticmethod
+    def _gap_matches_allowlist_rule(game, schema_name, resref, gap, rule):
+        if rule.get("game") and rule["game"] != game.upper():
+            return False
+        if rule.get("schema") != schema_name.upper():
+            return False
+        if rule.get("resref") != resref.upper():
+            return False
+
+        gap_start = int(gap.get("start", -1) or -1)
+        gap_end = int(gap.get("end", -1) or -1)
+        if gap_start != rule.get("start") or gap_end != rule.get("end"):
+            return False
+
+        if "size" in rule:
+            gap_size = int(gap.get("size", 0) or 0)
+            if gap_size != int(rule["size"]):
+                return False
+
+        for key in ("kind", "classification", "risk"):
+            if key in rule:
+                if str(gap.get(key, "") or "").strip().lower() != str(rule.get(key, "")).strip().lower():
+                    return False
+        return True
+
+    @staticmethod
+    def _build_gap_summary_from_gaps(base_summary, gaps, suppressed):
+        summary = dict(base_summary or {})
+        summary["total_gaps"] = len(gaps)
+        summary["internal_gaps"] = sum(1 for g in gaps if g.get("kind") == "internal_gap")
+        summary["tail_gaps"] = sum(1 for g in gaps if g.get("kind") == "tail_gap")
+        summary["unknown_bytes"] = sum(int(g.get("size", 0) or 0) for g in gaps)
+        summary["nonzero_gaps"] = sum(1 for g in gaps if int(g.get("nonzero_bytes", 0) or 0) > 0)
+        summary["high_risk_gaps"] = sum(1 for g in gaps if str(g.get("risk", "")).lower() == "high")
+
+        suppressed_gaps = [item["gap"] for item in suppressed]
+        summary["suppressed_gaps"] = len(suppressed_gaps)
+        summary["suppressed_unknown_bytes"] = sum(int(g.get("size", 0) or 0) for g in suppressed_gaps)
+        summary["suppressed_nonzero_gaps"] = sum(1 for g in suppressed_gaps if int(g.get("nonzero_bytes", 0) or 0) > 0)
+        summary["suppressed_high_risk_gaps"] = sum(1 for g in suppressed_gaps if str(g.get("risk", "")).lower() == "high")
+        return summary
+
+    def _filter_allowlisted_gaps(self, game, schema_name, resref, summary, gaps):
+        rules = self.__class__.gap_allowlist_rules or []
+        if not rules:
+            untouched = self._build_gap_summary_from_gaps(summary, gaps, [])
+            return untouched, list(gaps), []
+
+        active_gaps = []
+        suppressed = []
+        for gap in gaps:
+            matched_rule = None
+            for rule in rules:
+                if self._gap_matches_allowlist_rule(game, schema_name, resref, gap, rule):
+                    matched_rule = rule
+                    break
+            if matched_rule:
+                suppressed.append({"gap": gap, "rule": matched_rule})
+            else:
+                active_gaps.append(gap)
+
+        filtered_summary = self._build_gap_summary_from_gaps(summary, active_gaps, suppressed)
+        return filtered_summary, active_gaps, suppressed
+
+    def _collect_gap_audit_data(self, game, schema_name, resref, resource):
+        summary = getattr(resource, "gap_audit_summary", {}) or {}
+        gaps = list(getattr(resource, "unknown_gaps", []) or [])
+        if not summary:
+            return None
+
+        filtered_summary, filtered_gaps, suppressed = self._filter_allowlisted_gaps(
+            game,
+            schema_name,
+            resref,
+            summary,
+            gaps,
+        )
+        return {
+            "summary": filtered_summary,
+            "gaps": filtered_gaps,
+            "suppressed": suppressed,
+        }
+
+    @staticmethod
     def _format_claim_ref(claim):
         if not claim:
             return "None"
@@ -404,11 +606,14 @@ class TestPlanarForge(unittest.TestCase):
             f"@ {hex(claim.get('start', 0))}-{hex(claim.get('end', 0))}"
         )
 
-    def _build_gap_audit_details(self, game, schema_name, resref, resource):
-        summary = getattr(resource, "gap_audit_summary", {}) or {}
-        gaps = list(getattr(resource, "unknown_gaps", []) or [])
-        if not summary:
+    def _build_gap_audit_details(self, game, schema_name, resref, resource, audit_data=None):
+        if audit_data is None:
+            audit_data = self._collect_gap_audit_data(game, schema_name, resref, resource)
+        if not audit_data:
             return ""
+        summary = audit_data.get("summary", {}) or {}
+        gaps = list(audit_data.get("gaps", []) or [])
+        suppressed = list(audit_data.get("suppressed", []) or [])
 
         lines = []
         lines.append(f"[GAP-AUDIT] Game: {game}, Schema: {schema_name}, Resref: {resref}\n")
@@ -420,8 +625,24 @@ class TestPlanarForge(unittest.TestCase):
             f"nonzero={summary.get('nonzero_gaps', 0)}, "
             f"high_risk={summary.get('high_risk_gaps', 0)}, "
             f"unknown_bytes={summary.get('unknown_bytes', 0)}, "
-            f"claimed_bytes={summary.get('claimed_bytes', 0)}\n"
+            f"claimed_bytes={summary.get('claimed_bytes', 0)}, "
+            f"suppressed={summary.get('suppressed_gaps', 0)}, "
+            f"suppressed_unknown_bytes={summary.get('suppressed_unknown_bytes', 0)}\n"
         )
+
+        if suppressed:
+            lines.append(f"  - Suppressed by allowlist: {len(suppressed)}\n")
+            for item in suppressed[: self.gap_detail_limit]:
+                gap = item.get("gap", {}) or {}
+                rule = item.get("rule", {}) or {}
+                lines.append(
+                    f"    - {hex(gap.get('start', 0))}-{hex(gap.get('end', 0))} "
+                    f"size={gap.get('size')} class={gap.get('classification')} "
+                    f"via={rule.get('id')}\n"
+                )
+                note = rule.get("note")
+                if note:
+                    lines.append(f"      note: {note}\n")
 
         ranked = sorted(
             gaps,
@@ -474,11 +695,11 @@ class TestPlanarForge(unittest.TestCase):
         lines.append("\n")
         return "".join(lines)
 
-    def _log_gap_audit_details(self, game, schema_name, resref, resource):
+    def _log_gap_audit_details(self, game, schema_name, resref, resource, audit_data=None):
         if not self.log_file:
             return
 
-        report = self._build_gap_audit_details(game, schema_name, resref, resource)
+        report = self._build_gap_audit_details(game, schema_name, resref, resource, audit_data=audit_data)
         if report:
             self.log_file.write(report)
 
@@ -550,11 +771,20 @@ class TestPlanarForge(unittest.TestCase):
             return result
 
         if self.audit_gaps:
-            summary = getattr(resource, "gap_audit_summary", {}) or {}
-            if summary:
+            audit_data = self._collect_gap_audit_data(game, schema_name, resref, resource)
+            if audit_data:
+                summary = audit_data.get("summary", {}) or {}
                 result["gap_summary"] = summary
-                if int(summary.get("nonzero_gaps", 0) or 0) > 0:
-                    result["gap_details"] = self._build_gap_audit_details(game, schema_name, resref, resource)
+                has_nonzero = int(summary.get("nonzero_gaps", 0) or 0) > 0
+                has_suppressed = int(summary.get("suppressed_gaps", 0) or 0) > 0
+                if has_nonzero or has_suppressed:
+                    result["gap_details"] = self._build_gap_audit_details(
+                        game,
+                        schema_name,
+                        resref,
+                        resource,
+                        audit_data=audit_data,
+                    )
 
         try:
             original_bytes, _, _ = self.loader.get_raw_bytes(resref, restype=schema_name, game=game)
@@ -695,11 +925,16 @@ class TestPlanarForge(unittest.TestCase):
             'audited': 0,
             'files_with_gaps': 0,
             'files_with_nonzero_gaps': 0,
+            'files_with_suppressed_gaps': 0,
             'high_risk_files': 0,
             'total_gaps': 0,
             'nonzero_gaps': 0,
             'high_risk_gaps': 0,
             'unknown_bytes': 0,
+            'suppressed_gaps': 0,
+            'suppressed_nonzero_gaps': 0,
+            'suppressed_high_risk_gaps': 0,
+            'suppressed_unknown_bytes': 0,
         }))
         stats = self.__class__.fidelity_stats # local alias
         gap_stats = self.__class__.gap_audit_stats
@@ -810,12 +1045,18 @@ class TestPlanarForge(unittest.TestCase):
                                 gs['nonzero_gaps'] += int(gap_summary.get('nonzero_gaps', 0) or 0)
                                 gs['high_risk_gaps'] += int(gap_summary.get('high_risk_gaps', 0) or 0)
                                 gs['unknown_bytes'] += int(gap_summary.get('unknown_bytes', 0) or 0)
+                                gs['suppressed_gaps'] += int(gap_summary.get('suppressed_gaps', 0) or 0)
+                                gs['suppressed_nonzero_gaps'] += int(gap_summary.get('suppressed_nonzero_gaps', 0) or 0)
+                                gs['suppressed_high_risk_gaps'] += int(gap_summary.get('suppressed_high_risk_gaps', 0) or 0)
+                                gs['suppressed_unknown_bytes'] += int(gap_summary.get('suppressed_unknown_bytes', 0) or 0)
                                 if int(gap_summary.get('total_gaps', 0) or 0) > 0:
                                     gs['files_with_gaps'] += 1
                                 if int(gap_summary.get('nonzero_gaps', 0) or 0) > 0:
                                     gs['files_with_nonzero_gaps'] += 1
-                                    if self.log_file and case_result.get("gap_details"):
-                                        self.log_file.write(case_result["gap_details"])
+                                if int(gap_summary.get('suppressed_gaps', 0) or 0) > 0:
+                                    gs['files_with_suppressed_gaps'] += 1
+                                if self.log_file and case_result.get("gap_details"):
+                                    self.log_file.write(case_result["gap_details"])
                                 if int(gap_summary.get('high_risk_gaps', 0) or 0) > 0:
                                     gs['high_risk_files'] += 1
 
@@ -901,20 +1142,27 @@ class TestPlanarForge(unittest.TestCase):
                             continue
 
                         if self.audit_gaps:
-                            summary = getattr(resource, "gap_audit_summary", {}) or {}
-                            audited = bool(summary)
-                            if audited:
+                            audit_data = self._collect_gap_audit_data(game, schema_name, resref, resource)
+                            if audit_data:
+                                summary = audit_data.get("summary", {}) or {}
                                 gs = gap_stats[schema_name][game]
                                 gs['audited'] += 1
                                 gs['total_gaps'] += int(summary.get('total_gaps', 0) or 0)
                                 gs['nonzero_gaps'] += int(summary.get('nonzero_gaps', 0) or 0)
                                 gs['high_risk_gaps'] += int(summary.get('high_risk_gaps', 0) or 0)
                                 gs['unknown_bytes'] += int(summary.get('unknown_bytes', 0) or 0)
+                                gs['suppressed_gaps'] += int(summary.get('suppressed_gaps', 0) or 0)
+                                gs['suppressed_nonzero_gaps'] += int(summary.get('suppressed_nonzero_gaps', 0) or 0)
+                                gs['suppressed_high_risk_gaps'] += int(summary.get('suppressed_high_risk_gaps', 0) or 0)
+                                gs['suppressed_unknown_bytes'] += int(summary.get('suppressed_unknown_bytes', 0) or 0)
                                 if int(summary.get('total_gaps', 0) or 0) > 0:
                                     gs['files_with_gaps'] += 1
                                 if int(summary.get('nonzero_gaps', 0) or 0) > 0:
                                     gs['files_with_nonzero_gaps'] += 1
-                                    self._log_gap_audit_details(game, schema_name, resref, resource)
+                                if int(summary.get('suppressed_gaps', 0) or 0) > 0:
+                                    gs['files_with_suppressed_gaps'] += 1
+                                if int(summary.get('nonzero_gaps', 0) or 0) > 0 or int(summary.get('suppressed_gaps', 0) or 0) > 0:
+                                    self._log_gap_audit_details(game, schema_name, resref, resource, audit_data=audit_data)
                                 if int(summary.get('high_risk_gaps', 0) or 0) > 0:
                                     gs['high_risk_files'] += 1
 
@@ -1093,11 +1341,16 @@ class TestPlanarForge(unittest.TestCase):
                 "audited": 0,
                 "files_with_gaps": 0,
                 "files_with_nonzero_gaps": 0,
+                "files_with_suppressed_gaps": 0,
                 "high_risk_files": 0,
                 "total_gaps": 0,
                 "nonzero_gaps": 0,
                 "high_risk_gaps": 0,
                 "unknown_bytes": 0,
+                "suppressed_gaps": 0,
+                "suppressed_nonzero_gaps": 0,
+                "suppressed_high_risk_gaps": 0,
+                "suppressed_unknown_bytes": 0,
             }
 
             for schema_name in sorted(gap_stats.keys()):
@@ -1105,11 +1358,16 @@ class TestPlanarForge(unittest.TestCase):
                     "audited": 0,
                     "files_with_gaps": 0,
                     "files_with_nonzero_gaps": 0,
+                    "files_with_suppressed_gaps": 0,
                     "high_risk_files": 0,
                     "total_gaps": 0,
                     "nonzero_gaps": 0,
                     "high_risk_gaps": 0,
                     "unknown_bytes": 0,
+                    "suppressed_gaps": 0,
+                    "suppressed_nonzero_gaps": 0,
+                    "suppressed_high_risk_gaps": 0,
+                    "suppressed_unknown_bytes": 0,
                 }
                 for game in sorted(gap_stats[schema_name].keys()):
                     gs = gap_stats[schema_name][game]
@@ -1127,8 +1385,10 @@ class TestPlanarForge(unittest.TestCase):
                     f"{Colors.LABEL}Audited:{Colors.ENDC} {schema_total['audited']} | "
                     f"{Colors.LABEL}GapFiles:{Colors.ENDC} {schema_total['files_with_gaps']} | "
                     f"{Colors.FAILURE_LABEL}NonZeroFiles:{Colors.ENDC} {schema_total['files_with_nonzero_gaps']} | "
+                    f"{Colors.LABEL}SuppressedFiles:{Colors.ENDC} {schema_total['files_with_suppressed_gaps']} | "
                     f"{Colors.FAILURE_LABEL}HighRiskFiles:{Colors.ENDC} {schema_total['high_risk_files']} | "
-                    f"{Colors.LABEL}UnknownBytes:{Colors.ENDC} {schema_total['unknown_bytes']}"
+                    f"{Colors.LABEL}UnknownBytes:{Colors.ENDC} {schema_total['unknown_bytes']} | "
+                    f"{Colors.LABEL}SuppBytes:{Colors.ENDC} {schema_total['suppressed_unknown_bytes']}"
                 )
 
             print(Colors.HEADER + "-" * 96 + Colors.ENDC)
@@ -1136,13 +1396,16 @@ class TestPlanarForge(unittest.TestCase):
                 f"{Colors.LABEL}Audited Files:{Colors.ENDC} {agg['audited']} | "
                 f"{Colors.LABEL}Files With Gaps:{Colors.ENDC} {agg['files_with_gaps']} | "
                 f"{Colors.FAILURE_LABEL}Files With NonZero Gaps:{Colors.ENDC} {agg['files_with_nonzero_gaps']} | "
+                f"{Colors.LABEL}Files With Suppressed Gaps:{Colors.ENDC} {agg['files_with_suppressed_gaps']} | "
                 f"{Colors.FAILURE_LABEL}High Risk Files:{Colors.ENDC} {agg['high_risk_files']}"
             )
             print(
                 f"{Colors.LABEL}Total Gaps:{Colors.ENDC} {agg['total_gaps']} | "
                 f"{Colors.FAILURE_LABEL}NonZero Gaps:{Colors.ENDC} {agg['nonzero_gaps']} | "
                 f"{Colors.FAILURE_LABEL}High Risk Gaps:{Colors.ENDC} {agg['high_risk_gaps']} | "
-                f"{Colors.LABEL}Unknown Bytes:{Colors.ENDC} {agg['unknown_bytes']}"
+                f"{Colors.LABEL}Unknown Bytes:{Colors.ENDC} {agg['unknown_bytes']} | "
+                f"{Colors.LABEL}Suppressed Gaps:{Colors.ENDC} {agg['suppressed_gaps']} | "
+                f"{Colors.LABEL}Suppressed Bytes:{Colors.ENDC} {agg['suppressed_unknown_bytes']}"
             )
             print(Colors.HEADER + "=" * 96 + Colors.ENDC)
 
@@ -1231,6 +1494,9 @@ Examples:
   Run WED fidelity with unknown-gap audit enabled:
     python tests/test_suite.py --test 2 --schema WED --audit-gaps
 
+  Use a custom gap allowlist:
+    python tests/test_suite.py --test 2 --schema WED --audit-gaps --gap-allowlist tools/tests/gap_allowlist.json
+
 Available Tests:
   1: BIF Parsing & Decompression
   2: Resource Fidelity Round-trip
@@ -1244,6 +1510,7 @@ Available Tests:
     parser.add_argument('--audit-gaps', action='store_true', help='Enable unknown-gap byte audit during parse and show audit summaries.')
     parser.add_argument('--gap-policy', choices=['allow', 'warn', 'fail_nonzero'], default='allow', help='Write policy when modified resources contain non-zero unknown gaps.')
     parser.add_argument('--gap-detail-limit', type=int, default=5, help='Max detailed gaps per file written to the log when gap audit is enabled.')
+    parser.add_argument('--gap-allowlist', type=str, default=None, help='Optional JSON path for exact gap suppressions (game/schema/resref/range based).')
     parser.add_argument('--no-progress', action='store_true', help='Disable the fidelity loading indicator.')
     parser.add_argument('--threads', type=int, default=1, help='Worker threads for fidelity test resources (test #2).')
 
@@ -1256,6 +1523,7 @@ Available Tests:
     TestPlanarForge.audit_gaps = args.audit_gaps
     TestPlanarForge.gap_policy = args.gap_policy
     TestPlanarForge.gap_detail_limit = max(1, args.gap_detail_limit)
+    TestPlanarForge.gap_allowlist_path = args.gap_allowlist
     TestPlanarForge.show_progress = not args.no_progress
     TestPlanarForge.fidelity_threads = max(1, args.threads)
     
