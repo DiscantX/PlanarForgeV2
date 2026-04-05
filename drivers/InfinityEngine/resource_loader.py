@@ -75,6 +75,15 @@ class ResourceLoader:
         resource._original_bytes = raw_bytes
         return self._attach_runtime_context(resource, game)
 
+    def _normalize_resref(self, val):
+        """Standardizes a ResRef (string or bytes) into a clean uppercase string."""
+        if val is None:
+            return ""
+        if isinstance(val, bytes):
+            # Decode as latin-1, split at first null, then strip and uppercase
+            return val.decode("latin-1", errors="ignore").split('\x00', 1)[0].strip().upper()
+        return str(val).split('\x00', 1)[0].strip().upper()
+
     def save_file(self, resource, file_path):
         """
         Saves a Resource object to a specified file path.
@@ -172,6 +181,14 @@ class ResourceLoader:
             if install_path is None:
                 print(f"No installation found for game {game}.")
                 return None
+            
+            # Check for override file first
+            clean_resref = self._normalize_resref(resref)
+            if restype != self.default_restype:
+                ext = restype.lower()
+                override_candidate = install_path / "override" / f"{clean_resref}.{ext}"
+                if override_candidate.exists():
+                    return self.load_file(resref=resref, restype=restype, game=game, file_path=override_candidate, schema=schema)
 
             raw_bytes, source_path, res_type_code = self.get_raw_bytes(resref, restype=restype, game=game)
             if raw_bytes is None:
@@ -527,7 +544,8 @@ class ResourceLoader:
             print(f"CHITIN.KEY map not found for game {game}.")
             return None
         
-        entries = resource_map.get(resref.upper())
+        clean_resref = self._normalize_resref(resref)
+        entries = resource_map.get(clean_resref)
         if not entries:
             print(f"Resource {resref} not found in CHITIN.KEY for {game}.")
             return None
@@ -540,9 +558,11 @@ class ResourceLoader:
             for entry in entries:
                 if int(entry.get("resource_type", -1)) == target_code:
                     return entry
-            
+
         if restype:
-            print(f"Warning: Resource {resref} found, but type '{restype}' mismatch. Returning first match ({RESOURCE_TYPE_MAP.get(entries[0].get('resource_type'))}).")
+            # If a specific type was requested and not found, return None rather than a mismatch
+            return None
+
         return entries[0]
 
     def _find_exact_resource_location(self, resref, restype, game=None):
@@ -554,7 +574,8 @@ class ResourceLoader:
         if not resource_map:
             return None
 
-        entries = resource_map.get(str(resref).upper())
+        clean_resref = self._normalize_resref(resref)
+        entries = resource_map.get(clean_resref)
         if not entries:
             return None
 
@@ -606,7 +627,7 @@ class ResourceLoader:
             
             res_map = {}
             for entry in chitin.sections.get("resource_entries", []):
-                res_name = entry.get("resource_name", "").upper()
+                res_name = self._normalize_resref(entry.get("resource_name", ""))
                 if res_name:
                     if res_name not in res_map:
                         res_map[res_name] = []
