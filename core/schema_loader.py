@@ -87,15 +87,18 @@ class SchemaLoader:
     def load_all(self):
         """Load all YAML schema files in the schema directory."""
         for file in self.schema_directory.rglob("*.yaml"):
-            schema = self._load_schema(file)
-            
-            # Register for specific games if listed
-            if schema.games:
-                for game in schema.games:
-                    self.game_schemas[game][schema.name] = schema
-            else:
-                # Otherwise register as a default/generic schema
-                self.schemas[schema.name] = schema
+            try:
+                schema = self._load_schema(file)
+                
+                # Register for specific games if listed
+                if schema.games:
+                    for game in schema.games:
+                        self.game_schemas[game][schema.name] = schema
+                else:
+                    # Otherwise register as a default/generic schema
+                    self.schemas[schema.name] = schema
+            except Exception as e:
+                print(f"Warning: Skipping malformed schema '{file.name}': {e}")
 
     def get(self, name, game=None):
         """

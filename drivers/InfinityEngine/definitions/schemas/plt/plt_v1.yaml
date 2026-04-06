@@ -1,0 +1,73 @@
+name: PLT
+version: V1
+games: [BG1, BG2, IWD, IWD2, PST, BGEE, BG2EE, IWDEE, PSTEE]
+
+header:
+  fields:
+
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: unknown_1
+    type: word
+    size: 2
+    offset: 0x0008
+
+  - name: unknown_2
+    type: word
+    size: 2
+    offset: 0x000a
+
+  - name: unknown_3
+    type: word
+    size: 2
+    offset: 0x000c
+
+  - name: unknown_4
+    type: word
+    size: 2
+    offset: 0x000e
+
+  - name: width
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: height
+    type: dword
+    size: 4
+    offset: 0x0014
+
+  # Virtual fields to calculate the extent and location of the body section
+  - name: body_offset
+    type: computed
+    expr: "24"
+    size: 0
+
+  - name: pixel_count
+    type: computed
+    expr: "width * height"
+    size: 0
+
+body:
+  offset_field: body_offset
+  count_field: pixel_count
+  fields:
+
+  - name: x
+    type: byte
+    size: 1
+    offset: 0x00
+
+  - name: y
+    type: byte
+    size: 1
+    offset: 0x01
+    

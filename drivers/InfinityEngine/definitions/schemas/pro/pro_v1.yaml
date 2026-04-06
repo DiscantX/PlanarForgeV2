@@ -1,0 +1,322 @@
+name: PRO
+version: V1
+games: [BG1, BG2, IWD]
+
+header:
+  fields:
+
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: projectile_type
+    type: enum
+    size: 2
+    offset: 0x0008
+    values:
+      0: No Projectile
+      1: No BAM
+      2: Single Target
+      3: Area of Effect
+
+  - name: projectile_speed
+    type: word
+    size: 2
+    offset: 0x000a
+
+  # Computed fields for conditional section loading
+  - name: is_single_target_or_aoe
+    type: computed
+    expr: "projectile_type == 2 or projectile_type == 3"
+    size: 0
+
+  - name: is_area_of_effect
+    type: computed
+    expr: "projectile_type == 3"
+    size: 0
+
+  - name: offset_to_single_target
+    type: computed
+    expr: "256"
+    size: 0
+
+  - name: offset_to_area_effect
+    type: computed
+    expr: "512"
+    size: 0
+
+  - name: sparking_flags
+    type: bitmask
+    size: 4
+    offset: 0x000c
+    flags:
+      0x00000001: show_sparkle
+      0x00000002: use_z_coordinate
+      0x00000004: loop_fire_sound
+      0x00000008: loop_impact_sound
+      0x00000010: ignore_center
+      0x00000020: draw_below_animate_objects
+
+  - name: fire_sound
+    type: resref
+    size: 8
+    offset: 0x0010
+
+  - name: impact_sound
+    type: resref
+    size: 8
+    offset: 0x0018
+
+  - name: source_animation
+    type: resref
+    size: 8
+    offset: 0x0020
+
+  - name: particle_color
+    type: word
+    size: 2
+    offset: 0x0028
+
+  - name: unused_header_padding
+    type: bytes
+    size: 214 # Fills space from 0x002a to 0x00FF
+    offset: 0x002a
+
+# Single Target or Area of Effect Projectile Data (starts at 0x0100)
+# This section is included if projectile_type is 2 (Single Target) or 3 (Area of Effect)
+single_target_data:
+  offset_field: offset_to_single_target
+  count_field: is_single_target_or_aoe
+  fields:
+  - name: bam_projectile_flags
+    type: bitmask
+    size: 4
+    offset: 0x0000
+    flags:
+      0x00000001: enable_bam_colouring
+      0x00000002: enable_smoke
+      0x00000004: colored_smoke
+      0x00000008: enable_area_lighting_usage
+      0x00000010: enable_area_height_usage
+      0x00000020: enable_shadow
+      0x00000040: enable_light_spot
+      0x00000080: enable_brighten_flags
+      0x00000100: low_level_brighten
+      0x00000200: high_level_brighten
+
+  - name: traveling_projectile_animation
+    type: resref
+    size: 8
+    offset: 0x0104
+
+  - name: shadow_animation
+    type: resref
+    size: 8
+    offset: 0x010c
+
+  - name: projectile_number
+    type: byte
+    size: 1
+    offset: 0x0114
+
+  - name: shadow_number
+    type: byte
+    size: 1
+    offset: 0x0115
+
+  - name: light_spot_intensity
+    type: word
+    size: 2
+    offset: 0x0116
+
+  - name: light_spot_width
+    type: word
+    size: 2
+    offset: 0x0118
+
+  - name: light_spot_height
+    type: word
+    size: 2
+    offset: 0x011a
+
+  - name: palette
+    type: resref
+    size: 8
+    offset: 0x011c
+
+  - name: projectile_colours
+    type: bytes
+    size: 7
+    offset: 0x0124
+
+  - name: smoke_puff_delay
+    type: byte
+    size: 1
+    offset: 0x012b
+
+  - name: smoke_colours
+    type: bytes
+    size: 7
+    offset: 0x012c
+
+  - name: face_target_granularity
+    type: byte
+    size: 1
+    offset: 0x0133
+
+  - name: projectile_smoke_animation
+    type: short
+    size: 2
+    offset: 0x0134
+
+  - name: trailing_animation_1
+    type: resref
+    size: 8
+    offset: 0x0136
+
+  - name: trailing_animation_2
+    type: resref
+    size: 8
+    offset: 0x013e
+
+  - name: trailing_animation_3
+    type: resref
+    size: 8
+    offset: 0x0146
+
+  - name: trailing_number_1
+    type: word
+    size: 2
+    offset: 0x014e
+
+  - name: trailing_number_2
+    type: word
+    size: 2
+    offset: 0x0150
+
+  - name: trailing_number_3
+    type: word
+    size: 2
+    offset: 0x0152
+
+  - name: trailing_flags
+    type: bitmask
+    size: 4
+    offset: 0x0154
+    flags:
+      0x00000001: puff_at_target
+      0x00000002: puff_at_source
+
+  - name: unused_single_target_padding
+    type: bytes
+    size: 168 # Fills space from 0x0158 to 0x01FF
+    offset: 0x0058
+
+# Area of Effect Projectile Data (starts at 0x0200)
+# This section is included if projectile_type is 3 (Area of Effect)
+area_effect_data:
+  offset_field: offset_to_area_effect
+  count_field: is_area_of_effect
+  fields:
+  - name: area_projectile_flags
+    type: bitmask
+    size: 2
+    offset: 0x0000
+    flags:
+      0x0001: trap_visible
+      0x0002: triggered_by_inanimate_objects
+      0x0004: triggered_by_condition
+      0x0008: delayed_trigger
+      0x0010: use_secondary_projectile
+      0x0020: use_fragment_graphics
+      0x0040: affect_only_enemies
+      0x0080: affect_only_allies
+      0x0100: mage_level_duration
+      0x0200: cleric_level_duration
+      0x0400: use_vvc_draw_animation
+      0x0800: cone_shaped
+      0x1000: ignore_los
+      0x2000: delayed_explosion
+      0x4000: skip_first_condition
+      0x8000: single_target
+
+  - name: unused_1
+    type: word
+    size: 2
+    offset: 0x0202
+
+  - name: trigger_radius_trap_size
+    type: word
+    size: 2
+    offset: 0x0204
+
+  - name: area_of_effect_explosion_size
+    type: word
+    size: 2
+    offset: 0x0206
+
+  - name: explosion_sound
+    type: resref
+    size: 8
+    offset: 0x0208
+
+  - name: explosion_delay
+    type: word
+    size: 2
+    offset: 0x0210
+
+  - name: fragment_animation
+    type: short
+    size: 2
+    offset: 0x0212
+
+  - name: secondary_projectile
+    type: word
+    size: 2
+    offset: 0x0214
+
+  - name: trigger_count_repetitions
+    type: byte
+    size: 1
+    offset: 0x0216
+
+  - name: explosion_effect
+    type: byte
+    size: 1
+    offset: 0x0217
+
+  - name: explosion_color
+    type: byte
+    size: 1
+    offset: 0x0218
+
+  - name: unused
+    type: byte
+    size: 1
+    offset: 0x0219
+
+  - name: explosion_projectile
+    type: word
+    size: 2
+    offset: 0x021a
+
+  - name: explosion_animation
+    type: resref
+    size: 8
+    offset: 0x021c
+
+  - name: cone_width_angle_between_rays
+    type: word
+    size: 2
+    offset: 0x0224
+
+  - name: unused_area_effect_padding
+    type: bytes
+    size: 218 # Fills space from 0x0226 to 0x02FF
+    offset: 0x0226

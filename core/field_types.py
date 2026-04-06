@@ -148,7 +148,7 @@ class Int8(SignedBaseIntField):
     default_size = 1
 
 class Int16(SignedBaseIntField):
-    names = ["sword"]
+    names = ["sword", "short"]
     default_size = 2
 
 class Int32(SignedBaseIntField):
