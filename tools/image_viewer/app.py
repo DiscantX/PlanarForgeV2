@@ -1,4 +1,5 @@
 import sys
+import time
 from pathlib import Path
 import numpy as np
 
@@ -20,6 +21,12 @@ class ImageViewerApp:
         self.bam_decoder = BamDecoder()
         self.pvrz_decoder = PvrzDecoder()
         self.tis_decoder = TisDecoder()
+        
+        self.current_resource = None
+        self.current_cycle = 0
+        self.current_frame_idx = 0  # Index within the current cycle's frame list
+        self.is_playing = False
+        self.last_frame_time = 0
         self.all_resrefs = []
         
         dpg.create_context()
@@ -64,6 +71,34 @@ class ImageViewerApp:
 
             self.resref_input = dpg.add_input_text(label="ResRef", default_value="GMISC01", readonly=True)
             dpg.add_button(label="Load Resource", callback=self._load_resource)
+            
+            # BAM Animation Controls
+            with dpg.group(tag="bam_controls", show=False):
+                dpg.add_separator()
+                dpg.add_text("Cycle Controls")
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="<<", callback=lambda: self._change_cycle(absolute=0))
+                    dpg.add_button(label="<", callback=lambda: self._change_cycle(delta=-1))
+                    self.cycle_text = dpg.add_text("Cycle 0 of 0")
+                    dpg.add_button(label=">", callback=lambda: self._change_cycle(delta=1))
+                    dpg.add_button(label=">>", callback=lambda: self._change_cycle(absolute=999))
+                
+                dpg.add_text("Frame Controls")
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="<<", callback=lambda: self._change_frame(absolute=0))
+                    dpg.add_button(label="<", callback=lambda: self._change_frame(delta=-1))
+                    self.frame_text = dpg.add_text("Frame 0 of 0")
+                    dpg.add_button(label=">", callback=lambda: self._change_frame(delta=1))
+                    dpg.add_button(label=">>", callback=lambda: self._change_frame(absolute=999))
+                
+                with dpg.group(horizontal=True):
+                    self.play_button = dpg.add_button(label="Play", width=100, callback=self._toggle_animation)
+                    self.fps_input = dpg.add_input_int(label="FPS", default_value=10, width=100)
+
+            # Metadata info
+            dpg.add_separator()
+            self.info_text = dpg.add_text("No resource loaded")
+            self.frame_info_text = dpg.add_text("")
             
             dpg.add_separator()
             self.zoom_slider = dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
@@ -112,6 +147,36 @@ class ImageViewerApp:
             dpg.set_value(self.resource_list, current_items[new_index])
             self._on_list_selection(None, current_items[new_index])
 
+    def _toggle_animation(self):
+        self.is_playing = not self.is_playing
+        dpg.configure_item(self.play_button, label="Stop" if self.is_playing else "Play")
+
+    def _change_cycle(self, delta=0, absolute=None):
+        if not self.current_resource: return
+        count = len(self.current_resource.get_section('cycle_entries') or [])
+        if count == 0: return
+        
+        if absolute is not None:
+            self.current_cycle = max(0, min(absolute, count - 1))
+        else:
+            self.current_cycle = (self.current_cycle + delta) % count
+            
+        self.current_frame_idx = 0
+        self._update_display()
+
+    def _change_frame(self, delta=0, absolute=None):
+        if not self.current_resource: return
+        frames = self.bam_decoder.get_cycle_frames(self.current_resource, self.current_cycle)
+        count = len(frames)
+        if count == 0: return
+        
+        if absolute is not None:
+            self.current_frame_idx = max(0, min(absolute, count - 1))
+        else:
+            self.current_frame_idx = (self.current_frame_idx + delta) % count
+            
+        self._update_display()
+
     def _load_resource(self):
         resref = dpg.get_value(self.resref_input)
         restype = dpg.get_value(self.restype_input)
@@ -122,11 +187,54 @@ class ImageViewerApp:
             print(f"Failed to load {resref}.{restype}")
             return
 
+        self.current_resource = resource
+        self.current_cycle = 0
+        self.current_frame_idx = 0
+        self.is_playing = False
+        dpg.configure_item(self.play_button, label="Play")
+
+        is_bam = resource.schema and "BAM" in resource.schema.name
+        dpg.configure_item("bam_controls", show=is_bam)
+        
+        if is_bam:
+            cycles = resource.get_section('cycle_entries') or []
+            dpg.set_value(self.info_text, f"BAM: {len(cycles)} cycles")
+        else:
+            dpg.set_value(self.info_text, f"Type: {restype}")
+
+        self._update_display()
+
+    def _update_display(self):
+        if not self.current_resource:
+            return
+
+        resource = self.current_resource
+        game = dpg.get_value(self.game_input)
+        restype = dpg.get_value(self.restype_input)
         buffer = None
+        
         if resource.schema and "BAM" in resource.schema.name:  # Handles BAM and BAM_V2
+            cycle_frames = self.bam_decoder.get_cycle_frames(resource, self.current_cycle)
+            if not cycle_frames:
+                # Fallback if cycle is empty or invalid
+                real_frame_index = 0
+                frame_count = 0
+            else:
+                frame_count = len(cycle_frames)
+                self.current_frame_idx = max(0, min(self.current_frame_idx, frame_count - 1))
+                real_frame_index = cycle_frames[self.current_frame_idx]
+
+            dpg.set_value(self.cycle_text, f"Cycle {self.current_cycle} of {len(resource.get_section('cycle_entries') or []) - 1}")
+            dpg.set_value(self.frame_text, f"Frame {self.current_frame_idx} of {frame_count - 1}")
+            
             # For BAM V2, we need to provide a PVRZ page provider
             pvrz_provider = self._get_pvrz_page_provider(game) if resource.schema.name == 'BAM_V2' else None
-            buffer = self.bam_decoder.decode_frame(resource, 0, pvrz_page_provider=pvrz_provider)
+            buffer = self.bam_decoder.decode_frame(resource, real_frame_index, pvrz_page_provider=pvrz_provider)
+            
+            # Update frame info
+            frame_data = resource.get_section('frame_entries')[real_frame_index]
+            dpg.set_value(self.frame_info_text, f"Real Frame: {real_frame_index} ({frame_data['width']}x{frame_data['height']})")
+
         elif restype == "PVRZ":
             buffer = self.pvrz_decoder.decode_pvrz_bytes(resource._original_bytes)
         elif restype == "TIS":
@@ -184,6 +292,18 @@ class ImageViewerApp:
         dpg.focus_item("controls_window")
         dpg.focus_item(self.resource_list)
         while dpg.is_dearpygui_running():
+            if self.is_playing and self.current_resource:
+                fps = dpg.get_value(self.fps_input)
+                frame_time = 1.0 / max(1, fps)
+                current_time = time.time()
+                
+                if current_time - self.last_frame_time >= frame_time:
+                    cycle_frames = self.bam_decoder.get_cycle_frames(self.current_resource, self.current_cycle)
+                    if cycle_frames:
+                        self.current_frame_idx = (self.current_frame_idx + 1) % len(cycle_frames)
+                        self._update_display()
+                    self.last_frame_time = current_time
+
             dpg.render_dearpygui_frame()
         dpg.destroy_context()
 
