@@ -7,6 +7,10 @@ class BamDecoder:
     Handles the decompression and pixel mapping for Infinity Engine BAM V1 files.
     Transforms indexed RLE data into NumPy RGBA buffers.
     """
+    
+    def __init__(self):
+        # Persistent cache: { (game_id, pvrz_resref): rgba_buffer }
+        self._page_cache = {}
 
     @staticmethod
     def get_palette(resource: Resource):
@@ -167,17 +171,25 @@ class BamDecoder:
                 print(f"DEBUG: Skipping block {i} - decoder={page_decoder is not None}, page_index={page_index}")
                 continue
 
-            page_bytes = page_decoder(page_index)
-            if page_bytes is None:
-                print(f"DEBUG: Page decoder returned None for page {page_index}")
-                continue
+            # Use a cache key that accounts for the game context
+            game_id = getattr(resource, 'game', 'unknown')
+            cache_key = (game_id, page_index)
 
-            try:
-                page_image = PvrzDecoder.decode_pvrz_bytes(page_bytes)
-                print(f"DEBUG: Decoded PVRZ page {page_index}, shape: {page_image.shape}")
-            except Exception as exc:
-                print(f"DEBUG: Failed to decode PVRZ page {page_index} for BAM_V2 frame {frame_index}: {exc}")
-                continue
+            if cache_key in self._page_cache:
+                page_image = self._page_cache[cache_key]
+            else:
+                page_bytes = page_decoder(page_index)
+                if page_bytes is None:
+                    print(f"DEBUG: Page decoder returned None for page {page_index}")
+                    continue
+
+                try:
+                    page_image = PvrzDecoder.decode_pvrz_bytes(page_bytes)
+                    self._page_cache[cache_key] = page_image
+                    print(f"DEBUG: Decoded PVRZ page {page_index}, shape: {page_image.shape}")
+                except Exception as exc:
+                    print(f"DEBUG: Failed to decode PVRZ page {page_index} for BAM_V2 frame {frame_index}: {exc}")
+                    continue
 
             block_image = page_image[
                 source_y:source_y + block_height,

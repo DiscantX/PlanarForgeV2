@@ -155,37 +155,17 @@ class ImageViewerApp:
         Used for BAM V2 frames that reference PVRZ pages.
         The decoder expects raw bytes, not decoded images.
         """
-        # Debug: list available PVRZ resources for this game
-        available_pvrz = set()
-        for resref, restype, _ in self.loader.iter_resources(game=game):
-            if restype == "PVRZ":
-                available_pvrz.add(resref)
-        print(f"DEBUG: Available PVRZ resources for {game}: {sorted(available_pvrz)[:10]}...")  # Show first 10
-        
         def load_pvrz_page(page_index):
             try:
-                # Try different naming conventions
-                attempts = [
-                    f"PVRZ{page_index:03d}",  # PVRZ010
-                    f"PVRZ{page_index:04d}",  # PVRZ0010
-                    f"pvrz{page_index:03d}",  # lowercase
-                ]
-                
-                for resref in attempts:
-                    if resref in available_pvrz:
-                        print(f"DEBUG: Found PVRZ page {page_index} as {resref}")
-                        resource = self.loader.load(resref=resref, restype="PVRZ", game=game)
-                        if resource:
-                            return resource._original_bytes
-                
-                # If none found, try loading anyway (in case list is incomplete)
-                resource = self.loader.load(resref=f"PVRZ{page_index:03d}", restype="PVRZ", game=game)
+                # BAM V2 files reference PVRZ textures using the MOSxxxx convention.
+                # The index is represented as a zero-padded four-digit decimal string.
+                resref = f"MOS{page_index:04d}"
+                resource = self.loader.load(resref=resref, restype="PVRZ", game=game)
                 if resource:
-                    print(f"DEBUG: Successfully loaded PVRZ{page_index:03d}")
                     return resource._original_bytes
-                else:
-                    print(f"DEBUG: Failed to load PVRZ page {page_index} (tried: {attempts})")
-                    return None
+                
+                print(f"DEBUG: Failed to load PVRZ page {page_index} as {resref}")
+                return None
             except Exception as e:
                 print(f"DEBUG: Error loading PVRZ page {page_index}: {e}")
                 return None

@@ -194,9 +194,14 @@ class ResourceLoader:
                 ext = restype.lower()
                 override_candidate = install_path / "override" / f"{clean_resref}.{ext}"
                 if override_candidate.exists():
-                    return self.load_file(resref=resref, restype=restype, game=game, file_path=override_candidate, schema=schema)
+                    raw_bytes = override_candidate.read_bytes()
+                    source_path = str(override_candidate)
+                    res_type_code = None
+                else:
+                    raw_bytes, source_path, res_type_code = self.get_raw_bytes(resref, restype=restype, game=game)
+            else:
+                raw_bytes, source_path, res_type_code = self.get_raw_bytes(resref, restype=restype, game=game)
 
-            raw_bytes, source_path, res_type_code = self.get_raw_bytes(resref, restype=restype, game=game)
             if raw_bytes is None:
                 return None
             

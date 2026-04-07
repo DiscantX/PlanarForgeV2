@@ -97,15 +97,22 @@ data_blocks:
   fields:
   - name: pvrz_page
     type: dword
+    size: 4
   - name: source_x
     type: dword
+    size: 4
   - name: source_y
     type: dword
+    size: 4
   - name: width
     type: dword
+    size: 4
   - name: height
     type: dword
+    size: 4
   - name: target_x
-    type: dword
+    type: sdword
+    size: 4
   - name: target_y
-    type: dword
+    type: sdword
+    size: 4
