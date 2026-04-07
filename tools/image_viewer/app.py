@@ -81,20 +81,15 @@ class ImageViewerApp:
             self.zoom_slider = dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
                                 callback=lambda s, v: self.canvas.set_zoom_absolute(v))
             
-            dpg.add_checkbox(label="Show border", default_value=True, 
-                            callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
-            
-            dpg.add_checkbox(label="Show Markers", default_value=False,
-                            callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
-
-            self.filter_empty_frames = dpg.add_checkbox(label="Filter empty frames", default_value=False, callback=self._on_filter_toggle)
-
-            self.preserve_frame_toggle = dpg.add_checkbox(label="Preserve frame on cycle", default_value=False)
-
-            self.autoplay_toggle = dpg.add_checkbox(label="Autoplay", default_value=False)
-
             dpg.add_combo(label="Alignment", items=["Pivot", "Center", "Top-Left", "Top-Center", "Top-Right", "Left-Center", "Right-Center", "Bottom-Left", "Bottom-Center", "Bottom-Right"], default_value="Pivot",
                          callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw())
+            
+            dpg.add_checkbox(label="Show Border", default_value=True, 
+                            callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
+            
+            dpg.add_checkbox(label="Show Markers", default_value=True,
+                            callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
+
 
         with dpg.window(label="Canvas", tag="canvas_window", pos=[305, 0], width=895, height=800, no_scrollbar=True):
             dpg.add_drawlist(tag="image_canvas", width=875, height=760)
@@ -104,7 +99,14 @@ class ImageViewerApp:
 
         # Bottom Panel for BAM Controls
         with dpg.window(tag="bottom_window", show=False, no_title_bar=True, no_move=True, no_resize=True, no_scrollbar=True):
-            with dpg.group(horizontal=True, horizontal_spacing=50):
+            with dpg.group(horizontal=True, horizontal_spacing=60):
+                # Animation Controls
+                with dpg.group():
+                    dpg.add_text("Playback")
+                    with dpg.group(horizontal=True):
+                        self.play_button = dpg.add_button(label="Play", width=80, callback=self._toggle_animation)
+                        self.fps_input = dpg.add_input_int(label="FPS", default_value=10, width=80)  
+                
                 # Cycle Controls
                 with dpg.group():
                     dpg.add_text("Cycle")
@@ -126,13 +128,12 @@ class ImageViewerApp:
                         dpg.add_button(label=">>", callback=lambda: self._change_frame(absolute=999))
                     self.frame_info_text = dpg.add_text("")
                 
-                # Animation Controls
+                #Toggles
                 with dpg.group():
-                    dpg.add_text("Playback")
-                    with dpg.group(horizontal=True):
-                        self.play_button = dpg.add_button(label="Play", width=80, callback=self._toggle_animation)
-                        self.fps_input = dpg.add_input_int(label="FPS", default_value=10, width=80)
-
+                    self.autoplay_toggle = dpg.add_checkbox(label="Autoplay", default_value=True)    
+                    self.filter_empty_frames = dpg.add_checkbox(label="Filter empty frames", default_value=True, callback=self._on_filter_toggle)
+                    self.preserve_frame_toggle = dpg.add_checkbox(label="Preserve frame number", default_value=True)
+                    
     def _on_viewport_resize(self):
         """Update UI layout when the main window resizes."""
         vw = dpg.get_viewport_width()
@@ -232,6 +233,7 @@ class ImageViewerApp:
             return all_frames
             
         frame_entries = self.current_resource.get_section('frame_entries')
+        print(len(frame_entries), len(all_frames))
         return [i for i in all_frames if frame_entries[i]['width'] > 1 or frame_entries[i]['height'] > 1]
 
     def _change_cycle(self, delta=0, absolute=None):
@@ -310,7 +312,7 @@ class ImageViewerApp:
             return
 
         self.current_resource = resource
-        is_bam = resource.schema and "BAM" in resource.schema.name
+        is_bam = bool(resource.schema and "BAM" in resource.schema.name)
         self.is_playing = dpg.get_value(self.autoplay_toggle) if is_bam else False
         dpg.configure_item(self.play_button, label="Stop" if self.is_playing else "Play")
 
