@@ -18,6 +18,8 @@ class PFCanvas:
         # DPG dynamic textures require a flat float32 list (0.0 to 1.0)
         flat_buffer = rgba_buffer.astype(np.float32).flatten() / 255.0
         
+        print(f"DEBUG: Texture update requested. Dimensions: {width}x{height}, Buffer Size: {len(flat_buffer)}")
+
         # --- Step 1: Always delete the draw node FIRST to release any texture references ---
         # This is crucial to ensure the texture is no longer in use before we try to delete it.
         if dpg.does_item_exist(self.draw_node_tag):
@@ -29,6 +31,7 @@ class PFCanvas:
            self.current_texture_width == width and \
            self.current_texture_height == height:
             dpg.set_value(self.texture_tag, flat_buffer)
+            print(f"DEBUG: Existing texture '{self.texture_tag}' updated with dpg.set_value")
         else:
             # Dimensions changed or texture doesn't exist, delete old and create new
             # Now that the draw_node is gone, this delete_item should be more reliable.
@@ -36,6 +39,7 @@ class PFCanvas:
                 dpg.delete_item(self.texture_tag) 
 
             with dpg.texture_registry():
+                print(f"DEBUG: Creating new dynamic texture '{self.texture_tag}'")
                 dpg.add_dynamic_texture(width=width, height=height, default_value=flat_buffer, tag=self.texture_tag)
             self.current_texture_width = width
             self.current_texture_height = height
@@ -47,8 +51,10 @@ class PFCanvas:
     def apply_transform(self):
         """Apply zoom and pan to the draw node."""
         if dpg.does_item_exist(self.draw_node_tag):
+            matrix = dpg.create_scale_matrix([self.zoom, self.zoom])
+            print(f"DEBUG: Applying scale transform. Zoom: {self.zoom}")
             # Basic scale only to avoid matrix multiplication issues
-            dpg.apply_transform(self.draw_node_tag, dpg.create_scale_matrix([self.zoom, self.zoom]))
+            dpg.apply_transform(self.draw_node_tag, matrix)
 
     def set_zoom(self, delta):
         self.zoom = max(0.1, self.zoom + delta)

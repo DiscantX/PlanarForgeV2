@@ -16,14 +16,16 @@ class BamDecoder:
         if not palette_data:
             return np.zeros((256, 4), dtype=np.uint8)
 
-        # IE BAM V1 palettes are logically 256 entries. 
-        # We pre-allocate to ensure we never have an IndexError during mapping.
+        # IE BAM V1 palettes are logically 256 entries.
+        # We initialize as opaque (Alpha = 255) because classic BAMs 
+        # usually have 0 in the alpha channel, which modern RGBA treats as transparent.
         palette = np.zeros((256, 4), dtype=np.uint8)
+        palette[:, 3] = 255
         
         # Fill available colors from the parsed resource (BGRA)
         for i, entry in enumerate(palette_data):
             if i >= 256: break
-            palette[i] = entry['color']
+            palette[i, 0:3] = entry['color'][0:3]
 
         # IE Transparency: First occurrence of (0, 255, 0) is transparent.
         # We set its Alpha channel to 0.
@@ -38,7 +40,12 @@ class BamDecoder:
         # However, for now we stick to the 0,255,0 rule.
         
         # Convert BGRA to RGBA for modern GPU compatibility
-        return palette[:, [2, 1, 0, 3]]
+        rgba_palette = palette[:, [2, 1, 0, 3]]
+        
+        # DEBUG: Check how many colors are non-transparent
+        non_transparent = np.count_nonzero(rgba_palette[:, 3])
+        print(f"DEBUG: Palette extracted. Total colors: {len(rgba_palette)}, Non-transparent: {non_transparent}")
+        return rgba_palette
 
     def decode_frame(self, resource: Resource, frame_index: int):
         """
@@ -51,6 +58,7 @@ class BamDecoder:
         frame = frames[frame_index]
         width = frame['width']
         height = frame['height']
+        print(f"DEBUG: Decoding Frame {frame_index} ({width}x{height})")
         
         # frame_data_info is a bitfield (offset: 31 bits, is_uncompressed: 1 bit)
         info = frame['frame_data_info']

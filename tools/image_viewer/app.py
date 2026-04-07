@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import numpy as np
 
 # Add the project root to sys.path so 'drivers' and 'core' can be found when running standalone
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -78,7 +79,6 @@ class ImageViewerApp:
         game = dpg.get_value(self.game_input)
         
         resource = self.loader.load(resref=resref, restype=restype, game=game)
-        print(resource)
         if not resource:
             print(f"Failed to load {resref}.{restype}")
             return
@@ -92,7 +92,10 @@ class ImageViewerApp:
             buffer = self.tis_decoder.decode_tis(resource, palette_resource=pal_res)
 
         if buffer is not None:
+            print(f"DEBUG: Buffer decoded. Shape: {buffer.shape}, Max Value: {np.max(buffer)}, Min Value: {np.min(buffer)}")
             self.canvas.update_texture(buffer)
+        else:
+            print(f"DEBUG: Decoder returned None for {resref}")
 
     def _refresh_resource_list(self):
         game = dpg.get_value(self.game_input)
