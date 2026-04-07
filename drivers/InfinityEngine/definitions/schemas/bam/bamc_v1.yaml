@@ -1,0 +1,20 @@
+name: BAMC
+version: V1
+games: [BG1, BG2, IWD, IWD2, PST, BGEE, BG2EE, IWDEE, PSTEE]
+
+header:
+  fields:
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: uncompressed_data_length
+    type: dword
+    size: 4
+    offset: 0x0008

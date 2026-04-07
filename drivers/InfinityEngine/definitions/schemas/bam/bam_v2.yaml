@@ -1,0 +1,111 @@
+name: BAM_V2
+version: V2
+games: [BGEE, BG2EE]
+
+header:
+  fields:
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: count_of_frame_entries
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: count_of_cycle_entries
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: count_of_data_blocks
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: offset_to_frame_entries
+    type: dword
+    size: 4
+    offset: 0x0014
+
+  - name: offset_to_cycle_entries
+    type: dword
+    size: 4
+    offset: 0x0018
+
+  - name: offset_to_data_blocks
+    type: dword
+    size: 4
+    offset: 0x001c
+
+frame_entries:
+  offset_field: offset_to_frame_entries
+  count_field: count_of_frame_entries
+  fields:
+  - name: width
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: height
+    type: word
+    size: 2
+    offset: 0x0002
+
+  - name: center_x
+    type: sword
+    size: 2
+    offset: 0x0004
+
+  - name: center_y
+    type: sword
+    size: 2
+    offset: 0x0006
+
+  - name: start_index_data_blocks
+    type: word
+    size: 2
+    offset: 0x0008
+
+  - name: count_data_blocks
+    type: word
+    size: 2
+    offset: 0x000a
+
+cycle_entries:
+  offset_field: offset_to_cycle_entries
+  count_field: count_of_cycle_entries
+  fields:
+  - name: count_of_frame_entries
+    type: word
+    size: 2
+    offset: 0x0000
+  - name: start_index_frame_entries
+    type: word
+    size: 2
+    offset: 0x0002
+
+data_blocks:
+  offset_field: offset_to_data_blocks
+  count_field: count_of_data_blocks
+  fields:
+  - name: pvrz_page
+    type: dword
+  - name: source_x
+    type: dword
+  - name: source_y
+    type: dword
+  - name: width
+    type: dword
+  - name: height
+    type: dword
+  - name: target_x
+    type: dword
+  - name: target_y
+    type: dword
