@@ -65,6 +65,11 @@ class ResourceLoader:
         with open(file_path, "rb") as f:
             raw_bytes = f.read()
 
+        if restype == 'PVRZ':
+            resource = Resource(schema=None, name=resref, source=file_path)
+            resource._original_bytes = raw_bytes
+            return self._attach_runtime_context(resource, game)
+
         schema = self._resolve_resource_schema(restype, game, raw_bytes=raw_bytes, schema=schema)
         if schema is None:
             print(f"Error: No schema found for type '{restype}' (resref: {resref}).")
@@ -205,8 +210,13 @@ class ResourceLoader:
                 restype = 'BAM'
 
             # Handle BAM version detection (V1 vs V2)
+            if restype == 'PVRZ':
+                resource = Resource(schema=None, name=resref, source=f"BIF: {source_path}")
+                resource._original_bytes = raw_bytes
+                return self._attach_runtime_context(resource, game)
+
             if restype == 'BAM' and len(raw_bytes) >= 8:
-                version = raw_bytes[4:8].decode("latin-1", errors="ignore").rstrip("\x00")
+                version = raw_bytes[4:8].decode("latin-1", errors="ignore").strip()
                 if version == "V2":
                     restype = 'BAM_V2'
 
