@@ -155,7 +155,23 @@ class ImageViewerApp:
             self.canvas.on_mouse_wheel(app_data)
 
     def _on_key_press(self, sender, app_data):
-        """Handle keyboard navigation for the resource list."""
+        """Handle keyboard navigation based on hover context."""
+        # Determine if we should navigate the BAM (hovering canvas or playback bar)
+        is_hovering_view = dpg.is_item_hovered("canvas_window") or dpg.is_item_hovered("bottom_window")
+
+        if is_hovering_view and self.current_resource:
+            if app_data == dpg.mvKey_Left:
+                self._change_frame(delta=-1)
+            elif app_data == dpg.mvKey_Right:
+                self._change_frame(delta=1)
+            elif app_data == dpg.mvKey_Up:
+                self._change_cycle(delta=-1)
+            elif app_data == dpg.mvKey_Down:
+                self._change_cycle(delta=1)
+            elif app_data == dpg.mvKey_Spacebar:
+                self._toggle_animation()
+            return # Intercepted; don't trigger list navigation
+
         current_items = dpg.get_item_configuration(self.resource_list)['items']
         if not current_items:
             return
