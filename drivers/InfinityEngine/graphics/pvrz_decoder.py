@@ -1,5 +1,6 @@
 import zlib
 import numpy as np
+import struct
 
 
 class PvrzDecoder:
@@ -15,27 +16,19 @@ class PvrzDecoder:
             return None
 
         decompressed = cls._decompress(raw_bytes)
-        print(f"DEBUG: Decompressed length: {len(decompressed)}")
-        print(f"DEBUG: Decompressed first 64: {decompressed[:64].hex()}")
         
         # Attempt double decompression
         try:
             double_decompressed = zlib.decompress(decompressed)
-            print(f"DEBUG: Double decompressed length: {len(double_decompressed)}")
-            print(f"DEBUG: Double decompressed first 64: {double_decompressed[:64].hex()}")
             decompressed = double_decompressed
         except zlib.error:
             # Try from offset 4 if it starts with zlib header there
             if len(decompressed) > 4 and decompressed[4:6] == b'\x78\x9c':
                 try:
                     double_decompressed = zlib.decompress(decompressed[4:])
-                    print(f"DEBUG: Double decompressed from offset 4 length: {len(double_decompressed)}")
-                    print(f"DEBUG: Double decompressed first 64: {double_decompressed[:64].hex()}")
                     decompressed = double_decompressed
                 except zlib.error:
-                    print("DEBUG: Double decompression from offset 4 failed")
-            else:
-                print("DEBUG: Double decompression failed, using single decompressed data")
+                    pass
         
         return cls.decode_pvr_bytes(decompressed)
 
@@ -48,18 +41,31 @@ class PvrzDecoder:
         try:
             header = cls._parse_header(raw_bytes)
         except ValueError:
-            # Fallback: try to decode based on size assuming 256x256
-            width, height = 256, 256
-            if len(raw_bytes) == width * height * 4:
-                # Assume raw RGBA
-                return np.frombuffer(raw_bytes, dtype=np.uint8).reshape((height, width, 4))
-            elif len(raw_bytes) == ((width + 3) // 4) * ((height + 3) // 4) * 8:
-                return cls._decode_dxt1(raw_bytes, width, height)
-            elif len(raw_bytes) == ((width + 3) // 4) * ((height + 3) // 4) * 16:
-                return cls._decode_dxt5(raw_bytes, width, height)
+            # Fallback: try to decode based on size
+            if len(raw_bytes) % 8 == 0:
+                blocks = len(raw_bytes) // 8
+                block_side = int(blocks ** 0.5 + 0.5)
+                if block_side * block_side == blocks:
+                    width = block_side * 4
+                    height = block_side * 4
+                    return cls._decode_dxt1(raw_bytes, width, height)
+            if len(raw_bytes) % 16 == 0:
+                blocks = len(raw_bytes) // 16
+                block_side = int(blocks ** 0.5 + 0.5)
+                if block_side * block_side == blocks:
+                    width = block_side * 4
+                    height = block_side * 4
+                    return cls._decode_dxt5(raw_bytes, width, height)
+            if len(raw_bytes) % 4 == 0:
+                total_pixels = len(raw_bytes) // 4
+                size = int(total_pixels ** 0.5 + 0.5)
+                if size * size == total_pixels:
+                    width = height = size
+                    img = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((height, width, 4))
+                    # Assume RGBA
+                    return img
             else:
                 # Unrecognized format, return transparent placeholder to avoid crash
-                print("DEBUG: Unrecognized PVR header, returning transparent placeholder")
                 return np.zeros((256, 256, 4), dtype=np.uint8)
         pixel_data = raw_bytes[header["data_offset"]:header["data_offset"] + header["data_size"]]
 
@@ -96,10 +102,21 @@ class PvrzDecoder:
 
     @staticmethod
     def _decompress(raw_bytes):
+        # Try standard zlib from offset 4
+        try:
+            return zlib.decompress(raw_bytes[4:])
+        except zlib.error:
+            pass
+        # Try raw deflate from offset 4
+        try:
+            return zlib.decompress(raw_bytes[4:], wbits=-15)
+        except zlib.error:
+            pass
+        # Standard zlib
         try:
             return zlib.decompress(raw_bytes)
         except zlib.error:
-            # Some PVRZ variants may include a leading literal "PVRZ" marker.
+            # PVRZ prefix
             if raw_bytes[:4] == b"PVRZ":
                 try:
                     return zlib.decompress(raw_bytes[4:])
@@ -108,12 +125,12 @@ class PvrzDecoder:
                         return zlib.decompress(raw_bytes[4:], wbits=-15)
                     except zlib.error:
                         pass
-            # Try raw deflate
+            # Raw deflate
             try:
                 return zlib.decompress(raw_bytes, wbits=-15)
             except zlib.error:
                 pass
-            # Assume it's already decompressed PVR data
+            # Uncompressed
             return raw_bytes
 
     @classmethod
@@ -182,6 +199,8 @@ class PvrzDecoder:
         num_faces = int.from_bytes(raw_bytes[40:44], "little")
         mip_map_count = int.from_bytes(raw_bytes[44:48], "little")
         meta_data_size = int.from_bytes(raw_bytes[48:52], "little")
+        if meta_data_size > len(raw_bytes) - 52:
+            meta_data_size = 0
         data_offset = 52 + meta_data_size
         data_size = len(raw_bytes) - data_offset
 
@@ -220,44 +239,68 @@ class PvrzDecoder:
 
     @staticmethod
     def _decode_dxt1(data, width, height):
-        blocks_x = (width + 3) // 4
-        blocks_y = (height + 3) // 4
-        output = np.zeros((height, width, 4), dtype=np.uint8)
-        reader = memoryview(data)
-        offset = 0
+        """
+        Decode DXT1 (BC1) compressed texture to RGBA.
+        """
+        try:
+            bw = (width  + 3) // 4
+            bh = (height + 3) // 4
+            expected = bw * bh * 8
 
-        for block_y in range(blocks_y):
-            for block_x in range(blocks_x):
-                if offset + 8 > len(reader):
-                    break
-                color0 = int.from_bytes(reader[offset:offset + 2], "little")
-                color1 = int.from_bytes(reader[offset + 2:offset + 4], "little")
-                bits = int.from_bytes(reader[offset + 4:offset + 8], "little")
-                offset += 8
+            if len(data) < expected:
+                return None
 
-                palette = np.zeros((4, 4), dtype=np.uint8)
-                palette[0, :3] = PvrzDecoder._unpack_565(color0)
-                palette[1, :3] = PvrzDecoder._unpack_565(color1)
-                palette[:, 3] = 255
+            out = bytearray(width * height * 4)
 
-                if color0 > color1:
-                    palette[2, :3] = ((2 * palette[0, :3] + palette[1, :3]) // 3)
-                    palette[3, :3] = ((palette[0, :3] + 2 * palette[1, :3]) // 3)
-                else:
-                    palette[2, :3] = ((palette[0, :3] + palette[1, :3]) // 2)
-                    palette[3, :] = [0, 0, 0, 0]
+            for by in range(bh):
+                for bx in range(bw):
+                    off = (by * bw + bx) * 8
+                    c0_raw, c1_raw, cidx = struct.unpack_from("<HHI", data, off)
 
-                for pixel_index in range(16):
-                    palette_index = bits & 0x3
-                    bits >>= 2
-                    pixel_x = block_x * 4 + (pixel_index & 3)
-                    pixel_y = block_y * 4 + (pixel_index >> 2)
-                    if pixel_x < width and pixel_y < height:
-                        output[pixel_y, pixel_x] = palette[palette_index]
+                    r0, g0, b0 = PvrzDecoder._unpack_565(c0_raw)
+                    r1, g1, b1 = PvrzDecoder._unpack_565(c1_raw)
+                    r0, g0, b0 = int(r0), int(g0), int(b0)
+                    r1, g1, b1 = int(r1), int(g1), int(b1)
 
-        return output
+                    if c0_raw > c1_raw:
+                        colour_table = [
+                            (r0, g0, b0, 255),
+                            (r1, g1, b1, 255),
+                            ((2*r0 + r1) // 3, (2*g0 + g1) // 3, (2*b0 + b1) // 3, 255),
+                            ((r0 + 2*r1) // 3, (g0 + 2*g1) // 3, (b0 + 2*b1) // 3, 255),
+                        ]
+                    else:
+                        colour_table = [
+                            (r0, g0, b0, 255),
+                            (r1, g1, b1, 255),
+                            ((r0 + r1) // 2, (g0 + g1) // 2, (b0 + b1) // 2, 255),
+                            (0, 0, 0, 0),   # transparent black
+                        ]
 
-    @staticmethod
+                    for py in range(4):
+                        for px in range(4):
+                            dx = bx * 4 + px
+                            dy = by * 4 + py
+                            if dx >= width or dy >= height:
+                                continue
+
+                            ci = (cidx >> ((py * 4 + px) * 2)) & 0x3
+                            r, g, b, a = colour_table[ci]
+
+                            dst = (dy * width + dx) * 4
+                            out[dst]     = r
+                            out[dst + 1] = g
+                            out[dst + 2] = b
+                            out[dst + 3] = a
+
+            # Convert to numpy array
+            import numpy as np
+            return np.frombuffer(bytes(out), dtype=np.uint8).reshape((height, width, 4))
+
+        except Exception as e:
+            print("Exception in _decode_dxt1:", e)
+            return None
+        
     def _decode_dxt5(data, width, height):
         blocks_x = (width + 3) // 4
         blocks_y = (height + 3) // 4
