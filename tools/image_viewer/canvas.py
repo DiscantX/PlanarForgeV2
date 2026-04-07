@@ -6,6 +6,11 @@ class PFCanvas:
         self.app = app
         self.tag = tag
         self.texture_tag = None
+        self.image_item = dpg.generate_uuid()
+        self.border_item = dpg.generate_uuid()
+        self.bg_item = dpg.generate_uuid()
+        self.marker_node = dpg.generate_uuid()
+
         self.registry_tag = "canvas_texture_registry"
         self.zoom = 1.0
         self.offset = [0.0, 0.0]  # No offset from the corner
@@ -28,30 +33,23 @@ class PFCanvas:
         self.pivot_x = pivot_x
         self.pivot_y = pivot_y
 
-        # DPG dynamic textures require a flat float32 list (0.0 to 1.0)
-        flat_buffer = (rgba_buffer.astype(np.float32).flatten() / 255.0).tolist()
-        
-        print(f"DEBUG: Texture update requested. Dimensions: {width}x{height}, Buffer Size: {len(flat_buffer)}")
+        # Optimization: Pass the NumPy array directly to DPG to avoid expensive .tolist() conversion
+        flat_buffer = rgba_buffer.ravel().astype(np.float32) / 255.0
             
         # --- Step 2: Manage the texture ---
+        old_texture = None
+
         # If texture exists and dimensions match, just update its value.
         if self.texture_tag and dpg.does_item_exist(self.texture_tag) and \
            self.current_texture_width == width and \
            self.current_texture_height == height:
             dpg.set_value(self.texture_tag, flat_buffer)
-            print(f"DEBUG: Existing texture '{self.texture_tag}' updated with dpg.set_value")
         else:
-            # Dimensions changed or texture doesn't exist. Use a fresh tag if needed.
+            # Dimensions changed or texture doesn't exist. Prepare to swap.
             if self.texture_tag and dpg.does_item_exist(self.texture_tag):
-                try:
-                    dpg.delete_item(self.texture_tag)
-                    print(f"DEBUG: Deleted old texture '{self.texture_tag}'")
-                except Exception as exc:
-                    print(f"DEBUG: Could not delete old texture '{self.texture_tag}': {exc}")
+                old_texture = self.texture_tag
 
-            # Generate a unique integer identifier to prevent tag collisions
             self.texture_tag = dpg.generate_uuid()
-            print(f"DEBUG: Creating new dynamic texture with UUID '{self.texture_tag}'")
             dpg.add_dynamic_texture(width=width, height=height, default_value=flat_buffer, tag=self.texture_tag, parent=self.registry_tag)
             self.current_texture_width = width
             self.current_texture_height = height
@@ -59,14 +57,14 @@ class PFCanvas:
         # --- Step 3: Trigger a redraw with new dimensions ---
         self._redraw()
 
+        # --- Step 4: Cleanup old texture after the new one is visible ---
+        if old_texture:
+            dpg.delete_item(old_texture)
+
     def _redraw(self):
         """Calculates coordinates manually and draws to the node, avoiding apply_transform."""
-        if not dpg.does_item_exist(self.texture_tag):
+        if not self.texture_tag or not dpg.does_item_exist(self.texture_tag):
             return
-
-        # Clear the entire drawlist to ensure a clean state for the new frame
-        if dpg.does_item_exist(self.tag):
-            dpg.delete_item(self.tag, children_only=True)
         
         # Get canvas dimensions
         canvas_width = dpg.get_item_width(self.tag)
@@ -87,17 +85,26 @@ class PFCanvas:
         x2 = x1 + image_width
         y2 = y1 + image_height
 
-        print(f"DEBUG: Redrawing. Zoom={self.zoom:.2f}, Pos=[{x1:.1f}, {y1:.1f}] to [{x2:.1f}, {y2:.1f}]")
+        # --- Step 1: Ensure persistent items exist ---
+        if not dpg.does_item_exist(self.bg_item):
+            dpg.draw_rectangle([-10000, -10000], [10000, 10000], fill=[30, 30, 30, 255], tag=self.bg_item, parent=self.tag)
         
-        # Draw a dark background rectangle to verify the drawlist itself is visible
-        dpg.draw_rectangle([-10000, -10000], [10000, 10000], fill=[30, 30, 30, 255], parent=self.tag)
+        if not dpg.does_item_exist(self.image_item):
+            dpg.draw_image(self.texture_tag, [x1, y1], [x2, y2], tag=self.image_item, parent=self.tag)
+        else:
+            dpg.configure_item(self.image_item, texture_tag=self.texture_tag, pmin=[x1, y1], pmax=[x2, y2])
 
-        # Draw the actual image at calculated coordinates directly into the drawlist
-        dpg.draw_image(self.texture_tag, [x1, y1], [x2, y2], parent=self.tag)
+        if not dpg.does_item_exist(self.border_item):
+            dpg.draw_rectangle([x1, y1], [x2, y2], color=[255, 0, 0, 255], thickness=2, tag=self.border_item, parent=self.tag)
         
-        # Draw red border if enabled
-        if self.show_border:
-            dpg.draw_rectangle([x1, y1], [x2, y2], color=[255, 0, 0, 255], thickness=2, parent=self.tag)
+        # --- Step 2: Update Visibility & Coordinates ---
+        dpg.configure_item(self.border_item, pmin=[x1, y1], pmax=[x2, y2], show=self.show_border)
+
+        # --- Step 3: Markers (Draw Node approach to avoid flickering markers) ---
+        if not dpg.does_item_exist(self.marker_node):
+            dpg.add_draw_node(tag=self.marker_node, parent=self.tag)
+        
+        dpg.delete_item(self.marker_node, children_only=True)
 
         if self.show_markers:
             # Marker size (crosshair half-length)
@@ -106,20 +113,20 @@ class PFCanvas:
             # 1. Pivot Point (Yellow)
             px = x1 + (self.pivot_x * self.zoom)
             py = y1 + (self.pivot_y * self.zoom)
-            dpg.draw_line([px - ms, py], [px + ms, py], color=[255, 255, 0, 200], thickness=1, parent=self.tag)
-            dpg.draw_line([px, py - ms], [px, py + ms], color=[255, 255, 0, 200], thickness=1, parent=self.tag)
-            dpg.draw_text([px + 4, py + 4], "Pivot", color=[255, 255, 0, 200], size=13, parent=self.tag)
+            dpg.draw_line([px - ms, py], [px + ms, py], color=[255, 255, 0, 200], thickness=1, parent=self.marker_node)
+            dpg.draw_line([px, py - ms], [px, py + ms], color=[255, 255, 0, 200], thickness=1, parent=self.marker_node)
+            dpg.draw_text([px + 4, py + 4], "Pivot", color=[255, 255, 0, 200], size=13, parent=self.marker_node)
 
             # 2. Image Center (Cyan)
             cx = x1 + image_width / 2
             cy = y1 + image_height / 2
-            dpg.draw_line([cx - ms, cy], [cx + ms, cy], color=[0, 255, 255, 200], thickness=1, parent=self.tag)
-            dpg.draw_line([cx, cy - ms], [cx, cy + ms], color=[0, 255, 255, 200], thickness=1, parent=self.tag)
-            dpg.draw_text([cx + 4, cy - 18], "Center", color=[0, 255, 255, 200], size=13, parent=self.tag)
+            dpg.draw_line([cx - ms, cy], [cx + ms, cy], color=[0, 255, 255, 200], thickness=1, parent=self.marker_node)
+            dpg.draw_line([cx, cy - ms], [cx, cy + ms], color=[0, 255, 255, 200], thickness=1, parent=self.marker_node)
+            dpg.draw_text([cx + 4, cy - 18], "Center", color=[0, 255, 255, 200], size=13, parent=self.marker_node)
 
             # 3. Image Origin 0,0 (Green)
-            dpg.draw_circle([x1, y1], 4, color=[0, 255, 0, 200], fill=[0, 255, 0, 200], parent=self.tag)
-            dpg.draw_text([x1 + 4, y1 + 4], "Origin (0,0)", color=[0, 255, 0, 200], size=13, parent=self.tag)
+            dpg.draw_circle([x1, y1], 4, color=[0, 255, 0, 200], fill=[0, 255, 0, 200], parent=self.marker_node)
+            dpg.draw_text([x1 + 4, y1 + 4], "Origin (0,0)", color=[0, 255, 0, 200], size=13, parent=self.marker_node)
 
     def set_zoom(self, delta):
         self.zoom = max(0.1, self.zoom + delta)
