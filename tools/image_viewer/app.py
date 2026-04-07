@@ -124,7 +124,9 @@ class ImageViewerApp:
 
         buffer = None
         if resource.schema and "BAM" in resource.schema.name:  # Handles BAM and BAM_V2
-            buffer = self.bam_decoder.decode_frame(resource, 0)
+            # For BAM V2, we need to provide a PVRZ page provider
+            pvrz_provider = self._get_pvrz_page_provider(game) if resource.schema.name == 'BAM_V2' else None
+            buffer = self.bam_decoder.decode_frame(resource, 0, pvrz_page_provider=pvrz_provider)
         elif restype == "PVRZ":
             buffer = self.pvrz_decoder.decode_pvrz_bytes(resource._original_bytes)
         elif restype == "TIS":
@@ -146,6 +148,49 @@ class ImageViewerApp:
         resrefs = {resref for resref, restype, _ in self.loader.iter_resources(game=game) if restype == target_type}
         self.all_resrefs = sorted(list(resrefs))
         self._filter_list()
+
+    def _get_pvrz_page_provider(self, game):
+        """
+        Returns a callable that loads raw PVRZ page bytes by index.
+        Used for BAM V2 frames that reference PVRZ pages.
+        The decoder expects raw bytes, not decoded images.
+        """
+        # Debug: list available PVRZ resources for this game
+        available_pvrz = set()
+        for resref, restype, _ in self.loader.iter_resources(game=game):
+            if restype == "PVRZ":
+                available_pvrz.add(resref)
+        print(f"DEBUG: Available PVRZ resources for {game}: {sorted(available_pvrz)[:10]}...")  # Show first 10
+        
+        def load_pvrz_page(page_index):
+            try:
+                # Try different naming conventions
+                attempts = [
+                    f"PVRZ{page_index:03d}",  # PVRZ010
+                    f"PVRZ{page_index:04d}",  # PVRZ0010
+                    f"pvrz{page_index:03d}",  # lowercase
+                ]
+                
+                for resref in attempts:
+                    if resref in available_pvrz:
+                        print(f"DEBUG: Found PVRZ page {page_index} as {resref}")
+                        resource = self.loader.load(resref=resref, restype="PVRZ", game=game)
+                        if resource:
+                            return resource._original_bytes
+                
+                # If none found, try loading anyway (in case list is incomplete)
+                resource = self.loader.load(resref=f"PVRZ{page_index:03d}", restype="PVRZ", game=game)
+                if resource:
+                    print(f"DEBUG: Successfully loaded PVRZ{page_index:03d}")
+                    return resource._original_bytes
+                else:
+                    print(f"DEBUG: Failed to load PVRZ page {page_index} (tried: {attempts})")
+                    return None
+            except Exception as e:
+                print(f"DEBUG: Error loading PVRZ page {page_index}: {e}")
+                return None
+        
+        return load_pvrz_page
 
     def _filter_list(self):
         filter_text = dpg.get_value(self.filter_input).upper()
