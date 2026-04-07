@@ -86,6 +86,7 @@ cycle_entries:
     type: word
     size: 2
     offset: 0x0000
+    
   - name: start_index_frame_entries
     type: word
     size: 2
@@ -98,21 +99,27 @@ data_blocks:
   - name: pvrz_page
     type: dword
     size: 4
+
   - name: source_x
     type: dword
     size: 4
+
   - name: source_y
     type: dword
     size: 4
+
   - name: width
     type: dword
     size: 4
+
   - name: height
     type: dword
     size: 4
+
   - name: target_x
     type: sdword
     size: 4
+
   - name: target_y
     type: sdword
     size: 4

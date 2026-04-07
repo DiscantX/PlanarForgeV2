@@ -216,12 +216,21 @@ class BamDecoder:
         Helper to resolve frame indices for a specific animation cycle.
         """
         cycles = resource.get_section('cycle_entries')
-        lookup = resource.get_section('frame_lookup_table')
-        if cycle_index >= len(cycles):
+        if not cycles or cycle_index >= len(cycles):
             return []
             
         cycle = cycles[cycle_index]
-        start = cycle['index_into_lookup_table']
-        count = cycle['count_of_frame_indices']
         
-        return [lookup[i]['frame_index'] for i in range(start, start + count)]
+        if resource.schema and resource.schema.name == 'BAM_V2':
+            # BAM V2 cycles point directly to a range of frame entries
+            start = cycle.get('start_index_frame_entries', 0)
+            count = cycle.get('count_of_frame_entries', 0)
+            return [i for i in range(start, start + count)]
+        else:
+            # BAM V1 uses a lookup table
+            lookup = resource.get_section('frame_lookup_table')
+            if not lookup: return []
+            
+            start = cycle.get('index_into_lookup_table', 0)
+            count = cycle.get('count_of_frame_indices', 0)
+            return [lookup[i]['frame_index'] for i in range(start, start + count) if i < len(lookup)]
