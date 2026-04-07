@@ -89,6 +89,8 @@ class ImageViewerApp:
 
             self.filter_empty_frames = dpg.add_checkbox(label="Filter empty frames", default_value=False, callback=self._on_filter_toggle)
 
+            self.preserve_frame_toggle = dpg.add_checkbox(label="Preserve frame on cycle", default_value=False)
+
             dpg.add_combo(label="Alignment", items=["Top-Left", "Center", "Pivot"], default_value="Pivot",
                          callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw())
 
@@ -259,7 +261,8 @@ class ImageViewerApp:
                     break
             
         self.current_cycle = new_cycle
-        self.current_frame_idx = 0
+        if not dpg.get_value(self.preserve_frame_toggle):
+            self.current_frame_idx = 0
         self._update_display()
 
     def _change_frame(self, delta=0, absolute=None):
