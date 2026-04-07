@@ -23,6 +23,10 @@ class ImageViewerApp:
         self.tis_decoder = TisDecoder()
         
         self.current_resource = None
+        self.current_resref = None
+        self.filtered_resrefs = []
+        self.selectable_tags = {}  # resref -> tag
+        self.last_selected_tag = None
         self.current_cycle = 0
         self.current_frame_idx = 0  # Index within the current cycle's frame list
         self.is_playing = False
@@ -64,21 +68,14 @@ class ImageViewerApp:
             dpg.add_separator()
             dpg.add_text("Resource Browser")
             self.filter_input = dpg.add_input_text(label="Filter", callback=self._filter_list)
-            self.resource_list = dpg.add_listbox(
-                label="##res_list", 
-                items=[], 
-                num_items=15, 
-                width=-1,
-                callback=self._on_list_selection
-            )
-            dpg.focus_item(self.resource_list)
+            with dpg.child_window(tag="resource_list_container", height=300):
+                self.resource_list_layout = dpg.add_group(tag="resource_list_layout")
 
             self.resref_input = dpg.add_input_text(label="ResRef", default_value="GMISC01", readonly=True)
 
             # Metadata info
             dpg.add_separator()
             self.info_text = dpg.add_text("No resource loaded")
-            self.frame_info_text = dpg.add_text("")
             
             dpg.add_separator()
             self.zoom_slider = dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
@@ -118,6 +115,7 @@ class ImageViewerApp:
                         self.frame_text = dpg.add_text("Frame 0 of 0")
                         dpg.add_button(label=">", callback=lambda: self._change_frame(delta=1))
                         dpg.add_button(label=">>", callback=lambda: self._change_frame(absolute=999))
+                    self.frame_info_text = dpg.add_text("")
                 
                 # Animation Controls
                 with dpg.group():
@@ -125,17 +123,14 @@ class ImageViewerApp:
                     with dpg.group(horizontal=True):
                         self.play_button = dpg.add_button(label="Play", width=80, callback=self._toggle_animation)
                         self.fps_input = dpg.add_input_int(label="FPS", default_value=10, width=80)
-
-    def _on_list_selection(self, sender, app_data):
-        dpg.set_value(self.resref_input, app_data)
-        self._load_resource()
+                    self.filter_1px = dpg.add_checkbox(label="Filter 1px Frames", default_value=False, callback=self._update_display)
 
     def _on_viewport_resize(self):
         """Update UI layout when the main window resizes."""
         vw = dpg.get_viewport_width()
         vh = dpg.get_viewport_height()
         cw = 300 # Fixed width for controls
-        bh = 100 if dpg.is_item_shown("bottom_window") else 0
+        bh = 140 if dpg.is_item_shown("bottom_window") else 0
         
         dpg.configure_item("controls_window", height=vh)
         
@@ -172,55 +167,116 @@ class ImageViewerApp:
                 self._toggle_animation()
             return # Intercepted; don't trigger list navigation
 
-        current_items = dpg.get_item_configuration(self.resource_list)['items']
-        if not current_items:
+        if not self.filtered_resrefs:
             return
         
-        current_value = dpg.get_value(self.resource_list)
         try:
-            current_index = current_items.index(current_value) if current_value else 0
+            current_index = self.filtered_resrefs.index(self.current_resref) if self.current_resref else 0
         except ValueError:
             current_index = 0
         
         # app_data contains the key code
         if app_data == dpg.mvKey_Up:
             new_index = max(0, current_index - 1)
-            dpg.set_value(self.resource_list, current_items[new_index])
-            self._on_list_selection(None, current_items[new_index])
         elif app_data == dpg.mvKey_Down:
-            new_index = min(len(current_items) - 1, current_index + 1)
-            dpg.set_value(self.resource_list, current_items[new_index])
-            self._on_list_selection(None, current_items[new_index])
+            new_index = min(len(self.filtered_resrefs) - 1, current_index + 1)
+        else:
+            return
+
+        new_resref = self.filtered_resrefs[new_index]
+        self._on_list_selection(None, new_resref)
+
+        # Smart scroll: ensure the item is visible in the container
+        # Selectables are 19 pixels high by default in DPG
+        item_height = 19
+        curr_scroll = dpg.get_y_scroll("resource_list_container")
+        window_height = dpg.get_item_height("resource_list_container")
+        
+        item_top = new_index * item_height
+        item_bottom = item_top + item_height
+        
+        if item_top < curr_scroll:
+            dpg.set_y_scroll("resource_list_container", item_top)
+        elif item_bottom > curr_scroll + window_height:
+            dpg.set_y_scroll("resource_list_container", item_bottom - window_height)
 
     def _toggle_animation(self):
         self.is_playing = not self.is_playing
         dpg.configure_item(self.play_button, label="Stop" if self.is_playing else "Play")
 
+    def _get_filtered_cycle_frames(self, cycle_idx):
+        """Returns the list of frame indices for a cycle, optionally filtered for 1px frames."""
+        if not self.current_resource: return []
+        all_frames = self.bam_decoder.get_cycle_frames(self.current_resource, cycle_idx)
+        if not dpg.get_value(self.filter_1px):
+            return all_frames
+            
+        frame_entries = self.current_resource.get_section('frame_entries')
+        return [i for i in all_frames if frame_entries[i]['width'] > 1 or frame_entries[i]['height'] > 1]
+
     def _change_cycle(self, delta=0, absolute=None):
         if not self.current_resource: return
-        count = len(self.current_resource.get_section('cycle_entries') or [])
+        cycles = self.current_resource.get_section('cycle_entries') or []
+        count = len(cycles)
         if count == 0: return
         
+        new_cycle = self.current_cycle
         if absolute is not None:
-            self.current_cycle = max(0, min(absolute, count - 1))
-        else:
-            self.current_cycle = (self.current_cycle + delta) % count
+            if absolute == 0: # First
+                indices = range(count)
+            elif absolute == 999: # Final
+                indices = range(count - 1, -1, -1)
+            else: # Specific
+                indices = [absolute]
             
+            for i in indices:
+                if self._get_filtered_cycle_frames(i):
+                    new_cycle = i
+                    break
+        else:
+            step = 1 if delta >= 0 else -1
+            # Find next cycle that has at least one valid frame
+            for i in range(1, count + 1):
+                candidate = (self.current_cycle + i * step) % count
+                if self._get_filtered_cycle_frames(candidate):
+                    new_cycle = candidate
+                    break
+            
+        self.current_cycle = new_cycle
         self.current_frame_idx = 0
         self._update_display()
 
     def _change_frame(self, delta=0, absolute=None):
         if not self.current_resource: return
-        frames = self.bam_decoder.get_cycle_frames(self.current_resource, self.current_cycle)
-        count = len(frames)
+        valid_frames = self._get_filtered_cycle_frames(self.current_cycle)
+        count = len(valid_frames)
         if count == 0: return
         
         if absolute is not None:
-            self.current_frame_idx = max(0, min(absolute, count - 1))
+            if absolute == 999:
+                self.current_frame_idx = count - 1
+            else:
+                self.current_frame_idx = max(0, min(absolute, count - 1))
         else:
             self.current_frame_idx = (self.current_frame_idx + delta) % count
             
         self._update_display()
+
+    def _on_list_selection(self, sender, app_data):
+        self.current_resref = app_data
+        dpg.set_value(self.resref_input, app_data)
+        
+        # Clear last highlight
+        if self.last_selected_tag and dpg.does_item_exist(self.last_selected_tag):
+            dpg.set_value(self.last_selected_tag, False)
+            
+        # Set new highlight
+        tag = self.selectable_tags.get(app_data)
+        if tag and dpg.does_item_exist(tag):
+            dpg.set_value(tag, True)
+            self.last_selected_tag = tag
+            
+        self._load_resource()
 
     def _load_resource(self):
         resref = dpg.get_value(self.resref_input)
@@ -233,12 +289,21 @@ class ImageViewerApp:
             return
 
         self.current_resource = resource
-        self.current_cycle = 0
-        self.current_frame_idx = 0
         self.is_playing = False
         dpg.configure_item(self.play_button, label="Play")
 
         is_bam = resource.schema and "BAM" in resource.schema.name
+        
+        # Initialize navigation to the first valid cycle
+        self.current_cycle = 0
+        if is_bam:
+            count = len(resource.get_section('cycle_entries') or [])
+            for i in range(count):
+                if self._get_filtered_cycle_frames(i):
+                    self.current_cycle = i
+                    break
+        self.current_frame_idx = 0
+
         dpg.configure_item("bottom_window", show=is_bam)
         self._on_viewport_resize()
         
@@ -260,7 +325,7 @@ class ImageViewerApp:
         buffer = None
         
         if resource.schema and "BAM" in resource.schema.name:  # Handles BAM and BAM_V2
-            cycle_frames = self.bam_decoder.get_cycle_frames(resource, self.current_cycle)
+            cycle_frames = self._get_filtered_cycle_frames(self.current_cycle)
             if not cycle_frames:
                 # Fallback if cycle is empty or invalid
                 real_frame_index = 0
@@ -328,15 +393,28 @@ class ImageViewerApp:
 
     def _filter_list(self):
         filter_text = dpg.get_value(self.filter_input).upper()
-        filtered = [r for r in self.all_resrefs if filter_text in r]
-        dpg.configure_item(self.resource_list, items=filtered)
-        if filtered:
-            dpg.set_value(self.resource_list, filtered[0])
-            self._on_list_selection(None, filtered[0])
+        self.filtered_resrefs = [r for r in self.all_resrefs if filter_text in r]
+        
+        # Clear and repopulate the scrollable list
+        dpg.delete_item("resource_list_layout", children_only=True)
+        self.selectable_tags = {}
+        self.last_selected_tag = None
+        
+        for resref in self.filtered_resrefs:
+            tag = dpg.add_selectable(
+                label=resref, 
+                parent="resource_list_layout", 
+                callback=lambda s, a, u: self._on_list_selection(s, u),
+                user_data=resref
+            )
+            self.selectable_tags[resref] = tag
+            
+        if self.filtered_resrefs:
+            self._on_list_selection(None, self.filtered_resrefs[0])
+            dpg.set_y_scroll("resource_list_container", 0)
 
     def run(self):
         dpg.focus_item("controls_window")
-        dpg.focus_item(self.resource_list)
         while dpg.is_dearpygui_running():
             if self.is_playing and self.current_resource:
                 fps = dpg.get_value(self.fps_input)
