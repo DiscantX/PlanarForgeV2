@@ -33,9 +33,10 @@ class ImageViewerApp:
         self.canvas = PFCanvas(app=self)
         self._setup_ui()
 
+        dpg.create_viewport(title="PlanarForgeV2 - Image Viewer", width=1200, height=800)
+
         self._refresh_resource_list()
 
-        dpg.create_viewport(title="PlanarForgeV2 - Image Viewer", width=1200, height=800)
         dpg.set_viewport_resize_callback(self._on_viewport_resize)
         dpg.setup_dearpygui()
         dpg.show_viewport()
@@ -73,30 +74,6 @@ class ImageViewerApp:
             dpg.focus_item(self.resource_list)
 
             self.resref_input = dpg.add_input_text(label="ResRef", default_value="GMISC01", readonly=True)
-            dpg.add_button(label="Load Resource", callback=self._load_resource)
-            
-            # BAM Animation Controls
-            with dpg.group(tag="bam_controls", show=False):
-                dpg.add_separator()
-                dpg.add_text("Cycle Controls")
-                with dpg.group(horizontal=True):
-                    dpg.add_button(label="<<", callback=lambda: self._change_cycle(absolute=0))
-                    dpg.add_button(label="<", callback=lambda: self._change_cycle(delta=-1))
-                    self.cycle_text = dpg.add_text("Cycle 0 of 0")
-                    dpg.add_button(label=">", callback=lambda: self._change_cycle(delta=1))
-                    dpg.add_button(label=">>", callback=lambda: self._change_cycle(absolute=999))
-                
-                dpg.add_text("Frame Controls")
-                with dpg.group(horizontal=True):
-                    dpg.add_button(label="<<", callback=lambda: self._change_frame(absolute=0))
-                    dpg.add_button(label="<", callback=lambda: self._change_frame(delta=-1))
-                    self.frame_text = dpg.add_text("Frame 0 of 0")
-                    dpg.add_button(label=">", callback=lambda: self._change_frame(delta=1))
-                    dpg.add_button(label=">>", callback=lambda: self._change_frame(absolute=999))
-                
-                with dpg.group(horizontal=True):
-                    self.play_button = dpg.add_button(label="Play", width=100, callback=self._toggle_animation)
-                    self.fps_input = dpg.add_input_int(label="FPS", default_value=10, width=100)
 
             # Metadata info
             dpg.add_separator()
@@ -110,7 +87,7 @@ class ImageViewerApp:
             dpg.add_checkbox(label="Show Red Border", default_value=True, 
                             callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
             
-            dpg.add_combo(label="Alignment", items=["Top-Left", "Center"], default_value="Top-Left",
+            dpg.add_combo(label="Alignment", items=["Top-Left", "Center"], default_value="Center",
                          callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw())
 
         with dpg.window(label="Canvas", tag="canvas_window", pos=[305, 0], width=895, height=800, no_scrollbar=True):
@@ -118,6 +95,36 @@ class ImageViewerApp:
             with dpg.handler_registry():
                 dpg.add_mouse_wheel_handler(callback=self._on_mouse_wheel)
                 dpg.add_key_press_handler(callback=self._on_key_press)
+
+        # Bottom Panel for BAM Controls
+        with dpg.window(tag="bottom_window", show=False, no_title_bar=True, no_move=True, no_resize=True, no_scrollbar=True):
+            with dpg.group(horizontal=True, horizontal_spacing=50):
+                # Cycle Controls
+                with dpg.group():
+                    dpg.add_text("Cycle")
+                    with dpg.group(horizontal=True):
+                        dpg.add_button(label="<<", callback=lambda: self._change_cycle(absolute=0))
+                        dpg.add_button(label="<", callback=lambda: self._change_cycle(delta=-1))
+                        self.cycle_text = dpg.add_text("Cycle 0 of 0")
+                        dpg.add_button(label=">", callback=lambda: self._change_cycle(delta=1))
+                        dpg.add_button(label=">>", callback=lambda: self._change_cycle(absolute=999))
+                
+                # Frame Controls
+                with dpg.group():
+                    dpg.add_text("Frame")
+                    with dpg.group(horizontal=True):
+                        dpg.add_button(label="<<", callback=lambda: self._change_frame(absolute=0))
+                        dpg.add_button(label="<", callback=lambda: self._change_frame(delta=-1))
+                        self.frame_text = dpg.add_text("Frame 0 of 0")
+                        dpg.add_button(label=">", callback=lambda: self._change_frame(delta=1))
+                        dpg.add_button(label=">>", callback=lambda: self._change_frame(absolute=999))
+                
+                # Animation Controls
+                with dpg.group():
+                    dpg.add_text("Playback")
+                    with dpg.group(horizontal=True):
+                        self.play_button = dpg.add_button(label="Play", width=80, callback=self._toggle_animation)
+                        self.fps_input = dpg.add_input_int(label="FPS", default_value=10, width=80)
 
     def _on_list_selection(self, sender, app_data):
         dpg.set_value(self.resref_input, app_data)
@@ -128,13 +135,17 @@ class ImageViewerApp:
         vw = dpg.get_viewport_width()
         vh = dpg.get_viewport_height()
         cw = 300 # Fixed width for controls
+        bh = 100 if dpg.is_item_shown("bottom_window") else 0
         
         dpg.configure_item("controls_window", height=vh)
         
         if dpg.does_item_exist("canvas_window"):
-            # Adjust canvas window to fill remaining width
-            dpg.configure_item("canvas_window", pos=[cw + 5, 0], width=vw - cw - 20, height=vh)
-            dpg.configure_item("image_canvas", width=vw - cw - 40, height=vh - 40)
+            # Adjust canvas window to fill remaining width and account for bottom panel
+            dpg.configure_item("canvas_window", pos=[cw + 5, 0], width=vw - cw - 20, height=vh - bh)
+            dpg.configure_item("image_canvas", width=vw - cw - 40, height=vh - bh - 40)
+            
+        if dpg.does_item_exist("bottom_window"):
+            dpg.configure_item("bottom_window", pos=[cw + 5, vh - bh], width=vw - cw - 20, height=bh)
         
         if hasattr(self, 'canvas'):
             self.canvas._redraw()
@@ -213,7 +224,8 @@ class ImageViewerApp:
         dpg.configure_item(self.play_button, label="Play")
 
         is_bam = resource.schema and "BAM" in resource.schema.name
-        dpg.configure_item("bam_controls", show=is_bam)
+        dpg.configure_item("bottom_window", show=is_bam)
+        self._on_viewport_resize()
         
         if is_bam:
             cycles = resource.get_section('cycle_entries') or []
