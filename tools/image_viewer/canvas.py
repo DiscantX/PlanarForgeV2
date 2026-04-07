@@ -14,16 +14,22 @@ class PFCanvas:
         self.current_texture_width = 0
         self.current_texture_height = 0
         self.show_border = True
-        self.alignment = "Center"
+        self.show_markers = False
+        self.alignment = "Pivot"
+        self.pivot_x = 0
+        self.pivot_y = 0
         
         # Create a single, persistent registry for the canvas
         with dpg.texture_registry(tag=self.registry_tag):
             pass
 
-    def update_texture(self, rgba_buffer: np.ndarray):
+    def update_texture(self, rgba_buffer: np.ndarray, pivot_x=0, pivot_y=0):
         """Uploads a NumPy RGBA buffer to the GPU."""
         height, width, _ = rgba_buffer.shape
         
+        self.pivot_x = pivot_x
+        self.pivot_y = pivot_y
+
         # DPG dynamic textures require a flat float32 list (0.0 to 1.0)
         flat_buffer = (rgba_buffer.astype(np.float32).flatten() / 255.0).tolist()
         
@@ -74,6 +80,9 @@ class PFCanvas:
         if self.alignment == "Center":
             x1 = (canvas_width - image_width) / 2
             y1 = (canvas_height - image_height) / 2
+        elif self.alignment == "Pivot":
+            x1 = (canvas_width / 2) - (self.pivot_x * self.zoom)
+            y1 = (canvas_height / 2) - (self.pivot_y * self.zoom)
         else:  # Top-Left
             x1, y1 = self.offset[0], self.offset[1]
         
@@ -91,6 +100,28 @@ class PFCanvas:
         # Draw red border if enabled
         if self.show_border:
             dpg.draw_rectangle([x1, y1], [x2, y2], color=[255, 0, 0, 255], thickness=2, parent=self.tag)
+
+        if self.show_markers:
+            # Marker size (crosshair half-length)
+            ms = 15
+            
+            # 1. Pivot Point (Yellow)
+            px = x1 + (self.pivot_x * self.zoom)
+            py = y1 + (self.pivot_y * self.zoom)
+            dpg.draw_line([px - ms, py], [px + ms, py], color=[255, 255, 0, 200], thickness=1, parent=self.tag)
+            dpg.draw_line([px, py - ms], [px, py + ms], color=[255, 255, 0, 200], thickness=1, parent=self.tag)
+            dpg.draw_text([px + 4, py + 4], "Pivot", color=[255, 255, 0, 200], size=13, parent=self.tag)
+
+            # 2. Image Center (Cyan)
+            cx = x1 + image_width / 2
+            cy = y1 + image_height / 2
+            dpg.draw_line([cx - ms, cy], [cx + ms, cy], color=[0, 255, 255, 200], thickness=1, parent=self.tag)
+            dpg.draw_line([cx, cy - ms], [cx, cy + ms], color=[0, 255, 255, 200], thickness=1, parent=self.tag)
+            dpg.draw_text([cx + 4, cy - 18], "Center", color=[0, 255, 255, 200], size=13, parent=self.tag)
+
+            # 3. Image Origin 0,0 (Green)
+            dpg.draw_circle([x1, y1], 4, color=[0, 255, 0, 200], fill=[0, 255, 0, 200], parent=self.tag)
+            dpg.draw_text([x1 + 4, y1 + 4], "Origin (0,0)", color=[0, 255, 0, 200], size=13, parent=self.tag)
 
     def set_zoom(self, delta):
         self.zoom = max(0.1, self.zoom + delta)
