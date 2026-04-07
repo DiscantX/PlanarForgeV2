@@ -42,6 +42,7 @@ class Section:
         fields,
         offset_field=None,
         count_field=None,
+        count=None,
         promote=False,
         count_expr=None,
         offset_from=None,
@@ -51,6 +52,7 @@ class Section:
         self.fields       = fields
         self.offset_field = offset_field
         self.count_field  = count_field
+        self.count        = count
         # --- WED extensions ---
         self.promote       = promote        # merge fields into resource.values after parse
         self.count_expr    = count_expr     # declarative count derivation from another section
@@ -185,6 +187,7 @@ class SchemaLoader:
                     fields,
                     offset_field  = value.get("offset_field"),
                     count_field   = value.get("count_field"),
+                    count         = value.get("count"),
                     promote       = bool(value.get("promote", False)),
                     count_expr    = value.get("count_expr"),
                     offset_from   = value.get("offset_from"),
