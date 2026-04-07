@@ -1,0 +1,117 @@
+name: BAM
+version: V1
+games: [BG1, BG2, IWD, IWD2, PST, BGEE, BG2EE, IWDEE, PSTEE]
+
+header:
+  fields:
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: count_of_frame_entries
+    type: word
+    size: 2
+    offset: 0x0008
+
+  - name: count_of_cycles
+    type: byte
+    size: 1
+    offset: 0x000a
+
+  - name: rle_compressed_color_index
+    type: byte
+    size: 1
+    offset: 0x000b
+
+  - name: offset_to_frame_entries
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: offset_to_palette
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: offset_to_frame_lookup_table
+    type: dword
+    size: 4
+    offset: 0x0014
+
+  # Computed offset for cycles as they immediately follow frame entries (12 bytes per frame)
+  - name: offset_to_cycle_entries
+    type: computed
+    expr: "offset_to_frame_entries + (count_of_frame_entries * 12)"
+    size: 0
+
+frame_entries:
+  offset_field: offset_to_frame_entries
+  count_field: count_of_frame_entries
+  fields:
+  - name: width
+    type: word
+    size: 2
+    offset: 0x0000
+
+  - name: height
+    type: word
+    size: 2
+    offset: 0x0002
+
+  - name: center_x
+    type: sword
+    size: 2
+    offset: 0x0004
+
+  - name: center_y
+    type: sword
+    size: 2
+    offset: 0x0006
+
+  - name: frame_data_info
+    type: bitfield
+    bitfields:
+      offset: { shift: 0, mask: 0x7FFFFFFF }
+      is_uncompressed: { shift: 31, mask: 0x1 }
+    size: 4
+    offset: 0x0008
+
+cycle_entries:
+  offset_field: offset_to_cycle_entries
+  count_field: count_of_cycles
+  fields:
+  - name: count_of_frame_indices
+    type: word
+    size: 2
+    offset: 0x0000
+  - name: index_into_lookup_table
+    type: word
+    size: 2
+    offset: 0x0002
+
+palette:
+  offset_field: offset_to_palette
+  count: 256
+  fields:
+  - name: color
+    type: byte_array
+    size: 4
+    labels: [blue, green, red, alpha]
+
+frame_lookup_table:
+  offset_field: offset_to_frame_lookup_table
+  # Parser uses max(cycle.index + cycle.count) to determine the size of this section
+  count_expr:
+    sum:
+      section: cycle_entries
+      field: count_of_frame_indices
+  fields:
+  - name: frame_index
+    type: word
+    size: 2

@@ -1,6 +1,7 @@
 import io
 import sys
 import threading
+import zlib
 from pathlib import Path, PureWindowsPath
 from core.binary.reader import BinaryReader
 from core.binary.parser import BinaryParser
@@ -196,6 +197,18 @@ class ResourceLoader:
             
             if restype == self.default_restype and res_type_code in RESOURCE_TYPE_MAP:
                 restype = RESOURCE_TYPE_MAP[res_type_code]
+
+            # Handle BAMC (Compressed BAM) transparently
+            if raw_bytes.startswith(b'BAMC'):
+                # BAMC V1 Header is 12 bytes: Signature(4), Version(4), UncompressedLength(4)
+                raw_bytes = zlib.decompress(raw_bytes[12:])
+                restype = 'BAM'
+
+            # Handle BAM version detection (V1 vs V2)
+            if restype == 'BAM' and len(raw_bytes) >= 8:
+                version = raw_bytes[4:8].decode("latin-1", errors="ignore").rstrip("\x00")
+                if version == "V2":
+                    restype = 'BAM_V2'
 
             # Get the schema for the actual resource type (e.g., ITM, CRE).
             resource_schema = self._resolve_resource_schema(restype, game, raw_bytes=raw_bytes, schema=schema)
