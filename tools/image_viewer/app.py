@@ -10,6 +10,7 @@ if str(project_root) not in sys.path:
 import dearpygui.dearpygui as dpg
 from drivers.InfinityEngine.resource_loader import ResourceLoader
 from drivers.InfinityEngine.graphics.bam_decoder import BamDecoder
+from drivers.InfinityEngine.graphics.pvrz_decoder import PvrzDecoder
 from drivers.InfinityEngine.graphics.tis_decoder import TisDecoder
 from canvas import PFCanvas
 
@@ -17,6 +18,7 @@ class ImageViewerApp:
     def __init__(self):
         self.loader = ResourceLoader()
         self.bam_decoder = BamDecoder()
+        self.pvrz_decoder = PvrzDecoder()
         self.tis_decoder = TisDecoder()
         self.all_resrefs = []
         
@@ -43,7 +45,7 @@ class ImageViewerApp:
 
             self.restype_input = dpg.add_combo(
                 label="Type", 
-                items=["BAM", "TIS"], 
+                items=["BAM", "TIS", "PVRZ"], 
                 default_value="BAM",
                 callback=self._refresh_resource_list
             )
@@ -84,8 +86,10 @@ class ImageViewerApp:
             return
 
         buffer = None
-        if "BAM" in resource.schema.name: # Handles BAM and BAM_V2
+        if resource.schema and "BAM" in resource.schema.name:  # Handles BAM and BAM_V2
             buffer = self.bam_decoder.decode_frame(resource, 0)
+        elif restype == "PVRZ":
+            buffer = self.pvrz_decoder.decode_pvrz_bytes(resource._original_bytes)
         elif restype == "TIS":
             # For TIS, we need a palette. We'll try to find a BAM with the same name or use default.
             pal_res = self.loader.load(resref=resref, restype="BAM", game=game)

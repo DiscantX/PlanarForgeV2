@@ -1,5 +1,6 @@
 import numpy as np
 from core.resource import Resource
+from .pvrz_decoder import PvrzDecoder
 
 class BamDecoder:
     """
@@ -17,29 +18,35 @@ class BamDecoder:
             return np.zeros((256, 4), dtype=np.uint8)
 
         # IE BAM V1 palettes are logically 256 entries.
-        # We initialize as opaque (Alpha = 255) because classic BAMs 
-        # usually have 0 in the alpha channel, which modern RGBA treats as transparent.
+        # We initialize as opaque (Alpha = 255) and treat the transparent index
+        # explicitly by palette convention rather than raw alpha.
         palette = np.zeros((256, 4), dtype=np.uint8)
         palette[:, 3] = 255
-        
+
         # Fill available colors from the parsed resource (BGRA)
         for i, entry in enumerate(palette_data):
-            if i >= 256: break
+            if i >= 256:
+                break
             palette[i, 0:3] = entry['color'][0:3]
 
-        # IE Transparency: First occurrence of (0, 255, 0) is transparent.
-        # We set its Alpha channel to 0.
+        transparent_index = None
         for i in range(min(256, len(palette_data))):
-            if palette[i, 0] == 0 and palette[i, 1] == 255 and palette[i, 2] == 0:
-                palette[i, 3] = 0
+            raw_color = palette_data[i]['color']
+            if len(raw_color) >= 3 and raw_color[0] == 0 and raw_color[1] == 255 and raw_color[2] == 0:
+                transparent_index = i
                 break
-        
-        # Special case: Alpha is often only used in EE. 
-        # Standard BAMs usually have 0 in the alpha channel which means opaque in modern RGBA.
-        # We ensure opaque if alpha wasn't explicitly set by transparency or EE rules.
-        # However, for now we stick to the 0,255,0 rule.
-        
-        # Convert BGRA to RGBA for modern GPU compatibility
+
+        # BGEE and other modern BAMs may store a transparent first palette entry
+        # without using the classic green marker. If index 0 has alpha 0 and no
+        # explicit green transparency marker exists, treat it as transparent.
+        if transparent_index is None and palette_data:
+            first_alpha = palette_data[0]['color'][3] if len(palette_data[0]['color']) > 3 else 255
+            if first_alpha == 0:
+                transparent_index = 0
+
+        if transparent_index is not None:
+            palette[transparent_index, 3] = 0
+
         rgba_palette = palette[:, [2, 1, 0, 3]]
         
         # DEBUG: Check how many colors are non-transparent
@@ -47,7 +54,7 @@ class BamDecoder:
         print(f"DEBUG: Palette extracted. Total colors: {len(rgba_palette)}, Non-transparent: {non_transparent}")
         return rgba_palette
 
-    def decode_frame(self, resource: Resource, frame_index: int):
+    def decode_frame(self, resource: Resource, frame_index: int, pvrz_page_provider=None):
         """
         Decompresses a specific frame and returns a NumPy RGBA buffer.
         """
@@ -59,7 +66,10 @@ class BamDecoder:
         width = frame['width']
         height = frame['height']
         print(f"DEBUG: Decoding Frame {frame_index} ({width}x{height})")
-        
+
+        if (resource.schema and resource.schema.name == 'BAM_V2') or ('start_index_data_blocks' in frame):
+            return self._decode_v2_frame(resource, frame_index, pvrz_page_provider=pvrz_page_provider)
+
         # frame_data_info is a bitfield (offset: 31 bits, is_uncompressed: 1 bit)
         info = frame['frame_data_info']
         data_offset = info['offset']
@@ -107,6 +117,73 @@ class BamDecoder:
                 output.append(byte)
                 
         return np.frombuffer(output[:expected_size], dtype=np.uint8)
+
+    def _decode_v2_frame(self, resource: Resource, frame_index: int, pvrz_page_provider=None):
+        """
+        Decode BAM V2 frames from page-based PVRZ data when available.
+        If no page provider is supplied, return a transparent placeholder.
+        """
+        frames = resource.get_section('frame_entries')
+        if frame_index >= len(frames):
+            return None
+
+        frame = frames[frame_index]
+        width = frame['width']
+        height = frame['height']
+        canvas = np.zeros((height, width, 4), dtype=np.uint8)
+
+        data_blocks = resource.get_section('data_blocks') or []
+        start = frame.get('start_index_data_blocks', 0)
+        count = frame.get('count_data_blocks', 0)
+
+        if count <= 0 or start < 0 or start >= len(data_blocks):
+            print(f"DEBUG: BAM_V2 frame {frame_index} has no data blocks; returning transparent placeholder")
+            return canvas
+
+        page_decoder = pvrz_page_provider if pvrz_page_provider is not None else None
+        if hasattr(resource, 'pvrz_page_provider') and callable(resource.pvrz_page_provider):
+            page_decoder = resource.pvrz_page_provider
+
+        drawn = False
+        for block in data_blocks[start:start + count]:
+            page_index = block.get('pvrz_page')
+            source_x = block.get('source_x', 0)
+            source_y = block.get('source_y', 0)
+            block_width = block.get('width', 0)
+            block_height = block.get('height', 0)
+            target_x = block.get('target_x', 0)
+            target_y = block.get('target_y', 0)
+
+            if page_decoder is None or page_index is None:
+                continue
+
+            page_bytes = page_decoder(page_index)
+            if page_bytes is None:
+                continue
+
+            try:
+                page_image = PvrzDecoder.decode_pvrz_bytes(page_bytes)
+            except Exception as exc:
+                print(f"DEBUG: Failed to decode PVRZ page {page_index} for BAM_V2 frame {frame_index}: {exc}")
+                continue
+
+            block_image = page_image[
+                source_y:source_y + block_height,
+                source_x:source_x + block_width,
+            ]
+
+            if block_image.size == 0:
+                continue
+
+            target_end_y = min(target_y + block_image.shape[0], height)
+            target_end_x = min(target_x + block_image.shape[1], width)
+            canvas[target_y:target_end_y, target_x:target_end_x] = block_image[: target_end_y - target_y, : target_end_x - target_x]
+            drawn = True
+
+        if not drawn:
+            print(f"DEBUG: BAM_V2 frame {frame_index} could not resolve any PVRZ page blocks; returning transparent placeholder")
+
+        return canvas
 
     def get_cycle_frames(self, resource: Resource, cycle_index: int):
         """
