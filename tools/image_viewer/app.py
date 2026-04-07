@@ -67,7 +67,7 @@ class ImageViewerApp:
                                 callback=lambda s, v: self.canvas.set_zoom(v - self.canvas.zoom))
 
         with dpg.window(label="Canvas", pos=[305, 0], width=895, height=800, no_scrollbar=True):
-            dpg.add_drawlist(tag="image_canvas", width=-1, height=-1)
+            dpg.add_drawlist(tag="image_canvas", width=875, height=760)
 
     def _on_list_selection(self, sender, app_data):
         dpg.set_value(self.resref_input, app_data)
