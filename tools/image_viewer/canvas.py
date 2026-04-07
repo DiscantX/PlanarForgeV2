@@ -14,7 +14,7 @@ class PFCanvas:
         self.current_texture_width = 0
         self.current_texture_height = 0
         self.show_border = True
-        self.alignment = "Top-Left"
+        self.alignment = "Center"
         
         # Create a single, persistent registry for the canvas
         with dpg.texture_registry(tag=self.registry_tag):
