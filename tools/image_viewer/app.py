@@ -91,6 +91,8 @@ class ImageViewerApp:
 
             self.preserve_frame_toggle = dpg.add_checkbox(label="Preserve frame on cycle", default_value=False)
 
+            self.autoplay_toggle = dpg.add_checkbox(label="Autoplay", default_value=False)
+
             dpg.add_combo(label="Alignment", items=["Pivot", "Center", "Top-Left", "Top-Center", "Top-Right", "Left-Center", "Right-Center", "Bottom-Left", "Bottom-Center", "Bottom-Right"], default_value="Pivot",
                          callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw())
 
@@ -308,11 +310,10 @@ class ImageViewerApp:
             return
 
         self.current_resource = resource
-        self.is_playing = False
-        dpg.configure_item(self.play_button, label="Play")
-
         is_bam = resource.schema and "BAM" in resource.schema.name
-        
+        self.is_playing = dpg.get_value(self.autoplay_toggle) if is_bam else False
+        dpg.configure_item(self.play_button, label="Stop" if self.is_playing else "Play")
+
         # Initialize navigation to the first valid cycle
         self.current_cycle = 0
         if is_bam:
