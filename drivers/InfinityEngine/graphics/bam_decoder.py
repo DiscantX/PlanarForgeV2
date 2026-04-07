@@ -46,6 +46,9 @@ class BamDecoder:
 
         if transparent_index is not None:
             palette[transparent_index, 3] = 0
+            # Also zero out the RGB channels for the transparent color so GPU interpolation
+            # doesn't bleed green artifacts when scaling/zooming
+            palette[transparent_index, 0:3] = 0
 
         rgba_palette = palette[:, [2, 1, 0, 3]]
         
