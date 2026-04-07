@@ -151,8 +151,7 @@ class ImageViewerApp:
             self.canvas._redraw()
 
     def _on_mouse_wheel(self, sender, app_data):
-        # Only zoom if the resource list is NOT focused
-        if dpg.get_focused_item() != self.resource_list:
+        if dpg.is_item_hovered("canvas_window"):
             self.canvas.on_mouse_wheel(app_data)
 
     def _on_key_press(self, sender, app_data):
