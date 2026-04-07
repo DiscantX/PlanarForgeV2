@@ -23,7 +23,7 @@ class ImageViewerApp:
         self.all_resrefs = []
         
         dpg.create_context()
-        self.canvas = PFCanvas()
+        self.canvas = PFCanvas(app=self)
         self._setup_ui()
 
         self._refresh_resource_list()
@@ -33,7 +33,7 @@ class ImageViewerApp:
         dpg.show_viewport()
 
     def _setup_ui(self):
-        with dpg.window(label="Controls", width=300, height=700, no_close=True):
+        with dpg.window(label="Controls", tag="controls_window", width=300, height=700, no_close=True):
             # Game Selection
             found_games = [g.game_id for g in self.loader.install_finder.find_all()]
             self.game_input = dpg.add_combo(
@@ -60,20 +60,57 @@ class ImageViewerApp:
                 width=-1,
                 callback=self._on_list_selection
             )
+            dpg.focus_item(self.resource_list)
 
             self.resref_input = dpg.add_input_text(label="ResRef", default_value="GMISC01", readonly=True)
             dpg.add_button(label="Load Resource", callback=self._load_resource)
             
             dpg.add_separator()
-            dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
-                                callback=lambda s, v: self.canvas.set_zoom(v - self.canvas.zoom))
+            self.zoom_slider = dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
+                                callback=lambda s, v: self.canvas.set_zoom_absolute(v))
+            
+            dpg.add_checkbox(label="Show Red Border", default_value=True, 
+                            callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
+            
+            dpg.add_combo(label="Alignment", items=["Top-Left", "Center"], default_value="Top-Left",
+                         callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw())
 
         with dpg.window(label="Canvas", pos=[305, 0], width=895, height=800, no_scrollbar=True):
             dpg.add_drawlist(tag="image_canvas", width=875, height=760)
+            with dpg.handler_registry():
+                dpg.add_mouse_wheel_handler(callback=self._on_mouse_wheel)
+                dpg.add_key_press_handler(callback=self._on_key_press)
 
     def _on_list_selection(self, sender, app_data):
         dpg.set_value(self.resref_input, app_data)
         self._load_resource()
+
+    def _on_mouse_wheel(self, sender, app_data):
+        # Only zoom if the resource list is NOT focused
+        if dpg.get_focused_item() != self.resource_list:
+            self.canvas.on_mouse_wheel(app_data)
+
+    def _on_key_press(self, sender, app_data):
+        """Handle keyboard navigation for the resource list."""
+        current_items = dpg.get_item_configuration(self.resource_list)['items']
+        if not current_items:
+            return
+        
+        current_value = dpg.get_value(self.resource_list)
+        try:
+            current_index = current_items.index(current_value) if current_value else 0
+        except ValueError:
+            current_index = 0
+        
+        # app_data contains the key code
+        if app_data == dpg.mvKey_Up:
+            new_index = max(0, current_index - 1)
+            dpg.set_value(self.resource_list, current_items[new_index])
+            self._on_list_selection(None, current_items[new_index])
+        elif app_data == dpg.mvKey_Down:
+            new_index = min(len(current_items) - 1, current_index + 1)
+            dpg.set_value(self.resource_list, current_items[new_index])
+            self._on_list_selection(None, current_items[new_index])
 
     def _load_resource(self):
         resref = dpg.get_value(self.resref_input)
@@ -114,8 +151,13 @@ class ImageViewerApp:
         filter_text = dpg.get_value(self.filter_input).upper()
         filtered = [r for r in self.all_resrefs if filter_text in r]
         dpg.configure_item(self.resource_list, items=filtered)
+        if filtered:
+            dpg.set_value(self.resource_list, filtered[0])
+            self._on_list_selection(None, filtered[0])
 
     def run(self):
+        dpg.focus_item("controls_window")
+        dpg.focus_item(self.resource_list)
         while dpg.is_dearpygui_running():
             dpg.render_dearpygui_frame()
         dpg.destroy_context()
