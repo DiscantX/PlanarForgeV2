@@ -81,10 +81,15 @@ class ImageViewerApp:
             self.zoom_slider = dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
                                 callback=lambda s, v: self.canvas.set_zoom_absolute(v))
             
-            dpg.add_checkbox(label="Show Red Border", default_value=True, 
+            dpg.add_checkbox(label="Show border", default_value=True, 
                             callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
             
-            dpg.add_combo(label="Alignment", items=["Top-Left", "Center"], default_value="Center",
+            dpg.add_checkbox(label="Show Markers", default_value=False,
+                            callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
+
+            self.filter_empty_frames = dpg.add_checkbox(label="Filter empty frames", default_value=False, callback=self._on_filter_toggle)
+
+            dpg.add_combo(label="Alignment", items=["Top-Left", "Center", "Pivot"], default_value="Pivot",
                          callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw())
 
         with dpg.window(label="Canvas", tag="canvas_window", pos=[305, 0], width=895, height=800, no_scrollbar=True):
@@ -123,14 +128,13 @@ class ImageViewerApp:
                     with dpg.group(horizontal=True):
                         self.play_button = dpg.add_button(label="Play", width=80, callback=self._toggle_animation)
                         self.fps_input = dpg.add_input_int(label="FPS", default_value=10, width=80)
-                    self.filter_1px = dpg.add_checkbox(label="Filter 1px Frames", default_value=False, callback=self._update_display)
 
     def _on_viewport_resize(self):
         """Update UI layout when the main window resizes."""
         vw = dpg.get_viewport_width()
         vh = dpg.get_viewport_height()
         cw = 300 # Fixed width for controls
-        bh = 140 if dpg.is_item_shown("bottom_window") else 0
+        bh = 120 if dpg.is_item_shown("bottom_window") else 0
         
         dpg.configure_item("controls_window", height=vh)
         
@@ -200,6 +204,18 @@ class ImageViewerApp:
         elif item_bottom > curr_scroll + window_height:
             dpg.set_y_scroll("resource_list_container", item_bottom - window_height)
 
+    def _on_filter_toggle(self):
+        """Handles toggling the empty frame filter, ensuring we don't stay on an empty view."""
+        if not self.current_resource:
+            return
+            
+        if dpg.get_value(self.filter_empty_frames):
+            # If current cycle is now empty, jump to the next valid one
+            if not self._get_filtered_cycle_frames(self.current_cycle):
+                self._change_cycle(delta=1)
+                return
+        self._update_display()
+
     def _toggle_animation(self):
         self.is_playing = not self.is_playing
         dpg.configure_item(self.play_button, label="Stop" if self.is_playing else "Play")
@@ -208,7 +224,7 @@ class ImageViewerApp:
         """Returns the list of frame indices for a cycle, optionally filtered for 1px frames."""
         if not self.current_resource: return []
         all_frames = self.bam_decoder.get_cycle_frames(self.current_resource, cycle_idx)
-        if not dpg.get_value(self.filter_1px):
+        if not dpg.get_value(self.filter_empty_frames):
             return all_frames
             
         frame_entries = self.current_resource.get_section('frame_entries')
@@ -323,6 +339,7 @@ class ImageViewerApp:
         game = dpg.get_value(self.game_input)
         restype = dpg.get_value(self.restype_input)
         buffer = None
+        pivot_x, pivot_y = 0, 0
         
         if resource.schema and "BAM" in resource.schema.name:  # Handles BAM and BAM_V2
             cycle_frames = self._get_filtered_cycle_frames(self.current_cycle)
@@ -344,6 +361,8 @@ class ImageViewerApp:
             
             # Update frame info
             frame_data = resource.get_section('frame_entries')[real_frame_index]
+            pivot_x = frame_data.get('center_x', 0)
+            pivot_y = frame_data.get('center_y', 0)
             dpg.set_value(self.frame_info_text, f"Real Frame: {real_frame_index} ({frame_data['width']}x{frame_data['height']})")
 
         elif restype == "PVRZ":
@@ -355,7 +374,7 @@ class ImageViewerApp:
 
         if buffer is not None:
             print(f"DEBUG: Buffer decoded. Shape: {buffer.shape}, Max Value: {np.max(buffer)}, Min Value: {np.min(buffer)}")
-            self.canvas.update_texture(buffer)
+            self.canvas.update_texture(buffer, pivot_x=pivot_x, pivot_y=pivot_y)
         else:
             print(f"DEBUG: Decoder returned None for {resref}")
 
