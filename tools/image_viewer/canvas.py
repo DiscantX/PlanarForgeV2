@@ -2,16 +2,19 @@ import dearpygui.dearpygui as dpg
 import numpy as np
 
 class PFCanvas:
-    def __init__(self, tag="image_canvas"):
+    def __init__(self, app, tag="image_canvas"):
+        self.app = app
         self.tag = tag
         self.texture_base_tag = "active_texture"
         self.texture_id = 0
         self.texture_tag = f"{self.texture_base_tag}_{self.texture_id}"
         self.registry_tag = "canvas_texture_registry"
         self.zoom = 1.0
-        self.offset = [20.0, 20.0]  # Start with a 2D offset from the corner
+        self.offset = [0.0, 0.0]  # No offset from the corner
         self.current_texture_width = 0
         self.current_texture_height = 0
+        self.show_border = True
+        self.alignment = "Top-Left"
         
         # Create a single, persistent registry for the canvas
         with dpg.texture_registry(tag=self.registry_tag):
@@ -61,10 +64,21 @@ class PFCanvas:
         if dpg.does_item_exist(self.tag):
             dpg.delete_item(self.tag, children_only=True)
         
-        # Calculate visual boundaries manually to avoid matrix-related system freezes
-        x1, y1 = self.offset[0], self.offset[1]
-        x2 = x1 + self.current_texture_width * self.zoom
-        y2 = y1 + self.current_texture_height * self.zoom
+        # Get canvas dimensions
+        canvas_width = dpg.get_item_width(self.tag)
+        canvas_height = dpg.get_item_height(self.tag)
+        
+        image_width = self.current_texture_width * self.zoom
+        image_height = self.current_texture_height * self.zoom
+        
+        if self.alignment == "Center":
+            x1 = (canvas_width - image_width) / 2
+            y1 = (canvas_height - image_height) / 2
+        else:  # Top-Left
+            x1, y1 = self.offset[0], self.offset[1]
+        
+        x2 = x1 + image_width
+        y2 = y1 + image_height
 
         print(f"DEBUG: Redrawing. Zoom={self.zoom:.2f}, Pos=[{x1:.1f}, {y1:.1f}] to [{x2:.1f}, {y2:.1f}]")
         
@@ -74,9 +88,23 @@ class PFCanvas:
         # Draw the actual image at calculated coordinates directly into the drawlist
         dpg.draw_image(self.texture_tag, [x1, y1], [x2, y2], parent=self.tag)
         
-        # DIAGNOSTIC: Keep the red border test
-        dpg.draw_rectangle([x1, y1], [x2, y2], color=[255, 0, 0, 255], thickness=2, parent=self.tag)
+        # Draw red border if enabled
+        if self.show_border:
+            dpg.draw_rectangle([x1, y1], [x2, y2], color=[255, 0, 0, 255], thickness=2, parent=self.tag)
 
     def set_zoom(self, delta):
         self.zoom = max(0.1, self.zoom + delta)
         self._redraw()
+        if hasattr(self.app, 'zoom_slider'):
+            dpg.set_value(self.app.zoom_slider, self.zoom)
+
+    def set_zoom_absolute(self, zoom):
+        self.zoom = max(0.1, zoom)
+        self._redraw()
+        if hasattr(self.app, 'zoom_slider'):
+            dpg.set_value(self.app.zoom_slider, self.zoom)
+
+    def on_mouse_wheel(self, delta):
+        """Handle mouse wheel for zoom."""
+        zoom_factor = 0.1  # Adjust as needed
+        self.set_zoom(delta * zoom_factor)
