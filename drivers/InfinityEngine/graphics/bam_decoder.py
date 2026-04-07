@@ -139,6 +139,8 @@ class BamDecoder:
         start = frame.get('start_index_data_blocks', 0)
         count = frame.get('count_data_blocks', 0)
 
+        print(f"DEBUG: BAM_V2 frame {frame_index}: start={start}, count={count}, total_blocks={len(data_blocks)}")
+
         if count <= 0 or start < 0 or start >= len(data_blocks):
             print(f"DEBUG: BAM_V2 frame {frame_index} has no data blocks; returning transparent placeholder")
             return canvas
@@ -147,8 +149,10 @@ class BamDecoder:
         if hasattr(resource, 'pvrz_page_provider') and callable(resource.pvrz_page_provider):
             page_decoder = resource.pvrz_page_provider
 
+        print(f"DEBUG: Page decoder available: {page_decoder is not None}")
+
         drawn = False
-        for block in data_blocks[start:start + count]:
+        for i, block in enumerate(data_blocks[start:start + count]):
             page_index = block.get('pvrz_page')
             source_x = block.get('source_x', 0)
             source_y = block.get('source_y', 0)
@@ -157,15 +161,20 @@ class BamDecoder:
             target_x = block.get('target_x', 0)
             target_y = block.get('target_y', 0)
 
+            print(f"DEBUG: Block {i}: page={page_index}, src=({source_x},{source_y}), size=({block_width}x{block_height}), target=({target_x},{target_y})")
+
             if page_decoder is None or page_index is None:
+                print(f"DEBUG: Skipping block {i} - decoder={page_decoder is not None}, page_index={page_index}")
                 continue
 
             page_bytes = page_decoder(page_index)
             if page_bytes is None:
+                print(f"DEBUG: Page decoder returned None for page {page_index}")
                 continue
 
             try:
                 page_image = PvrzDecoder.decode_pvrz_bytes(page_bytes)
+                print(f"DEBUG: Decoded PVRZ page {page_index}, shape: {page_image.shape}")
             except Exception as exc:
                 print(f"DEBUG: Failed to decode PVRZ page {page_index} for BAM_V2 frame {frame_index}: {exc}")
                 continue
@@ -176,12 +185,14 @@ class BamDecoder:
             ]
 
             if block_image.size == 0:
+                print(f"DEBUG: Block image size is 0")
                 continue
 
             target_end_y = min(target_y + block_image.shape[0], height)
             target_end_x = min(target_x + block_image.shape[1], width)
             canvas[target_y:target_end_y, target_x:target_end_x] = block_image[: target_end_y - target_y, : target_end_x - target_x]
             drawn = True
+            print(f"DEBUG: Drew block {i} to canvas")
 
         if not drawn:
             print(f"DEBUG: BAM_V2 frame {frame_index} could not resolve any PVRZ page blocks; returning transparent placeholder")
