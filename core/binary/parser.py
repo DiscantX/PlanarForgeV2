@@ -384,7 +384,7 @@ class BinaryParser:
                         f"Section \'{section.name}\' offset_from "
                         f"\'{src_name}[{entry_index}].{src_field}\' could not be resolved"
                     )
-                if offset == 0 and not section.count_field and not section.count_expr:
+                if offset == 0 and not section.count_field and not section.count_expr and section.count is None:
                     resource.sections[section.name] = []
                     continue
                 reader.seek(offset)
@@ -397,7 +397,7 @@ class BinaryParser:
                         f"Section \'{section.name}\' references missing offset field "
                         f"\'{section.offset_field}\'"
                     )
-                if offset == 0 and not section.count_field and not section.count_expr:
+                if offset == 0 and not section.count_field and not section.count_expr and section.count is None:
                     resource.sections[section.name] = []
                     continue
                 reader.seek(offset)
@@ -683,7 +683,13 @@ class BinaryParser:
             )
  
         # ------------------------------------------------------------------
-        # 2. Feature-block / effects heuristic (orphaned effect blocks)
+        # 2. static count
+        # ------------------------------------------------------------------
+        if section.count is not None:
+            return int(section.count)
+
+        # ------------------------------------------------------------------
+        # 3. Feature-block / effects heuristic (orphaned effect blocks)
         # ------------------------------------------------------------------
         is_feat_blk  = section.name in ("feature_block", "feature_blocks", "effects")
         ext_hdr_name = next(
