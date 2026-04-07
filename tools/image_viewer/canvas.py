@@ -5,9 +5,7 @@ class PFCanvas:
     def __init__(self, app, tag="image_canvas"):
         self.app = app
         self.tag = tag
-        self.texture_base_tag = "active_texture"
-        self.texture_id = 0
-        self.texture_tag = f"{self.texture_base_tag}_{self.texture_id}"
+        self.texture_tag = None
         self.registry_tag = "canvas_texture_registry"
         self.zoom = 1.0
         self.offset = [0.0, 0.0]  # No offset from the corner
@@ -37,23 +35,23 @@ class PFCanvas:
             
         # --- Step 2: Manage the texture ---
         # If texture exists and dimensions match, just update its value.
-        if dpg.does_item_exist(self.texture_tag) and \
+        if self.texture_tag and dpg.does_item_exist(self.texture_tag) and \
            self.current_texture_width == width and \
            self.current_texture_height == height:
             dpg.set_value(self.texture_tag, flat_buffer)
             print(f"DEBUG: Existing texture '{self.texture_tag}' updated with dpg.set_value")
         else:
             # Dimensions changed or texture doesn't exist. Use a fresh tag if needed.
-            if dpg.does_item_exist(self.texture_tag):
+            if self.texture_tag and dpg.does_item_exist(self.texture_tag):
                 try:
                     dpg.delete_item(self.texture_tag)
                     print(f"DEBUG: Deleted old texture '{self.texture_tag}'")
                 except Exception as exc:
                     print(f"DEBUG: Could not delete old texture '{self.texture_tag}': {exc}")
 
-            self.texture_id += 1
-            self.texture_tag = f"{self.texture_base_tag}_{self.texture_id}"
-            print(f"DEBUG: Creating new dynamic texture '{self.texture_tag}'")
+            # Generate a unique integer identifier to prevent tag collisions
+            self.texture_tag = dpg.generate_uuid()
+            print(f"DEBUG: Creating new dynamic texture with UUID '{self.texture_tag}'")
             dpg.add_dynamic_texture(width=width, height=height, default_value=flat_buffer, tag=self.texture_tag, parent=self.registry_tag)
             self.current_texture_width = width
             self.current_texture_height = height
