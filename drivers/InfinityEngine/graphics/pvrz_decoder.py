@@ -293,40 +293,50 @@ class PvrzDecoder:
 
         return out
         
+    @staticmethod
+    @numba.jit(nopython=True)
     def _decode_dxt5(data, width, height):
         blocks_x = (width + 3) // 4
         blocks_y = (height + 3) // 4
-        output = np.zeros((height, width, 4), dtype=np.uint8)
-        reader = memoryview(data)
-        offset = 0
+        out = np.zeros((height, width, 4), dtype=np.uint8)
 
         for block_y in range(blocks_y):
             for block_x in range(blocks_x):
-                if offset + 16 > len(reader):
+                off = (block_y * blocks_x + block_x) * 16
+                if off + 16 > len(data):
                     break
 
-                alpha0 = reader[offset]
-                alpha1 = reader[offset + 1]
-                alpha_bits = int.from_bytes(reader[offset + 2:offset + 8], "little")
-                offset += 8
+                # --- Alpha Decoding ---
+                alpha0 = data[off]
+                alpha1 = data[off + 1]
+                
+                # Manual 48-bit int from bytes for Numba compatibility
+                alpha_bits = 0
+                for j in range(6):
+                    alpha_bits |= (np.uint64(data[off + 2 + j]) << (np.uint64(8 * j)))
 
-                alpha_values = [alpha0, alpha1]
+                alpha_values = np.zeros(8, dtype=np.uint8)
+                alpha_values[0] = alpha0
+                alpha_values[1] = alpha1
                 if alpha0 > alpha1:
                     for i in range(1, 7):
-                        alpha_values.append((( (7 - i) * alpha0 + i * alpha1) + 3) // 7)
+                        alpha_values[i+1] = ((7 - i) * alpha0 + i * alpha1 + 3) // 7
                 else:
                     for i in range(1, 5):
-                        alpha_values.append((( (5 - i) * alpha0 + i * alpha1) + 2) // 5)
-                    alpha_values.extend([0, 255])
+                        alpha_values[i+1] = ((5 - i) * alpha0 + i * alpha1 + 2) // 5
+                    alpha_values[6] = 0
+                    alpha_values[7] = 255
 
-                color0 = int.from_bytes(reader[offset:offset + 2], "little")
-                color1 = int.from_bytes(reader[offset + 2:offset + 4], "little")
-                bits = int.from_bytes(reader[offset + 4:offset + 8], "little")
-                offset += 8
+                # --- Color Decoding ---
+                color0 = data[off + 8] | (data[off + 9] << 8)
+                color1 = data[off + 10] | (data[off + 11] << 8)
+                bits = np.uint32(data[off + 12]) | (np.uint32(data[off + 13]) << 8) | \
+                       (np.uint32(data[off + 14]) << 16) | (np.uint32(data[off + 15]) << 24)
 
                 palette = np.zeros((4, 4), dtype=np.uint8)
-                palette[0, :3] = PvrzDecoder._unpack_565(color0)
-                palette[1, :3] = PvrzDecoder._unpack_565(color1)
+                palette[0, 0], palette[0, 1], palette[0, 2] = _unpack_565_numba(color0)
+                palette[1, 0], palette[1, 1], palette[1, 2] = _unpack_565_numba(color1)
+                
                 if color0 > color1:
                     palette[2, :3] = ((2 * palette[0, :3] + palette[1, :3]) // 3)
                     palette[3, :3] = ((palette[0, :3] + 2 * palette[1, :3]) // 3)
@@ -335,18 +345,18 @@ class PvrzDecoder:
                     palette[3, :3] = [0, 0, 0]
                 palette[:, 3] = 255
 
+                # --- Reconstruct Pixels ---
                 for pixel_index in range(16):
-                    palette_index = bits & 0x3
-                    bits >>= 2
                     pixel_x = block_x * 4 + (pixel_index & 3)
                     pixel_y = block_y * 4 + (pixel_index >> 2)
-                    alpha_index = alpha_bits & 0x7
-                    alpha_bits >>= 3
                     if pixel_x < width and pixel_y < height:
-                        output[pixel_y, pixel_x, :3] = palette[palette_index, :3]
-                        output[pixel_y, pixel_x, 3] = alpha_values[alpha_index]
+                        palette_index = (bits >> (pixel_index * 2)) & 0x3
+                        alpha_index = (alpha_bits >> (pixel_index * 3)) & 0x7
+                        
+                        out[pixel_y, pixel_x, :3] = palette[palette_index, :3]
+                        out[pixel_y, pixel_x, 3] = alpha_values[alpha_index]
 
-        return output
+        return out
 
     @staticmethod
     @numba.jit
