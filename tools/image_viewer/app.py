@@ -36,8 +36,11 @@ class ImageViewerApp:
         self._refresh_resource_list()
 
         dpg.create_viewport(title="PlanarForgeV2 - Image Viewer", width=1200, height=800)
+        dpg.set_viewport_resize_callback(self._on_viewport_resize)
         dpg.setup_dearpygui()
         dpg.show_viewport()
+        dpg.maximize_viewport()
+        self._on_viewport_resize()
 
     def _setup_ui(self):
         with dpg.window(label="Controls", tag="controls_window", width=300, height=700, no_close=True):
@@ -110,7 +113,7 @@ class ImageViewerApp:
             dpg.add_combo(label="Alignment", items=["Top-Left", "Center"], default_value="Top-Left",
                          callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw())
 
-        with dpg.window(label="Canvas", pos=[305, 0], width=895, height=800, no_scrollbar=True):
+        with dpg.window(label="Canvas", tag="canvas_window", pos=[305, 0], width=895, height=800, no_scrollbar=True):
             dpg.add_drawlist(tag="image_canvas", width=875, height=760)
             with dpg.handler_registry():
                 dpg.add_mouse_wheel_handler(callback=self._on_mouse_wheel)
@@ -119,6 +122,22 @@ class ImageViewerApp:
     def _on_list_selection(self, sender, app_data):
         dpg.set_value(self.resref_input, app_data)
         self._load_resource()
+
+    def _on_viewport_resize(self):
+        """Update UI layout when the main window resizes."""
+        vw = dpg.get_viewport_width()
+        vh = dpg.get_viewport_height()
+        cw = 300 # Fixed width for controls
+        
+        dpg.configure_item("controls_window", height=vh)
+        
+        if dpg.does_item_exist("canvas_window"):
+            # Adjust canvas window to fill remaining width
+            dpg.configure_item("canvas_window", pos=[cw + 5, 0], width=vw - cw - 20, height=vh)
+            dpg.configure_item("image_canvas", width=vw - cw - 40, height=vh - 40)
+        
+        if hasattr(self, 'canvas'):
+            self.canvas._redraw()
 
     def _on_mouse_wheel(self, sender, app_data):
         # Only zoom if the resource list is NOT focused
