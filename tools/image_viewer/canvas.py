@@ -94,18 +94,6 @@ class PFCanvas:
         elif self.alignment == "Bottom-Center":
             x1 = (canvas_width - image_width) / 2
             y1 = canvas_height - image_height
-        elif self.alignment == "Left-Center":
-            x1 = 0
-            y1 = (canvas_height - image_height) / 2
-        elif self.alignment == "Right-Center":
-            x1 = canvas_width - image_width
-            y1 = (canvas_height - image_height) / 2
-        elif self.alignment == "Bottom-Left":
-            x1 = 0
-            y1 = canvas_height - image_height
-        elif self.alignment == "Bottom-Center":
-            x1 = (canvas_width - image_width) / 2
-            y1 = canvas_height - image_height
         elif self.alignment == "Bottom-Right":
             x1 = canvas_width - image_width
             y1 = canvas_height - image_height
