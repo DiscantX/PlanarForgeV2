@@ -91,7 +91,7 @@ class ImageViewerApp:
 
             self.preserve_frame_toggle = dpg.add_checkbox(label="Preserve frame on cycle", default_value=False)
 
-            dpg.add_combo(label="Alignment", items=["Top-Left", "Center", "Pivot"], default_value="Pivot",
+            dpg.add_combo(label="Alignment", items=["Pivot", "Center", "Top-Left", "Top-Center", "Top-Right", "Left-Center", "Right-Center", "Bottom-Left", "Bottom-Center", "Bottom-Right"], default_value="Pivot",
                          callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw())
 
         with dpg.window(label="Canvas", tag="canvas_window", pos=[305, 0], width=895, height=800, no_scrollbar=True):
