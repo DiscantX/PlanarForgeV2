@@ -78,21 +78,18 @@ class ImageViewerApp:
             # Metadata info
             dpg.add_separator()
             self.info_text = dpg.add_text("No resource loaded")
-            
-            dpg.add_separator()
-            self.zoom_slider = dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
-                                callback=lambda s, v: self.canvas.set_zoom_absolute(v))
-            
-            dpg.add_combo(label="Alignment", items=["Pivot", "Center", "Top-Left", "Top-Center", "Top-Right", "Left-Center", "Right-Center", "Bottom-Left", "Bottom-Center", "Bottom-Right"], default_value="Pivot",
-                         callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw())
-            
-            dpg.add_checkbox(label="Show Border", default_value=True, 
-                            callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
-            
-            dpg.add_checkbox(label="Show Markers", default_value=True,
-                            callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
 
-            dpg.add_button(label="Reset View", callback=self._reset_view)
+        with dpg.window(tag="top_window", no_title_bar=True, no_move=True, no_resize=True, no_scrollbar=True):
+            with dpg.group(horizontal=True):
+                dpg.add_button(label="Reset View", callback=self._reset_view)
+                dpg.add_combo(label="Alignment", items=["Pivot", "Center", "Top-Left", "Top-Center", "Top-Right", "Left-Center", "Right-Center", "Bottom-Left", "Bottom-Center", "Bottom-Right"], default_value="Pivot",
+                             callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw(), width=120)
+                self.zoom_slider = dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
+                                    callback=lambda s, v: self.canvas.set_zoom_absolute(v), width=150)
+                dpg.add_checkbox(label="Show Border", default_value=True, 
+                                callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
+                dpg.add_checkbox(label="Show Markers", default_value=True,
+                                callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
 
         with dpg.window(label="Canvas", tag="canvas_window", pos=[305, 0], width=895, height=800, no_scrollbar=True):
             dpg.add_drawlist(tag="image_canvas", width=875, height=760)
@@ -145,14 +142,18 @@ class ImageViewerApp:
         vw = dpg.get_viewport_width()
         vh = dpg.get_viewport_height()
         cw = 300 # Fixed width for controls
+        th = 40  # Height for top panel
         bh = 120 if dpg.is_item_shown("bottom_window") else 0
         
         dpg.configure_item("controls_window", height=vh)
         
+        if dpg.does_item_exist("top_window"):
+            dpg.configure_item("top_window", pos=[cw + 5, 0], width=vw - cw - 20, height=th)
+
         if dpg.does_item_exist("canvas_window"):
-            # Adjust canvas window to fill remaining width and account for bottom panel
-            dpg.configure_item("canvas_window", pos=[cw + 5, 0], width=vw - cw - 20, height=vh - bh)
-            dpg.configure_item("image_canvas", width=vw - cw - 40, height=vh - bh - 40)
+            # Adjust canvas window to fill remaining width and account for top and bottom panel
+            dpg.configure_item("canvas_window", pos=[cw + 5, th], width=vw - cw - 20, height=vh - bh - th)
+            dpg.configure_item("image_canvas", width=vw - cw - 40, height=vh - bh - th - 40)
             
         if dpg.does_item_exist("bottom_window"):
             dpg.configure_item("bottom_window", pos=[cw + 5, vh - bh], width=vw - cw - 20, height=bh)
