@@ -92,6 +92,7 @@ class ImageViewerApp:
             dpg.add_checkbox(label="Show Markers", default_value=True,
                             callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
 
+            dpg.add_button(label="Reset View", callback=self._reset_view)
 
         with dpg.window(label="Canvas", tag="canvas_window", pos=[305, 0], width=895, height=800, no_scrollbar=True):
             dpg.add_drawlist(tag="image_canvas", width=875, height=760)
@@ -179,6 +180,11 @@ class ImageViewerApp:
     def _on_mouse_wheel(self, sender, app_data):
         if dpg.is_item_hovered("image_canvas"):
             self.canvas.on_mouse_wheel(app_data)
+
+    def _reset_view(self):
+        """Resets the canvas zoom and pan offset to defaults."""
+        self.canvas.offset = [0.0, 0.0]
+        self.canvas.set_zoom_absolute(1.0)
 
     def _on_key_press(self, sender, app_data):
         """Handle keyboard navigation based on hover context."""
