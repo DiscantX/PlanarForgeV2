@@ -74,34 +74,34 @@ class PFCanvas:
         image_height = self.current_texture_height * self.zoom
         
         if self.alignment == "Center":
-            x1 = (canvas_width - image_width) / 2
-            y1 = (canvas_height - image_height) / 2
+            bx = (canvas_width - image_width) / 2
+            by = (canvas_height - image_height) / 2
         elif self.alignment == "Pivot":
-            x1 = (canvas_width / 2) - (self.pivot_x * self.zoom)
-            y1 = (canvas_height / 2) - (self.pivot_y * self.zoom)
+            bx = (canvas_width / 2) - (self.pivot_x * self.zoom)
+            by = (canvas_height / 2) - (self.pivot_y * self.zoom)
         elif self.alignment == "Top-Center":
-            x1 = (canvas_width - image_width) / 2
-            y1 = 0
+            bx = (canvas_width - image_width) / 2
+            by = 0
         elif self.alignment == "Left-Center":
-            x1 = 0
-            y1 = (canvas_height - image_height) / 2
+            bx = 0
+            by = (canvas_height - image_height) / 2
         elif self.alignment == "Right-Center":
-            x1 = canvas_width - image_width
-            y1 = (canvas_height - image_height) / 2
+            bx = canvas_width - image_width
+            by = (canvas_height - image_height) / 2
         elif self.alignment == "Top-Right":
-            x1 = canvas_width - image_width
-            y1 = 0
+            bx = canvas_width - image_width
+            by = 0
         elif self.alignment == "Bottom-Center":
-            x1 = (canvas_width - image_width) / 2
-            y1 = canvas_height - image_height
+            bx = (canvas_width - image_width) / 2
+            by = canvas_height - image_height
         elif self.alignment == "Bottom-Right":
-            x1 = canvas_width - image_width
-            y1 = canvas_height - image_height
-        else:  # Top-Left
-            x1, y1 = self.offset[0], self.offset[1]
+            bx = canvas_width - image_width
+            by = canvas_height - image_height
+        else:  # Top-Left and fallback
+            bx, by = 0, 0
         
-        x2 = x1 + image_width
-        y2 = y1 + image_height
+        x1, y1 = bx + self.offset[0], by + self.offset[1]
+        x2, y2 = x1 + image_width, y1 + image_height
 
         # --- Step 1: Ensure persistent items exist ---
         if not dpg.does_item_exist(self.bg_item):

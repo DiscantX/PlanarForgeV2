@@ -31,6 +31,8 @@ class ImageViewerApp:
         self.current_frame_idx = 0  # Index within the current cycle's frame list
         self.is_playing = False
         self.last_frame_time = 0
+        self.pan_start_offset = [0.0, 0.0]
+        self.is_panning = False
         self.all_resrefs = []
         
         dpg.create_context()
@@ -96,6 +98,9 @@ class ImageViewerApp:
             with dpg.handler_registry():
                 dpg.add_mouse_wheel_handler(callback=self._on_mouse_wheel)
                 dpg.add_key_press_handler(callback=self._on_key_press)
+                dpg.add_mouse_down_handler(button=dpg.mvMouseButton_Middle, callback=self._on_mouse_down)
+                dpg.add_mouse_drag_handler(button=dpg.mvMouseButton_Middle, callback=self._on_mouse_drag)
+                dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Middle, callback=self._on_mouse_release)
 
         # Bottom Panel for BAM Controls
         with dpg.window(tag="bottom_window", show=False, no_title_bar=True, no_move=True, no_resize=True, no_scrollbar=True):
@@ -154,14 +159,31 @@ class ImageViewerApp:
         if hasattr(self, 'canvas'):
             self.canvas._redraw()
 
+    def _on_mouse_down(self, sender, app_data):
+        """Capture initial offset when middle mouse starts dragging."""
+        if not self.is_panning and dpg.is_item_hovered("image_canvas"):
+            self.pan_start_offset = list(self.canvas.offset)
+            self.is_panning = True
+
+    def _on_mouse_drag(self, sender, app_data):
+        """Update canvas offset based on mouse displacement."""
+        if self.is_panning:
+            self.canvas.offset[0] = self.pan_start_offset[0] + app_data[1]
+            self.canvas.offset[1] = self.pan_start_offset[1] + app_data[2]
+            self.canvas._redraw()
+
+    def _on_mouse_release(self, sender, app_data):
+        """Stop panning state."""
+        self.is_panning = False
+
     def _on_mouse_wheel(self, sender, app_data):
-        if dpg.is_item_hovered("canvas_window"):
+        if dpg.is_item_hovered("image_canvas"):
             self.canvas.on_mouse_wheel(app_data)
 
     def _on_key_press(self, sender, app_data):
         """Handle keyboard navigation based on hover context."""
         # Determine if we should navigate the BAM (hovering canvas or playback bar)
-        is_hovering_view = dpg.is_item_hovered("canvas_window") or dpg.is_item_hovered("bottom_window")
+        is_hovering_view = dpg.is_item_hovered("image_canvas") or dpg.is_item_hovered("bottom_window")
 
         if is_hovering_view and self.current_resource:
             if app_data == dpg.mvKey_Left:
@@ -233,7 +255,6 @@ class ImageViewerApp:
             return all_frames
             
         frame_entries = self.current_resource.get_section('frame_entries')
-        print(len(frame_entries), len(all_frames))
         return [i for i in all_frames if frame_entries[i]['width'] > 1 or frame_entries[i]['height'] > 1]
 
     def _change_cycle(self, delta=0, absolute=None):
@@ -308,10 +329,10 @@ class ImageViewerApp:
         
         resource = self.loader.load(resref=resref, restype=restype, game=game)
         if not resource:
-            print(f"Failed to load {resref}.{restype}")
             return
 
         self.current_resource = resource
+        self.canvas.offset = [0.0, 0.0]
         is_bam = bool(resource.schema and "BAM" in resource.schema.name)
         self.is_playing = dpg.get_value(self.autoplay_toggle) if is_bam else False
         dpg.configure_item(self.play_button, label="Stop" if self.is_playing else "Play")
@@ -375,14 +396,11 @@ class ImageViewerApp:
             buffer = self.pvrz_decoder.decode_pvrz_bytes(resource._original_bytes)
         elif restype == "TIS":
             # For TIS, we need a palette. We'll try to find a BAM with the same name or use default.
-            pal_res = self.loader.load(resref=resref, restype="BAM", game=game)
+            pal_res = self.loader.load(resref=self.current_resref, restype="BAM", game=game)
             buffer = self.tis_decoder.decode_tis(resource, palette_resource=pal_res)
 
         if buffer is not None:
-            print(f"DEBUG: Buffer decoded. Shape: {buffer.shape}, Max Value: {np.max(buffer)}, Min Value: {np.min(buffer)}")
             self.canvas.update_texture(buffer, pivot_x=pivot_x, pivot_y=pivot_y)
-        else:
-            print(f"DEBUG: Decoder returned None for {resref}")
 
     def _refresh_resource_list(self):
         game = dpg.get_value(self.game_input)
@@ -407,11 +425,8 @@ class ImageViewerApp:
                 resource = self.loader.load(resref=resref, restype="PVRZ", game=game)
                 if resource:
                     return resource._original_bytes
-                
-                print(f"DEBUG: Failed to load PVRZ page {page_index} as {resref}")
                 return None
             except Exception as e:
-                print(f"DEBUG: Error loading PVRZ page {page_index}: {e}")
                 return None
         
         return load_pvrz_page

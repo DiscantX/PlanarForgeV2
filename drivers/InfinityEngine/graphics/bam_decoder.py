@@ -58,7 +58,7 @@ class BamDecoder:
         
         # DEBUG: Check how many colors are non-transparent
         non_transparent = np.count_nonzero(rgba_palette[:, 3])
-        print(f"DEBUG: Palette extracted. Total colors: {len(rgba_palette)}, Non-transparent: {non_transparent}")
+        # print(f"DEBUG: Palette extracted. Total colors: {len(rgba_palette)}, Non-transparent: {non_transparent}")
         return rgba_palette
 
     def decode_frame(self, resource: Resource, frame_index: int, pvrz_page_provider=None):
@@ -72,7 +72,7 @@ class BamDecoder:
         frame = frames[frame_index]
         width = frame['width']
         height = frame['height']
-        print(f"DEBUG: Decoding Frame {frame_index} ({width}x{height})")
+        # print(f"DEBUG: Decoding Frame {frame_index} ({width}x{height})")
 
         if (resource.schema and resource.schema.name == 'BAM_V2') or ('start_index_data_blocks' in frame):
             return self._decode_v2_frame(resource, frame_index, pvrz_page_provider=pvrz_page_provider)
