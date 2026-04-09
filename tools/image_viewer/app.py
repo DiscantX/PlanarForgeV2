@@ -79,18 +79,6 @@ class ImageViewerApp:
             dpg.add_separator()
             self.info_text = dpg.add_text("No resource loaded")
 
-        with dpg.window(tag="top_window", no_title_bar=True, no_move=True, no_resize=True, no_scrollbar=True):
-            with dpg.group(horizontal=True):
-                dpg.add_button(label="Reset View", callback=self._reset_view)
-                dpg.add_combo(label="Alignment", items=["Pivot", "Center", "Top-Left", "Top-Center", "Top-Right", "Left-Center", "Right-Center", "Bottom-Left", "Bottom-Center", "Bottom-Right"], default_value="Pivot",
-                             callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw(), width=120)
-                self.zoom_slider = dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
-                                    callback=lambda s, v: self.canvas.set_zoom_absolute(v), width=150)
-                dpg.add_checkbox(label="Show Border", default_value=True, 
-                                callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
-                dpg.add_checkbox(label="Show Markers", default_value=True,
-                                callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
-
         with dpg.window(label="Canvas", tag="canvas_window", pos=[305, 0], width=895, height=800, no_scrollbar=True):
             dpg.add_drawlist(tag="image_canvas", width=875, height=760)
             with dpg.handler_registry():
@@ -99,6 +87,28 @@ class ImageViewerApp:
                 dpg.add_mouse_down_handler(button=dpg.mvMouseButton_Middle, callback=self._on_mouse_down)
                 dpg.add_mouse_drag_handler(button=dpg.mvMouseButton_Middle, callback=self._on_mouse_drag)
                 dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Middle, callback=self._on_mouse_release)
+
+        # Move Top Window and its theme here so it is created AFTER the canvas (starting on top)
+        with dpg.theme(tag="top_window_theme"):
+            with dpg.theme_component(dpg.mvAll):
+                dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 4, 0)
+                dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 10, 0)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 4, 2)
+                dpg.add_theme_style(dpg.mvStyleVar_WindowMinSize, 0, 0)
+                dpg.add_theme_style(dpg.mvStyleVar_WindowBorderSize, 0)
+
+        with dpg.window(tag="top_window", no_title_bar=True, no_move=True, no_resize=True, no_scrollbar=True, no_focus_on_appearing=True, no_bring_to_front_on_focus=True):
+            dpg.bind_item_theme("top_window", "top_window_theme")
+            with dpg.group(horizontal=True):
+                dpg.add_button(label="Reset View", callback=self._reset_view)
+                dpg.add_combo(label="Alignment", items=["Pivot", "Center", "Top-Left", "Top-Center", "Top-Right", "Left-Center", "Right-Center", "Bottom-Left", "Bottom-Center", "Bottom-Right"], default_value="Pivot",
+                             callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw(), width=120) 
+                self.zoom_slider = dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
+                                    callback=lambda s, v: self.canvas.set_zoom_absolute(v), width=150) 
+                dpg.add_checkbox(label="Show Border", default_value=True, 
+                                callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
+                dpg.add_checkbox(label="Show Markers", default_value=True,
+                                callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
 
         # Bottom Panel for BAM Controls
         with dpg.window(tag="bottom_window", show=False, no_title_bar=True, no_move=True, no_resize=True, no_scrollbar=True):
@@ -142,16 +152,16 @@ class ImageViewerApp:
         vw = dpg.get_viewport_width()
         vh = dpg.get_viewport_height()
         cw = 300 # Fixed width for controls
-        th = 40  # Height for top panel
+        th = 30  # Height for top panel
         bh = 120 if dpg.is_item_shown("bottom_window") else 0
         
         dpg.configure_item("controls_window", height=vh)
         
         if dpg.does_item_exist("top_window"):
-            dpg.configure_item("top_window", pos=[cw + 5, 0], width=vw - cw - 20, height=th)
+            dpg.configure_item("top_window", pos=[cw + 5, 0], width=vw - cw - 20, height=30)
 
         if dpg.does_item_exist("canvas_window"):
-            # Adjust canvas window to fill remaining width and account for top and bottom panel
+            # Canvas window starts below the top panel
             dpg.configure_item("canvas_window", pos=[cw + 5, th], width=vw - cw - 20, height=vh - bh - th)
             dpg.configure_item("image_canvas", width=vw - cw - 40, height=vh - bh - th - 40)
             
