@@ -3,14 +3,35 @@ Handles low-level access to BIFF files, including signature detection,
 decompression of BIFC/BIF variants, and stream caching.
 """
 import io
+import struct
 import zlib
 from contextlib import contextmanager
 from core.binary.reader import BinaryReader
 
 class BiffHandler:
+    FILE_ENTRY_SIZE = 16
+    TILESET_ENTRY_SIZE = 20
+    TIS_HEADER_SIZE = 24
+    TIS_TILE_DIMENSION = 64
+
     def __init__(self):
         self.decompressed_bif_cache = {}
         self.bif_headers = {}
+
+    def _get_layout(self, reader, cache_key):
+        cached_header = self.bif_headers.get(cache_key)
+        if cached_header:
+            return cached_header
+
+        reader.seek(0x08)
+        file_count = reader.read_uint32()
+        tileset_count = reader.read_uint32()
+        file_entries_offset = reader.read_uint32()
+        tileset_entries_offset = file_entries_offset + (file_count * self.FILE_ENTRY_SIZE)
+
+        layout = (file_count, tileset_count, file_entries_offset, tileset_entries_offset)
+        self.bif_headers[cache_key] = layout
+        return layout
 
     @contextmanager
     def get_stream(self, bif_file_path):
@@ -89,34 +110,58 @@ class BiffHandler:
                 decompressed_stream.seek(0)
                 yield decompressed_stream
 
-    def get_resource_data(self, bif_file_path, resource_index):
+    def get_resource_data(self, bif_file_path, resource_index, tileset_index=None):
         """
-        Extracts the raw data for a specific resource index from the BIF file.
+        Extracts raw resource bytes from a BIFF container.
+
+        If ``tileset_index`` is provided, data is read from the BIFF tileset-entry
+        table and wrapped with a synthetic TIS header for schema-based parsing.
         """
         with self.get_stream(bif_file_path) as bif_stream:
             reader = BinaryReader(bif_stream)
             cache_key = str(bif_file_path)
-            
-            # Use cached header info if available to avoid re-reading/parsing
-            cached_header = self.bif_headers.get(cache_key)
-            if cached_header:
-                file_count, file_entries_offset = cached_header
-            else:
-                reader.seek(0x08)
-                file_count = reader.read_uint32()
-                reader.seek(0x10)
-                file_entries_offset = reader.read_uint32()
-                self.bif_headers[cache_key] = (file_count, file_entries_offset)
-            
-            if resource_index >= file_count:
+
+            file_count, tileset_count, file_entries_offset, tileset_entries_offset = self._get_layout(reader, cache_key)
+
+            if tileset_index is not None:
+                if tileset_index < 0 or tileset_index >= tileset_count:
+                    return None
+
+                entry_offset = tileset_entries_offset + (tileset_index * self.TILESET_ENTRY_SIZE)
+                reader.seek(entry_offset + 4)
+                resource_offset = reader.read_uint32()
+                tile_count = reader.read_uint32()
+                tile_size = reader.read_uint32()
+
+                if tile_count <= 0 or tile_size <= 0:
+                    return None
+
+                resource_size = tile_count * tile_size
+                reader.seek(resource_offset)
+                tile_payload = reader.read(resource_size)
+                if len(tile_payload) != resource_size:
+                    return None
+
+                # BIFF tileset entries contain only tile payload. Build a standard
+                # TIS header so the generic schema parser can process it.
+                tis_header = struct.pack(
+                    "<4s4sIIII",
+                    b"TIS ",
+                    b"V1  ",
+                    tile_count,
+                    tile_size,
+                    self.TIS_HEADER_SIZE,
+                    self.TIS_TILE_DIMENSION,
+                )
+                return tis_header + tile_payload
+
+            if resource_index < 0 or resource_index >= file_count:
                 return None
-            
-            entry_size = 16
-            entry_offset = file_entries_offset + (resource_index * entry_size)
-            
+
+            entry_offset = file_entries_offset + (resource_index * self.FILE_ENTRY_SIZE)
             reader.seek(entry_offset + 4)
             resource_offset = reader.read_uint32()
             resource_size = reader.read_uint32()
-            
+
             reader.seek(resource_offset)
             return reader.read(resource_size)
