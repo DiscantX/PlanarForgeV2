@@ -614,6 +614,9 @@ class ImageViewerApp:
         """
         Builds WED overlay-0 tile mapping for a TIS resource so display matches
         map layout (like NI) instead of showing the entire raw tileset atlas.
+
+        INSTRUMENTED VERSION — prints detailed diagnostics to stdout so the
+        full lookup chain can be compared against NearInfinity.
         """
         if tis_resource is None or not tis_resource.name:
             return None
@@ -623,60 +626,200 @@ class ImageViewerApp:
         if cache_key in self._tis_wed_map_cache:
             return self._tis_wed_map_cache[cache_key]
 
+        print(f"\n{'='*60}")
+        print(f"TIS DIAGNOSTICS: {tis_name}  game={game}")
+        print(f"{'='*60}")
+
         try:
             wed_resource = self.loader.load(resref=tis_name, restype="WED", game=game)
-        except Exception:
+        except Exception as e:
+            print(f"  [ERROR] Failed to load WED: {e}")
             wed_resource = None
 
         if wed_resource is None:
+            print(f"  [FAIL] No WED found for {tis_name}")
             self._tis_wed_map_cache[cache_key] = None
             return None
 
-        overlays = wed_resource.get_section("overlays") or []
-        tilemaps = wed_resource.get_section("tilemaps") or []
-        lookup = wed_resource.get_section("tile_index_lookup") or []
+        print(f"  WED loaded OK: {wed_resource.name}")
+
+        overlays = wed_resource.get_section("overlays")  or []
+        tilemaps = wed_resource.get_section("tilemaps")  or []
+        lookup   = wed_resource.get_section("tile_index_lookup") or []
+
+        print(f"  overlays  count : {len(overlays)}")
+        print(f"  tilemaps  count : {len(tilemaps)}")
+        print(f"  lookup    count : {len(lookup)}")
+
+        # Print all overlay metadata
+        for oi, ov in enumerate(overlays):
+            tsname  = str(ov.get("tileset_name") or "").upper()
+            w       = ov.get("width",  0)
+            h       = ov.get("height", 0)
+            tm_off  = ov.get("offset_to_tilemap", 0) or 0
+            lk_off  = ov.get("offset_to_tile_index_lookup", 0) or 0
+            tc      = ov.get("tile_count", 0) or 0
+            print(f"  overlay[{oi}]  tileset={tsname!r:20s}  "
+                  f"w={w}  h={h}  tile_count={tc}  "
+                  f"tm_off={hex(tm_off)}  lk_off={hex(lk_off)}")
+
+        if not overlays:
+            print("  [FAIL] No overlays in WED")
+            self._tis_wed_map_cache[cache_key] = None
+            return None
+
+        TILEMAP_ENTRY_BYTES = 10   # NearInfinity-confirmed; IESDP says 8 (wrong)
+        LOOKUP_ENTRY_BYTES  = 2
+
+        # Find the absolute minimum offsets defined across all overlays.
+        # In WED files, overlays[0] is not guaranteed to be the physical start 
+        # of the tilemap/lookup data pools.
+        all_tm_offs = [int(o.get("offset_to_tilemap") or 0) for o in overlays if int(o.get("offset_to_tilemap") or 0) > 0]
+        all_lk_offs = [int(o.get("offset_to_tile_index_lookup") or 0) for o in overlays if int(o.get("offset_to_tile_index_lookup") or 0) > 0]
         
-        # Search for the specific overlay referencing this TIS
-        for overlay in overlays:
-            tileset_name = str(overlay.get("tileset_name") or "").upper()
-            if tileset_name == tis_name:
-                width = int(overlay.get("width") or 0)
-                height = int(overlay.get("height") or 0)
-                cell_count = width * height
-                
-                # Calculate indices based on physical offsets in the file
-                # Entries in tilemaps are 10 bytes; entries in lookup are 2 bytes
-                base_tilemap_off = int(overlays[0].get("offset_to_tilemap") or 0)
-                this_tilemap_off = int(overlay.get("offset_to_tilemap") or 0)
-                tilemap_start = (this_tilemap_off - base_tilemap_off) // 10
+        if not all_tm_offs or not all_lk_offs:
+            self._tis_wed_map_cache[cache_key] = None
+            return None
 
-                base_lookup_off = int(overlays[0].get("offset_to_tile_index_lookup") or 0)
-                this_lookup_off = int(overlay.get("offset_to_tile_index_lookup") or 0)
-                lookup_start = (this_lookup_off - base_lookup_off) // 2
+        base_tm_off = min(all_tm_offs)
+        base_lk_off = min(all_lk_offs)
 
-                if len(tilemaps) < tilemap_start + cell_count:
-                    continue
+        print(f"\n  physical pool base_tm_off = {hex(base_tm_off)}")
+        print(f"  physical pool base_lk_off = {hex(base_lk_off)}")
 
-                tile_indices = np.full(cell_count, -1, dtype=np.int32)
-                for cell in range(cell_count):
-                    tm_entry = tilemaps[tilemap_start + cell]
-                    # The lookup index is relative to this overlay's specific lookup table
-                    lookup_idx = lookup_start + int(tm_entry.get("primary_tile_index") or 0)
-                    
-                    if 0 <= lookup_idx < len(lookup):
-                        val = lookup[lookup_idx]
-                        tile_indices[cell] = val.get("tis_index") if isinstance(val, dict) else val
+        # -------------------------------------------------------------------
+        # Find the overlay that owns this TIS
+        # -------------------------------------------------------------------
+        target_overlay_idx = None
+        for oi, ov in enumerate(overlays):
+            tsname = str(ov.get("tileset_name") or "").upper()
+            if tsname == tis_name:
+                target_overlay_idx = oi
+                break
 
-                info = {
-                    "width": width,
-                    "height": height,
-                    "tile_indices": tile_indices,
-                }
-                self._tis_wed_map_cache[cache_key] = info
-                return info
+        if target_overlay_idx is None:
+            print(f"  [FAIL] No overlay has tileset_name == {tis_name!r}")
+            self._tis_wed_map_cache[cache_key] = None
+            return None
 
-        self._tis_wed_map_cache[cache_key] = None
-        return None
+        ov          = overlays[target_overlay_idx]
+        width       = int(ov.get("width",  0) or 0)
+        height      = int(ov.get("height", 0) or 0)
+        tc          = int(ov.get("tile_count", 0) or 0)   # computed = width*height
+        this_tm_off = int(ov.get("offset_to_tilemap",           0) or 0)
+        this_lk_off = int(ov.get("offset_to_tile_index_lookup", 0) or 0)
+
+        print(f"\n  target overlay index  : {target_overlay_idx}")
+        print(f"  width={width}  height={height}  cell_count={width * height}")
+        print(f"  tile_count (computed) = {tc}")
+        print(f"  this_tm_off           = {hex(this_tm_off)}")
+        print(f"  this_lk_off           = {hex(this_lk_off)}")
+
+        # -------------------------------------------------------------------
+        # Convert file offsets → indices into the parsed arrays
+        # -------------------------------------------------------------------
+        tm_delta = this_tm_off - base_tm_off
+        lk_delta = this_lk_off - base_lk_off
+
+        if tm_delta % TILEMAP_ENTRY_BYTES != 0:
+            print(f"  [WARN] tilemap offset delta {tm_delta} "
+                  f"is not a multiple of {TILEMAP_ENTRY_BYTES} — possible misalignment")
+
+        if lk_delta % LOOKUP_ENTRY_BYTES != 0:
+            print(f"  [WARN] lookup offset delta {lk_delta} "
+                  f"is not a multiple of {LOOKUP_ENTRY_BYTES} — possible misalignment")
+
+        tilemap_start = tm_delta // TILEMAP_ENTRY_BYTES
+        lookup_start  = lk_delta // LOOKUP_ENTRY_BYTES
+
+        print(f"\n  tilemap_start (index into tilemaps[]) = {tilemap_start}")
+        print(f"  lookup_start  (index into lookup[])   = {lookup_start}")
+
+        cell_count = width * height
+        print(f"  cells to map  = {cell_count}")
+        print(f"  tilemaps[]    has {len(tilemaps)} entries "
+              f"— need indices {tilemap_start}..{tilemap_start + cell_count - 1}")
+        print(f"  lookup[]      has {len(lookup)} entries")
+
+        if tilemap_start + cell_count > len(tilemaps):
+            print(f"  [ERROR] tilemap overrun: have {len(tilemaps)}, "
+                  f"need {tilemap_start + cell_count}")
+            self._tis_wed_map_cache[cache_key] = None
+            return None
+
+        # -------------------------------------------------------------------
+        # Resolve tile indices: for each map cell, follow the full chain:
+        #   tilemaps[tilemap_start + cell].primary_tile_index
+        #     → lookup[lookup_start + primary_tile_index].tis_index
+        # -------------------------------------------------------------------
+        tile_indices = np.full(cell_count, -1, dtype=np.int32)
+
+        SAMPLE = min(12, cell_count)
+        print(f"\n  --- First {SAMPLE} cells (full chain) ---")
+        print(f"  {'cell':>5}  {'tm_idx':>7}  {'primary':>8}  "
+              f"{'p_count':>7}  {'lk_idx':>7}  {'tis_idx':>8}  secondary")
+
+        for cell in range(cell_count):
+            tm_idx = tilemap_start + cell
+            tm     = tilemaps[tm_idx]
+
+            primary_tile_index = int(tm.get("primary_tile_index", 0) or 0)
+            primary_tile_count = int(tm.get("primary_tile_count", 1) or 1)
+            secondary_idx      = tm.get("secondary_tile_index")
+            draw_overlays      = tm.get("draw_overlays")
+
+            # The primary_tile_index is the offset into this overlay's lookup
+            # window, so the absolute lookup array index is:
+            lookup_idx = lookup_start + primary_tile_index
+
+            tis_index = -1
+            if 0 <= lookup_idx < len(lookup):
+                lk_entry  = lookup[lookup_idx]
+                tis_index = (lk_entry.get("tis_index")
+                             if isinstance(lk_entry, dict)
+                             else int(lk_entry))
+            else:
+                if cell < SAMPLE:
+                    print(f"  [WARN] cell {cell}: lookup_idx {lookup_idx} "
+                          f"out of range (lookup size={len(lookup)})")
+
+            tile_indices[cell] = tis_index
+
+            if cell < SAMPLE:
+                sec_str = (str(secondary_idx)
+                           if secondary_idx not in (None, 0xFFFF, 65535)
+                           else "-")
+                print(f"  {cell:>5}  {tm_idx:>7}  {primary_tile_index:>8}  "
+                      f"{primary_tile_count:>7}  {lookup_idx:>7}  {tis_index:>8}  {sec_str}")
+
+        # -------------------------------------------------------------------
+        # Sanity summary
+        # -------------------------------------------------------------------
+        tis_tile_count = int(tis_resource.get("count_of_tiles") or 0)
+        valid   = int(np.sum(tile_indices >= 0))
+        oob     = int(np.sum((tile_indices >= 0) & (tile_indices >= tis_tile_count)))
+        neg_one = int(np.sum(tile_indices == -1))
+
+        print(f"\n  TIS tile count = {tis_tile_count}")
+        print(f"  Resolved       : {valid}/{cell_count} valid, "
+              f"{oob} out-of-range (>={tis_tile_count}), "
+              f"{neg_one} unresolved (-1)")
+        print(f"  tile_indices[0:16] = {tile_indices[:16].tolist()}")
+
+        if valid == 0:
+            print("  [FAIL] No tiles resolved — check overlay matching and offset arithmetic")
+            self._tis_wed_map_cache[cache_key] = None
+            return None
+
+        print(f"{'='*60}\n")
+
+        info = {
+            "width":        width,
+            "height":       height,
+            "tile_indices": tile_indices,
+        }
+        self._tis_wed_map_cache[cache_key] = info
+        return info
 
     def _get_pvrz_resrefs(self, game):
         cached = self._pvrz_resref_index_cache.get(game)
