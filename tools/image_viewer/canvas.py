@@ -2,6 +2,8 @@ import dearpygui.dearpygui as dpg
 import numpy as np
 
 class PFCanvas:
+    SAFE_MAX_TEXTURE_DIM = 8192
+
     def __init__(self, app, tag="image_canvas"):
         self.app = app
         self.tag = tag
@@ -28,6 +30,10 @@ class PFCanvas:
 
     def update_texture(self, rgba_buffer: np.ndarray, pivot_x=0, pivot_y=0):
         """Uploads a NumPy RGBA buffer to the GPU."""
+        if rgba_buffer is None or rgba_buffer.ndim != 3 or rgba_buffer.shape[2] != 4:
+            return
+
+        rgba_buffer = self._fit_to_safe_texture_size(rgba_buffer)
         height, width, _ = rgba_buffer.shape
         
         self.pivot_x = pivot_x
@@ -60,6 +66,25 @@ class PFCanvas:
         # --- Step 4: Cleanup old texture after the new one is visible ---
         if old_texture:
             dpg.delete_item(old_texture)
+
+    def _fit_to_safe_texture_size(self, rgba_buffer: np.ndarray):
+        """Downscales oversized buffers to avoid GPU texture allocation crashes."""
+        height, width, _ = rgba_buffer.shape
+        max_dim = self.SAFE_MAX_TEXTURE_DIM
+        if height <= max_dim and width <= max_dim:
+            return rgba_buffer
+
+        scale = min(max_dim / float(width), max_dim / float(height))
+        if scale <= 0.0:
+            return rgba_buffer
+
+        new_width = max(1, int(width * scale))
+        new_height = max(1, int(height * scale))
+
+        # Fast nearest-neighbor resample via index mapping.
+        x_idx = np.minimum((np.arange(new_width) / scale).astype(np.int32), width - 1)
+        y_idx = np.minimum((np.arange(new_height) / scale).astype(np.int32), height - 1)
+        return rgba_buffer[y_idx[:, None], x_idx[None, :], :]
 
     def _redraw(self):
         """Calculates coordinates manually and draws to the node, avoiding apply_transform."""
