@@ -115,6 +115,8 @@ class ImageViewerApp:
                                 callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
                 self.show_grid_checkbox = dpg.add_checkbox(label="Show Grid", default_value=False, show=False,
                                 callback=lambda s, v: setattr(self.canvas, 'show_grid', v) or self.canvas._redraw())
+                self.use_wed_layout = dpg.add_checkbox(label="Map Layout", default_value=True, show=False,
+                                callback=self._on_layout_change)
                 self.tis_grid_slider = dpg.add_slider_int(label="Grid Width", min_value=1, max_value=80, default_value=10, 
                                                          show=False, callback=self._update_display, width=150)
 
@@ -256,6 +258,12 @@ class ImageViewerApp:
         elif item_bottom > curr_scroll + window_height:
             dpg.set_y_scroll("resource_list_container", item_bottom - window_height)
 
+    def _on_layout_change(self):
+        """Callback for the 'Map Layout' checkbox to toggle slider visibility."""
+        use_wed = dpg.get_value(self.use_wed_layout)
+        dpg.configure_item(self.tis_grid_slider, show=not use_wed)
+        self._update_display()
+
     def _on_filter_toggle(self):
         """Handles toggling the empty frame filter, ensuring we don't stay on an empty view."""
         if not self.current_resource:
@@ -374,14 +382,20 @@ class ImageViewerApp:
 
         # Update TIS grid controls visibility and initial values
         is_tis = (restype == "TIS")
-        dpg.configure_item(self.tis_grid_slider, show=is_tis)
+        map_info = self._get_tis_wed_map_info(game, resource) if is_tis else None
+        has_wed = map_info is not None
+        use_wed = has_wed and dpg.get_value(self.use_wed_layout)
+
+        dpg.configure_item(self.use_wed_layout, show=has_wed)
         dpg.configure_item(self.show_grid_checkbox, show=is_tis)
+        dpg.configure_item(self.tis_grid_slider, show=is_tis and not use_wed)
+
         if is_tis:
-            map_info = self._get_tis_wed_map_info(game, resource)
-            if map_info is not None:
+            if has_wed:
                 dpg.set_value(self.tis_grid_slider, map_info["width"])
             else:
                 dpg.set_value(self.tis_grid_slider, self._compute_tis_grid_width(resource))
+
             tile_dim = int(resource.get("tile_dimension") or 64)
             self.canvas.grid_size = [tile_dim, tile_dim]
         else:
@@ -450,7 +464,8 @@ class ImageViewerApp:
         elif restype == "TIS":
             pvrz_provider = self._get_tis_pvrz_page_provider(game)
             map_info = self._get_tis_wed_map_info(game, resource)
-            if map_info is not None:
+
+            if dpg.get_value(self.use_wed_layout) and map_info:
                 buffer = self.tis_decoder.decode_tis(
                     resource,
                     pvrz_page_provider=pvrz_provider,
@@ -618,59 +633,50 @@ class ImageViewerApp:
             return None
 
         overlays = wed_resource.get_section("overlays") or []
-        if not overlays:
-            self._tis_wed_map_cache[cache_key] = None
-            return None
-
-        overlay0 = overlays[0]
-        width = int(overlay0.get("width") or 0)
-        height = int(overlay0.get("height") or 0)
-        if width <= 0 or height <= 0:
-            self._tis_wed_map_cache[cache_key] = None
-            return None
-
-        # Only apply map layout when WED overlay points at this same TIS.
-        tileset_name = str(overlay0.get("tileset_name") or "").upper()
-        if tileset_name and tileset_name != tis_name:
-            self._tis_wed_map_cache[cache_key] = None
-            return None
-
-        cell_count = width * height
         tilemaps = wed_resource.get_section("tilemaps") or []
         lookup = wed_resource.get_section("tile_index_lookup") or []
-        if len(tilemaps) < cell_count or not lookup:
-            self._tis_wed_map_cache[cache_key] = None
-            return None
+        
+        # Search for the specific overlay referencing this TIS
+        for overlay in overlays:
+            tileset_name = str(overlay.get("tileset_name") or "").upper()
+            if tileset_name == tis_name:
+                width = int(overlay.get("width") or 0)
+                height = int(overlay.get("height") or 0)
+                cell_count = width * height
+                
+                # Calculate indices based on physical offsets in the file
+                # Entries in tilemaps are 10 bytes; entries in lookup are 2 bytes
+                base_tilemap_off = int(overlays[0].get("offset_to_tilemap") or 0)
+                this_tilemap_off = int(overlay.get("offset_to_tilemap") or 0)
+                tilemap_start = (this_tilemap_off - base_tilemap_off) // 10
 
-        tile_indices = np.full(cell_count, -1, dtype=np.int32)
+                base_lookup_off = int(overlays[0].get("offset_to_tile_index_lookup") or 0)
+                this_lookup_off = int(overlay.get("offset_to_tile_index_lookup") or 0)
+                lookup_start = (this_lookup_off - base_lookup_off) // 2
 
-        for cell in range(cell_count):
-            tilemap_entry = tilemaps[cell]
-            if not isinstance(tilemap_entry, dict):
-                continue
+                if len(tilemaps) < tilemap_start + cell_count:
+                    continue
 
-            primary_lookup_index = tilemap_entry.get("primary_tile_index")
-            if not isinstance(primary_lookup_index, int):
-                continue
-            if primary_lookup_index < 0 or primary_lookup_index >= len(lookup):
-                continue
+                tile_indices = np.full(cell_count, -1, dtype=np.int32)
+                for cell in range(cell_count):
+                    tm_entry = tilemaps[tilemap_start + cell]
+                    # The lookup index is relative to this overlay's specific lookup table
+                    lookup_idx = lookup_start + int(tm_entry.get("primary_tile_index") or 0)
+                    
+                    if 0 <= lookup_idx < len(lookup):
+                        val = lookup[lookup_idx]
+                        tile_indices[cell] = val.get("tis_index") if isinstance(val, dict) else val
 
-            lookup_entry = lookup[primary_lookup_index]
-            if isinstance(lookup_entry, dict):
-                tis_index = lookup_entry.get("tis_index")
-            else:
-                tis_index = lookup_entry
+                info = {
+                    "width": width,
+                    "height": height,
+                    "tile_indices": tile_indices,
+                }
+                self._tis_wed_map_cache[cache_key] = info
+                return info
 
-            if isinstance(tis_index, int):
-                tile_indices[cell] = tis_index
-
-        info = {
-            "width": width,
-            "height": height,
-            "tile_indices": tile_indices,
-        }
-        self._tis_wed_map_cache[cache_key] = info
-        return info
+        self._tis_wed_map_cache[cache_key] = None
+        return None
 
     def _get_pvrz_resrefs(self, game):
         cached = self._pvrz_resref_index_cache.get(game)
