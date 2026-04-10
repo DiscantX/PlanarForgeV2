@@ -21,7 +21,14 @@ class TisDecoder:
     def __init__(self):
         self._page_cache = {}
 
-    def decode_tis(self, resource: Resource, pvrz_page_provider=None, grid_width: int = 10):
+    def decode_tis(
+        self,
+        resource: Resource,
+        pvrz_page_provider=None,
+        grid_width: int = 10,
+        tile_indices=None,
+        grid_height: int = None,
+    ):
         """
         Decodes all tiles in a TIS resource and stitches them into one large NumPy array.
         """
@@ -37,14 +44,30 @@ class TisDecoder:
 
         tile_data_size = resource.get("tile_data_block_size")
         tiles_section = resource.get_section("tiles") or []
-        tile_count = int(resource.get("count_of_tiles") or 0)
+        source_tile_count = int(resource.get("count_of_tiles") or 0)
+        tile_count = source_tile_count
         if tile_count <= 0:
             tile_count = len(tiles_section)
+            source_tile_count = tile_count
+
+        mapped_indices = None
+        if tile_indices is not None:
+            mapped_indices = np.asarray(tile_indices, dtype=np.int32).ravel()
+            tile_count = int(mapped_indices.size)
 
         if tile_count == 0:
             return None
 
-        grid_height = (tile_count + grid_width - 1) // grid_width
+        if grid_height is None:
+            grid_height = (tile_count + grid_width - 1) // grid_width
+        else:
+            try:
+                grid_height = int(grid_height)
+            except (TypeError, ValueError):
+                grid_height = (tile_count + grid_width - 1) // grid_width
+            if grid_height <= 0:
+                grid_height = (tile_count + grid_width - 1) // grid_width
+
         canvas_width = grid_width * self.TILE_SIZE
         canvas_height = grid_height * self.TILE_SIZE
 
@@ -54,13 +77,28 @@ class TisDecoder:
             return None
 
         if tile_data_size == self.PALETTE_TILE_DATA_SIZE:
-            return self._decode_palette_tis(resource, tiles_section, tile_count, canvas, grid_width)
+            return self._decode_palette_tis(
+                resource,
+                tiles_section,
+                source_tile_count,
+                canvas,
+                grid_width,
+                mapped_indices=mapped_indices,
+            )
         if tile_data_size == self.PVRZ_TILE_DATA_SIZE:
-            return self._decode_pvrz_tis(resource, tiles_section, tile_count, canvas, grid_width, pvrz_page_provider)
+            return self._decode_pvrz_tis(
+                resource,
+                tiles_section,
+                source_tile_count,
+                canvas,
+                grid_width,
+                pvrz_page_provider,
+                mapped_indices=mapped_indices,
+            )
 
         return None
 
-    def _decode_palette_tis(self, resource, tiles_section, tile_count, canvas, grid_width):
+    def _decode_palette_tis(self, resource, tiles_section, tile_count, canvas, grid_width, mapped_indices=None):
         """Handles high-performance decoding of indexed TIS files."""
         payload = self._get_tile_payload(
             resource=resource,
@@ -73,14 +111,16 @@ class TisDecoder:
 
         data = np.frombuffer(payload, dtype=np.uint8)
         max_tiles = data.size // self.PALETTE_TILE_DATA_SIZE
-        tile_count = min(tile_count, max_tiles)
-        if tile_count <= 0:
+        source_tile_count = min(tile_count, max_tiles)
+        if source_tile_count <= 0:
             return canvas
 
-        if TisDecoder._decode_palette_tiles_numba.signatures:
-            self._decode_palette_tiles_numba(canvas, data, tile_count, grid_width)
+        if mapped_indices is not None:
+            self._decode_palette_tiles_mapped_numpy(canvas, data, mapped_indices, source_tile_count, grid_width)
+        elif TisDecoder._decode_palette_tiles_numba.signatures:
+            self._decode_palette_tiles_numba(canvas, data, source_tile_count, grid_width)
         else:
-            self._decode_palette_tiles_numpy(canvas, data, tile_count, grid_width)
+            self._decode_palette_tiles_numpy(canvas, data, source_tile_count, grid_width)
         return canvas
 
     @staticmethod
@@ -141,7 +181,38 @@ class TisDecoder:
             x_base = col * tile_size
             canvas[y_base:y_base + tile_size, x_base:x_base + tile_size] = rgba[indices]
 
-    def _decode_pvrz_tis(self, resource, tiles_section, tile_count, canvas, grid_width, page_provider):
+    @staticmethod
+    def _decode_palette_tiles_mapped_numpy(canvas, data, tile_indices, source_tile_count, grid_width):
+        tile_size = 64
+        block_size = 5120
+        palette_bytes = 1024
+
+        for out_i, src_idx in enumerate(tile_indices):
+            src_idx = int(src_idx)
+            if src_idx < 0 or src_idx >= source_tile_count:
+                continue
+
+            offset = src_idx * block_size
+            tile = data[offset:offset + block_size]
+            if tile.size < block_size:
+                continue
+
+            bgra = tile[:palette_bytes].reshape((256, 4))
+            rgba = np.empty((256, 4), dtype=np.uint8)
+            rgba[:, 0] = bgra[:, 2]
+            rgba[:, 1] = bgra[:, 1]
+            rgba[:, 2] = bgra[:, 0]
+            rgba[:, 3] = 255
+            rgba[0, 3] = 0
+
+            indices = tile[palette_bytes:palette_bytes + 4096].reshape((tile_size, tile_size))
+            row = out_i // grid_width
+            col = out_i % grid_width
+            y_base = row * tile_size
+            x_base = col * tile_size
+            canvas[y_base:y_base + tile_size, x_base:x_base + tile_size] = rgba[indices]
+
+    def _decode_pvrz_tis(self, resource, tiles_section, tile_count, canvas, grid_width, page_provider, mapped_indices=None):
         """Handles PVRZ-based TIS files by cropping blocks from page textures.
         """
         if not page_provider:
@@ -169,24 +240,30 @@ class TisDecoder:
                     break
                 tile_map.append(struct.unpack("<III", raw))
 
+        if mapped_indices is not None:
+            source_indices = [int(idx) for idx in mapped_indices if 0 <= int(idx) < len(tile_map)]
+        else:
+            source_indices = list(range(len(tile_map)))
+
         cache_scope = (getattr(resource, "game", None), resource.name)
         unique_pages = {
-            int(tile[0])
-            for tile in tile_map
-            if int(tile[0]) != 0xFFFFFFFF
+            int(tile_map[src_idx][0])
+            for src_idx in source_indices
+            if int(tile_map[src_idx][0]) != 0xFFFFFFFF
         }
         page_cache = {}
         for page_idx in unique_pages:
             page_cache[page_idx] = self._get_cached_page(page_idx, page_provider, cache_scope)
 
-        for i, tile in enumerate(tile_map):
+        for out_i, src_idx in enumerate(source_indices):
+            tile = tile_map[src_idx]
             page_idx = int(tile[0])
             src_x = int(tile[1])
             src_y = int(tile[2])
 
             # Calculate target grid position
-            row = i // grid_width
-            col = i % grid_width
+            row = out_i // grid_width
+            col = out_i % grid_width
             ty = row * self.TILE_SIZE
             tx = col * self.TILE_SIZE
 
