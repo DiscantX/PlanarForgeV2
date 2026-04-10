@@ -12,6 +12,7 @@ class PFCanvas:
         self.border_item = dpg.generate_uuid()
         self.bg_item = dpg.generate_uuid()
         self.marker_node = dpg.generate_uuid()
+        self.grid_node = dpg.generate_uuid()
 
         self.registry_tag = "canvas_texture_registry"
         self.zoom = 1.0
@@ -20,6 +21,8 @@ class PFCanvas:
         self.current_texture_height = 0
         self.show_border = True
         self.show_markers = False
+        self.show_grid = False
+        self.grid_size = [64, 64]
         self.alignment = "Pivot"
         self.pivot_x = 0
         self.pivot_y = 0
@@ -170,6 +173,25 @@ class PFCanvas:
             # 3. Image Origin 0,0 (Green)
             dpg.draw_circle([x1, y1], 4, color=[0, 255, 0, 200], fill=[0, 255, 0, 200], parent=self.marker_node)
             dpg.draw_text([x1 + 4, y1 + 4], "Origin (0,0)", color=[0, 255, 0, 200], size=13, parent=self.marker_node)
+
+        # --- Step 4: Tile Grid ---
+        if not dpg.does_item_exist(self.grid_node):
+            dpg.add_draw_node(tag=self.grid_node, parent=self.tag)
+        
+        dpg.delete_item(self.grid_node, children_only=True)
+
+        if self.show_grid and self.current_texture_width > 0:
+            tw, th = self.grid_size[0] * self.zoom, self.grid_size[1] * self.zoom
+            if tw > 1 and th > 1:
+                cols = int(image_width / tw + 0.5)
+                rows = int(image_height / th + 0.5)
+                grid_color = [255, 255, 255, 60]
+                for i in range(cols + 1):
+                    lx = min(x1 + i * tw, x2)
+                    dpg.draw_line([lx, y1], [lx, y2], color=grid_color, thickness=1, parent=self.grid_node)
+                for i in range(rows + 1):
+                    ly = min(y1 + i * th, y2)
+                    dpg.draw_line([x1, ly], [x2, ly], color=grid_color, thickness=1, parent=self.grid_node)
 
     def clear_texture(self):
         """Clears the canvas by showing a transparent placeholder and hiding image/border."""

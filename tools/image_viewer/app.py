@@ -112,6 +112,8 @@ class ImageViewerApp:
                                 callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
                 dpg.add_checkbox(label="Show Markers", default_value=True,
                                 callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
+                self.show_grid_checkbox = dpg.add_checkbox(label="Show Grid", default_value=False, show=False,
+                                callback=lambda s, v: setattr(self.canvas, 'show_grid', v) or self.canvas._redraw())
                 self.tis_grid_slider = dpg.add_slider_int(label="Grid Width", min_value=1, max_value=80, default_value=10, 
                                                          show=False, callback=self._update_display, width=150)
 
@@ -369,10 +371,17 @@ class ImageViewerApp:
         is_bam = bool(resource.schema and "BAM" in resource.schema.name)
         self.is_playing = dpg.get_value(self.autoplay_toggle) if is_bam else False
 
-        # Update TIS grid slider visibility and initial value
-        dpg.configure_item(self.tis_grid_slider, show=(restype == "TIS"))
-        if restype == "TIS":
+        # Update TIS grid controls visibility and initial values
+        is_tis = (restype == "TIS")
+        dpg.configure_item(self.tis_grid_slider, show=is_tis)
+        dpg.configure_item(self.show_grid_checkbox, show=is_tis)
+        if is_tis:
             dpg.set_value(self.tis_grid_slider, self._compute_tis_grid_width(resource))
+            tile_dim = int(resource.get("tile_dimension") or 64)
+            self.canvas.grid_size = [tile_dim, tile_dim]
+        else:
+            self.canvas.show_grid = False
+            dpg.set_value(self.show_grid_checkbox, False)
 
         dpg.configure_item(self.play_button, label="Stop" if self.is_playing else "Play")
 
