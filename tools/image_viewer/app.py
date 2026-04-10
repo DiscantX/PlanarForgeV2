@@ -21,6 +21,8 @@ class ImageViewerApp:
         self.bam_decoder = BamDecoder()
         self.pvrz_decoder = PvrzDecoder()
         self.tis_decoder = TisDecoder()
+        self._tis_page_bytes_cache = {}
+        self._pvrz_resref_index_cache = {}
         
         self.current_resource = None
         self.current_resref = None
@@ -101,8 +103,8 @@ class ImageViewerApp:
             dpg.bind_item_theme("top_window", "top_window_theme")
             with dpg.group(horizontal=True):
                 dpg.add_button(label="Reset View", callback=self._reset_view)
-                dpg.add_combo(label="Alignment", items=["Pivot", "Center", "Top-Left", "Top-Center", "Top-Right", "Left-Center", "Right-Center", "Bottom-Left", "Bottom-Center", "Bottom-Right"], default_value="Pivot",
-                             callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw(), width=120) 
+                self.alignment_combo = dpg.add_combo(label="Alignment", items=["Pivot", "Center", "Top-Left", "Top-Center", "Top-Right", "Left-Center", "Right-Center", "Bottom-Left", "Bottom-Center", "Bottom-Right"], default_value="Pivot",
+                             callback=lambda s, v: setattr(self.canvas, 'alignment', v) or self.canvas._redraw(), width=120)
                 self.zoom_slider = dpg.add_slider_float(label="Zoom", min_value=0.1, max_value=10.0, default_value=1.0, 
                                     callback=lambda s, v: self.canvas.set_zoom_absolute(v), width=150) 
                 dpg.add_checkbox(label="Show Border", default_value=True, 
@@ -344,12 +346,23 @@ class ImageViewerApp:
         restype = dpg.get_value(self.restype_input)
         game = dpg.get_value(self.game_input)
         
+        # Clear current resource and stop playback to prevent stale animation loops
+        self.current_resource = None
+        self.is_playing = False
+        
         resource = self.loader.load(resref=resref, restype=restype, game=game)
         if not resource:
             return
 
         self.current_resource = resource
         self.canvas.offset = [0.0, 0.0]
+
+        # Set default alignment based on resource type
+        if restype == "PVRZ" or restype == "TIS":
+            self.canvas.alignment = "Center"
+        else:
+            self.canvas.alignment = "Pivot" # Default for other types
+        dpg.set_value(self.alignment_combo, self.canvas.alignment)
         is_bam = bool(resource.schema and "BAM" in resource.schema.name)
         self.is_playing = dpg.get_value(self.autoplay_toggle) if is_bam else False
         dpg.configure_item(self.play_button, label="Stop" if self.is_playing else "Play")
@@ -412,12 +425,14 @@ class ImageViewerApp:
         elif restype == "PVRZ":
             buffer = self.pvrz_decoder.decode_pvrz_bytes(resource._original_bytes)
         elif restype == "TIS":
-            # For TIS, we need a palette. We'll try to find a BAM with the same name or use default.
-            pal_res = self.loader.load(resref=self.current_resref, restype="BAM", game=game)
-            buffer = self.tis_decoder.decode_tis(resource, palette_resource=pal_res)
+            pvrz_provider = self._get_tis_pvrz_page_provider(game)
+            buffer = self.tis_decoder.decode_tis(resource, pvrz_page_provider=pvrz_provider)
 
         if buffer is not None:
             self.canvas.update_texture(buffer, pivot_x=pivot_x, pivot_y=pivot_y)
+        else:
+            self.canvas.clear_texture()
+
 
     def _refresh_resource_list(self):
         game = dpg.get_value(self.game_input)
@@ -447,6 +462,88 @@ class ImageViewerApp:
                 return None
         
         return load_pvrz_page
+
+    def _get_tis_pvrz_page_provider(self, game):
+        """
+        Specialized provider for TIS PVRZ naming conventions.
+        Example: AR2600.TIS references A2600xx.PVRZ
+        """
+        tis_name = (self.current_resref or "").upper()
+        if not tis_name:
+            return lambda _page_index: None
+
+        pvrz_resrefs = self._get_pvrz_resrefs(game)
+        
+        # Convention: Char 1 + Chars 3-6 + optional 'N' + PageIndex
+        # e.g. AR2600 -> A + 2600 -> A2600
+        # e.g. AR2600N -> A + 2600 + N -> A2600N
+        prefix = tis_name[0] + tis_name[2:6]
+        if len(tis_name) > 6 and tis_name[6] == 'N':
+            prefix += 'N'
+
+        def load_tis_pvrz_page(page_index):
+            try:
+                page_index = int(page_index)
+            except (TypeError, ValueError):
+                return None
+
+            cache_key = (game, tis_name, page_index)
+            if cache_key in self._tis_page_bytes_cache:
+                return self._tis_page_bytes_cache[cache_key]
+
+            candidate_resrefs = []
+
+            def add_candidate(resref):
+                if not resref:
+                    return
+                if resref not in candidate_resrefs:
+                    candidate_resrefs.append(resref)
+
+            # Primary naming (documented by IESDP for EE area tilesets)
+            add_candidate(f"{prefix}{page_index:02d}")
+
+            # Alternate base observed in some resources/tools
+            if len(tis_name) >= 6:
+                add_candidate(f"{tis_name[:6]}{page_index:02d}")
+
+            # Some assets encode page suffixes in hex-like form for higher pages.
+            if page_index >= 10:
+                add_candidate(f"{prefix}{page_index:02X}")
+                if len(tis_name) >= 6:
+                    add_candidate(f"{tis_name[:6]}{page_index:02X}")
+
+            # Fallback used by a subset of BGEE content: global MOS page ids.
+            add_candidate(f"MOS{page_index:04d}")
+
+            for resref in candidate_resrefs:
+                if resref not in pvrz_resrefs:
+                    continue
+                try:
+                    resource = self.loader.load(resref=resref, restype="PVRZ", game=game)
+                except Exception:
+                    resource = None
+                if resource:
+                    data = resource._original_bytes
+                    self._tis_page_bytes_cache[cache_key] = data
+                    return data
+
+            self._tis_page_bytes_cache[cache_key] = None
+            return None
+
+        return load_tis_pvrz_page
+
+    def _get_pvrz_resrefs(self, game):
+        cached = self._pvrz_resref_index_cache.get(game)
+        if cached is not None:
+            return cached
+
+        pvrz_resrefs = {
+            resref
+            for resref, restype, _ in self.loader.iter_resources(game=game)
+            if restype == "PVRZ"
+        }
+        self._pvrz_resref_index_cache[game] = pvrz_resrefs
+        return pvrz_resrefs
 
     def _filter_list(self):
         filter_text = dpg.get_value(self.filter_input).upper()

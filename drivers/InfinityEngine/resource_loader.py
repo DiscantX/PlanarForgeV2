@@ -117,17 +117,30 @@ class ResourceLoader:
         if not res_entry:
             return None, None, None
 
-        resource_index = res_entry.get("resource_locator").get("resource_index")
+        locator = res_entry.get("resource_locator") or {}
+        resource_index = locator.get("resource_index")
+        tileset_index = locator.get("tileset_index")
         bif_file_path = self._find_bif_file(res_entry, game)
         if not bif_file_path:
             return None, None, None
 
         try:
-            raw_bytes = self.biff_handler.get_resource_data(bif_file_path, resource_index)
+            res_type_code = res_entry.get("resource_type")
+            tis_type_code = int(RESOURCE_TYPE_MAP_REV.get("TIS", 1003))
+            is_tis = (str(restype).upper() == "TIS") if restype else (int(res_type_code) == tis_type_code)
+
+            if is_tis and isinstance(tileset_index, int):
+                raw_bytes = self.biff_handler.get_resource_data(
+                    bif_file_path,
+                    resource_index,
+                    tileset_index=tileset_index,
+                )
+            else:
+                raw_bytes = self.biff_handler.get_resource_data(bif_file_path, resource_index)
+
             if raw_bytes is None:
                 return None, None, None
-            
-            res_type_code = res_entry.get("resource_type")
+
             return raw_bytes, bif_file_path, res_type_code
 
         except (FileNotFoundError, Exception) as e:

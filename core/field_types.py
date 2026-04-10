@@ -285,31 +285,48 @@ class Bytes(FieldType):
     names = ["bytes"]
 
     def read(self, reader, field, context=None):
-        size = field.attributes.get("size")
+        size_ref = field.attributes.get("size_ref")
+        if size_ref and context:
+            size = context.get(size_ref)
+        else:
+            size = field.attributes.get("size")
+
         if size is None:
-             raise ValueError(f"Bytes field '{field.name}' requires a 'size' attribute.")
+             raise ValueError(f"Bytes field '{field.name}' requires a 'size' or 'size_ref' attribute.")
         return reader.read(size)
 
     def write(self, writer, value, field):
-        size = field.attributes.get("size")
-        if size is None:
-             raise ValueError(f"Bytes field '{field.name}' requires a 'size' attribute.")
-        
         if value is None:
+            size = field.attributes.get("size", 0)
             value = b'\x00' * size
         writer.write(value)
+
+    def measure(self, value, field, context=None):
+        if value is not None:
+            return len(value)
+        
+        size_ref = field.attributes.get("size_ref")
+        if size_ref and context:
+            return context.get(size_ref, 0)
+        return field.attributes.get("size", 0)
 
 class ByteArray(FieldType):
     names = ["byte_array"]
 
-    def _count(self, field):
+    def _count(self, field, context=None):
         count = field.attributes.get("count")
         if count is not None:
             return count
 
+        size_ref = field.attributes.get("size_ref")
+        if size_ref and context:
+            val = context.get(size_ref)
+            if val is not None:
+                return val
+
         size = field.attributes.get("size")
         if size is None:
-            raise ValueError(f"{field.name} requires a valid 'count' or 'size'")
+            raise ValueError(f"{field.name} requires a valid 'count', 'size', or 'size_ref'")
         return size
 
     def _labels(self, field):
@@ -336,10 +353,12 @@ class ByteArray(FieldType):
         raise ValueError(f"Unsupported key for {field.name}: {key!r}")
 
     def read(self, reader, field, context=None):
-        return [reader.read_uint8() for _ in range(self._count(field))]
+        return [reader.read_uint8() for _ in range(self._count(field, context))]
 
     def write(self, writer, value, field):
-        count = self._count(field)
+        # Writing doesn't necessarily have access to the full context for size_ref
+        # but we can rely on the length of the value if provided.
+        count = len(value) if value is not None else self._count(field)
         pad_value = field.attributes.get("pad_value", 0)
 
         if value is None:
@@ -364,7 +383,9 @@ class ByteArray(FieldType):
             writer.write_uint8(pad_value if entry is None else int(entry))
 
     def measure(self, value, field, context=None):
-        return self._count(field)
+        if value is not None:
+            return len(value)
+        return self._count(field, context)
 
     def serialize(self, value, field, resource=None):
         if value is None:

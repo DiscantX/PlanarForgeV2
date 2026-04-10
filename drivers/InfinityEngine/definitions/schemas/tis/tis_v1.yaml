@@ -1,0 +1,43 @@
+name: TIS
+version: V1
+games: [BG1, BG2, IWD, IWD2, PST, BGEE, BG2EE, IWDEE, PSTEE]
+
+header:
+  fields:
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: count_of_tiles
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: tile_data_block_size
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: offset_to_tiles
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: tile_dimension
+    type: dword
+    size: 4
+    offset: 0x0014
+
+tiles:
+  offset_field: offset_to_tiles
+  count_field: count_of_tiles
+  fields:
+  - name: raw_data
+    type: bytes
+    size_ref: tile_data_block_size
