@@ -1,5 +1,6 @@
 import sys
 import time
+import math
 from pathlib import Path
 import numpy as np
 
@@ -426,7 +427,8 @@ class ImageViewerApp:
             buffer = self.pvrz_decoder.decode_pvrz_bytes(resource._original_bytes)
         elif restype == "TIS":
             pvrz_provider = self._get_tis_pvrz_page_provider(game)
-            buffer = self.tis_decoder.decode_tis(resource, pvrz_page_provider=pvrz_provider)
+            grid_width = self._compute_tis_grid_width(resource)
+            buffer = self.tis_decoder.decode_tis(resource, pvrz_page_provider=pvrz_provider, grid_width=grid_width)
 
         if buffer is not None:
             self.canvas.update_texture(buffer, pivot_x=pivot_x, pivot_y=pivot_y)
@@ -531,6 +533,35 @@ class ImageViewerApp:
             return None
 
         return load_tis_pvrz_page
+
+    def _compute_tis_grid_width(self, resource):
+        """
+        Chooses a TIS stitching width that keeps texture dimensions under a
+        conservative GPU-safe limit to prevent DPG/OpenGL texture crashes.
+        """
+        preferred = 10
+        tile_size = int(resource.get("tile_dimension") or 64)
+        tile_count = int(resource.get("count_of_tiles") or 0)
+        if tile_size <= 0 or tile_count <= 0:
+            return preferred
+
+        max_dim = getattr(self.canvas, "SAFE_MAX_TEXTURE_DIM", 8192)
+        max_tiles_axis = max(1, max_dim // tile_size)
+
+        # Keep default layout when already safe.
+        if (
+            preferred <= max_tiles_axis and
+            math.ceil(tile_count / preferred) <= max_tiles_axis
+        ):
+            return preferred
+
+        # Minimum width required to satisfy height limit.
+        min_width_for_height = math.ceil(tile_count / max_tiles_axis)
+        width = max(1, min_width_for_height)
+
+        # Clamp by what can still satisfy width limit.
+        width = min(width, max_tiles_axis)
+        return width
 
     def _get_pvrz_resrefs(self, game):
         cached = self._pvrz_resref_index_cache.get(game)
