@@ -146,6 +146,16 @@ class PFCanvas:
             dpg.draw_circle([x1, y1], 4, color=[0, 255, 0, 200], fill=[0, 255, 0, 200], parent=self.marker_node)
             dpg.draw_text([x1 + 4, y1 + 4], "Origin (0,0)", color=[0, 255, 0, 200], size=13, parent=self.marker_node)
 
+    def clear_texture(self):
+        """Clears the canvas by showing a transparent placeholder and hiding image/border."""
+        # Create a small transparent texture
+        transparent_buffer = np.zeros((1, 1, 4), dtype=np.uint8)
+        self.update_texture(transparent_buffer, pivot_x=0, pivot_y=0)
+        # Optionally, hide the image item and border
+        if dpg.does_item_exist(self.image_item):
+            dpg.hide_item(self.image_item)
+        if dpg.does_item_exist(self.border_item):
+            dpg.hide_item(self.border_item)
     def set_zoom(self, delta):
         self.zoom = max(0.1, self.zoom + delta)
         self._redraw()
