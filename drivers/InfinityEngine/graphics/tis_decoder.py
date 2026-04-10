@@ -226,10 +226,10 @@ class TisDecoder:
         )
         if payload is None:
             return canvas
-
+        
         # Each tile entry is 12 bytes: page_index, src_x, src_y
         try:
-            tile_map = np.frombuffer(payload, dtype="<u4", count=tile_count * 3).reshape((-1, 3))
+            tile_map = np.frombuffer(payload, dtype="<i4", count=tile_count * 3).reshape((-1, 3))
         except ValueError:
             # Fallback to unpacking in case of malformed payload lengths
             tile_map = []
@@ -238,7 +238,7 @@ class TisDecoder:
                 raw = payload[offset:offset + self.PVRZ_TILE_DATA_SIZE]
                 if len(raw) < self.PVRZ_TILE_DATA_SIZE:
                     break
-                tile_map.append(struct.unpack("<III", raw))
+                tile_map.append(struct.unpack("<iii", raw))
 
         if mapped_indices is not None:
             source_indices = [int(idx) for idx in mapped_indices if 0 <= int(idx) < len(tile_map)]
@@ -261,14 +261,19 @@ class TisDecoder:
             src_x = int(tile[1])
             src_y = int(tile[2])
 
+            # --- DEBUG LOGGING ---
+            if out_i < 15: # Log first few tiles for comparison with NearInfinity
+                print(f"  [TIS_DEC] Cell {out_i:>3} (src_idx {src_idx:>3}): "
+                      f"page={page_idx:>3}, src_x={src_x:>4}, src_y={src_y:>4}")
+
             # Calculate target grid position
             row = out_i // grid_width
             col = out_i % grid_width
             ty = row * self.TILE_SIZE
             tx = col * self.TILE_SIZE
 
-            # Page index -1 (0xFFFFFFFF) is a solid black tile
-            if page_idx == 0xFFFFFFFF:
+            # Page index -1 is a solid black tile
+            if page_idx == -1:
                 canvas[ty:ty+64, tx:tx+64, :3] = 0
                 canvas[ty:ty+64, tx:tx+64, 3] = 255
                 continue
