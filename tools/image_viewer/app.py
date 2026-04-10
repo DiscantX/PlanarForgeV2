@@ -112,6 +112,8 @@ class ImageViewerApp:
                                 callback=lambda s, v: setattr(self.canvas, 'show_border', v) or self.canvas._redraw())
                 dpg.add_checkbox(label="Show Markers", default_value=True,
                                 callback=lambda s, v: setattr(self.canvas, 'show_markers', v) or self.canvas._redraw())
+                self.tis_grid_slider = dpg.add_slider_int(label="Grid Width", min_value=1, max_value=80, default_value=10, 
+                                                         show=False, callback=self._update_display, width=150)
 
         # Bottom Panel for BAM Controls
         with dpg.window(tag="bottom_window", show=False, no_title_bar=True, no_move=True, no_resize=True, no_scrollbar=True):
@@ -366,6 +368,12 @@ class ImageViewerApp:
         dpg.set_value(self.alignment_combo, self.canvas.alignment)
         is_bam = bool(resource.schema and "BAM" in resource.schema.name)
         self.is_playing = dpg.get_value(self.autoplay_toggle) if is_bam else False
+
+        # Update TIS grid slider visibility and initial value
+        dpg.configure_item(self.tis_grid_slider, show=(restype == "TIS"))
+        if restype == "TIS":
+            dpg.set_value(self.tis_grid_slider, self._compute_tis_grid_width(resource))
+
         dpg.configure_item(self.play_button, label="Stop" if self.is_playing else "Play")
 
         # Initialize navigation to the first valid cycle
@@ -427,7 +435,7 @@ class ImageViewerApp:
             buffer = self.pvrz_decoder.decode_pvrz_bytes(resource._original_bytes)
         elif restype == "TIS":
             pvrz_provider = self._get_tis_pvrz_page_provider(game)
-            grid_width = self._compute_tis_grid_width(resource)
+            grid_width = dpg.get_value(self.tis_grid_slider)
             buffer = self.tis_decoder.decode_tis(resource, pvrz_page_provider=pvrz_provider, grid_width=grid_width)
 
         if buffer is not None:
