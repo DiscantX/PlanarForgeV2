@@ -42,7 +42,7 @@ All commands are run from the repository root.
 
 | Command | What it does |
 |---------|--------------|
-| `python -m tools.image_viewer.app` | Opens the image viewer for BAM and TIS resources (needs `dearpygui` and a game installation) |
+| `python tools/image_viewer/app.py` | Opens the image viewer for BAM and TIS resources (needs `dearpygui` and a game installation) |
 | `python main.py FEMUR` | Loads an item from the game and writes it back out for a round-trip check (edit `target_game` in `main.py` first) |
 | `python tools/tests/test_suite.py --help` | Round-trip fidelity suite against installed games |
 | `python tools/resource_explorer.py` | Interactive resource browser (needs `requirements-tools.txt`) |
