@@ -1,0 +1,32 @@
+name: Maintenance
+description: Refactoring, tooling, dependencies, housekeeping
+labels: ["type: chore"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every issue needs at least two labels. This template sets `type: chore`; please also add one `area:` label (core, schema, driver-ie, viewer, tests, wiki).
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core, schema, driver-ie, viewer, tests, wiki, other]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What needs doing, and why
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        If this is a refactor (behaviour unchanged, structure improved), change the label to `type: refactor`.
+  - type: checkboxes
+    id: assets
+    attributes:
+      label: Game files
+      options:
+        - label: I have not attached or pasted game files or extracts (see the Game Asset Policy).
+          required: true
