@@ -1,0 +1,33 @@
+name: Feature request
+description: A new capability
+labels: ["type: feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every issue needs at least two labels. This template sets `type: feature`; please also add one `area:` label (core, schema, driver-ie, viewer, tests, wiki).
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core, schema, driver-ie, viewer, tests, wiki, other]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What do you want, and why
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and out-of-scope
+      description: What is included, and what is deliberately not.
+  - type: checkboxes
+    id: assets
+    attributes:
+      label: Game files
+      options:
+        - label: I have not attached or pasted game files or extracts (see the Game Asset Policy).
+          required: true

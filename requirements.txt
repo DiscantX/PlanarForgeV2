@@ -1,0 +1,11 @@
+# Runtime dependencies for the core library and the image viewer.
+# Install with:  pip install -r requirements.txt
+#
+# No version pins have been established yet. The code was checked on
+# Python 3.12.3 with the versions in the comments; the code itself needs
+# Python 3.9 or newer (measured with the `vermin` tool).
+
+pyyaml        # schemas (tested with 6.0.3)
+numpy         # image decoding (tested with 2.5.4)
+numba         # fast TIS/PVRZ decoding (tested with 0.68.1)
+dearpygui     # image viewer window (tested with 2.3.1)
