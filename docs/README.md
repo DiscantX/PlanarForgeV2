@@ -24,6 +24,7 @@ The project is currently at **Stage 1/2**—providing a robust, schema-driven bi
 ### Introduction
 
 * [Project Priorities](Project-Priorities.md)
+* [Game Asset Policy](Game-Asset-Policy.md)
 
 ### Architecture
 
