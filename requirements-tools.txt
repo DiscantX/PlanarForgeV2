@@ -1,0 +1,9 @@
+# Extra dependencies for the command-line developer tools.
+# Install with:  pip install -r requirements-tools.txt
+# (includes requirements.txt)
+
+-r requirements.txt
+
+prompt_toolkit    # tools/resource_explorer.py (tested with 3.0.53)
+requests          # tools/iesdp_converter.py (tested with 2.34.2)
+beautifulsoup4    # tools/iesdp_converter.py (tested with 4.15.0)

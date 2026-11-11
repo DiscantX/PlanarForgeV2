@@ -1,0 +1,38 @@
+name: Bug report
+description: Something is broken or wrong
+labels: ["type: bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every issue needs at least two labels. This template sets `type: bug`; please also add one `area:` label (core, schema, driver-ie, viewer, tests, wiki).
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core, schema, driver-ie, viewer, tests, wiki, other]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what should happen
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Commands, the game and resource involved (resref and type), and whether it needs a game installation.
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: Python version, operating system, game and version.
+  - type: checkboxes
+    id: assets
+    attributes:
+      label: Game files
+      options:
+        - label: I have not attached or pasted game files or extracts (see the Game Asset Policy).
+          required: true
