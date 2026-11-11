@@ -2,7 +2,7 @@
 
 PlanarForge is a modern development environment for Infinity Engine games, supporting the original titles (BG1, BG2, PST, IWD) and the Enhanced Editions.
 
-The project is currently at **Stage 1/2**—providing a robust, schema-driven binary parser and writer that maintains 100% round-trip fidelity for major formats including ARE, ITM, SPL, CRE, and WED.
+See [Project Status](Project-Status.md) for the current state of each component. The project is currently at **Stage 1/2**—providing a robust, schema-driven binary parser and writer that maintains 100% round-trip fidelity for major formats including ARE, ITM, SPL, CRE, and WED.
 
 ## Core Philosophies
 
@@ -57,3 +57,9 @@ The project is currently at **Stage 1/2**—providing a robust, schema-driven bi
 ### Tools
 
 * [IESDP Converter](IESDP-Converter.md)
+
+## Project Notes
+
+* [Project Status](Project-Status.md)
+* [Infinity Engine Format Notes](Format-Notes.md)
+* [Workflow and Conventions](Workflow-and-Conventions.md)
