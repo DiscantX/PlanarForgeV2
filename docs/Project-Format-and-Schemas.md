@@ -1,5 +1,7 @@
 # Project Format and Schemas
 
+*The detailed Layer 2 design, including the project schema format and the session model, is in the [Layer 2 Overview](Layer2-Overview.md).*
+
 The Project Layer (Layer 2) defines how game data is stored in a human-readable, version-control-friendly format. Unlike Layer 1, this layer discards unknown bytes and focuses on semantic editing.
 
 ## Directory Structure
