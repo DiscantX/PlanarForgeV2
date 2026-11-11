@@ -35,7 +35,15 @@ See [Project Status](Project-Status.md) for the current state of each component.
 ### Project Layer (Layer 2)
 
 * [Project Format and Schemas](Project-Format-and-Schemas.md)
-* [Layer 2 Schema Design](PLANAR_FORGE_LAYER2_SCHEMA_DESIGN.md)
+* [Layer 2 Overview](Layer2-Overview.md)
+    * [Project Model and Session](Layer2-Project-Model.md)
+    * [Dependency Graph](Layer2-Dependency-Graph.md)
+    * [Undo and Redo](Layer2-Undo-Redo.md)
+    * [Project Schema Format](Layer2-Schema-Format.md)
+    * [Widget Descriptors](Layer2-Widget-Descriptors.md)
+    * [Assembler](Layer2-Assembler.md)
+    * [Item Project Schema](Layer2-Item-Schema.md)
+    * [Open Questions](Layer2-Open-Questions.md)
 
 ### Schema Development
 

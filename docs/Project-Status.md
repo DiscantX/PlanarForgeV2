@@ -15,8 +15,8 @@ PlanarForge is a modding and file-viewing tool for the Infinity Engine games (Ba
 | Image viewer: TIS (tileset) rendering | **Incomplete.** `main` holds a partial fix; further work is unmerged and needs careful review | [issue #5](https://github.com/DiscantX/PlanarForgeV2/issues/5), [Format Notes](Format-Notes.md#tileset-files-tis-in-biff-archives) |
 | ARE writer for overlapping section offsets (PST format) | Known bug | [issue #6](https://github.com/DiscantX/PlanarForgeV2/issues/6) |
 | Distinguishing PST from PSTEE ARE files | Known bug; the current heuristic is unreliable | [issue #7](https://github.com/DiscantX/PlanarForgeV2/issues/7) |
-| Layer 2: project format | Designed, not implemented; five design questions remain open | [Layer 2 Schema Design](PLANAR_FORGE_LAYER2_SCHEMA_DESIGN.md) |
-| Widget descriptor layer, IDS-resolved field round-trip | Designed, not implemented | [Layer 2 Schema Design](PLANAR_FORGE_LAYER2_SCHEMA_DESIGN.md) |
+| Layer 2: project format | Designed, not implemented; five design questions remain open | [Layer 2 Overview](Layer2-Overview.md), [Open Questions](Layer2-Open-Questions.md) |
+| Widget descriptor layer, IDS-resolved field round-trip | Designed, not implemented | [Widget Descriptors](Layer2-Widget-Descriptors.md), [Assembler](Layer2-Assembler.md) |
 | WeiDU export pipeline | Design phase | [WeiDU Export Pipeline](WeiDU-Export-Pipeline.md) |
 | MCP server (letting an AI assistant inspect the running program) | Under consideration | none yet |
 

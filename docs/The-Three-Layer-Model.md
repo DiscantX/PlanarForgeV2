@@ -10,6 +10,8 @@ PlanarForgeV2 is built on a tiered architecture designed to isolate the complexi
 
 ## Layer 2: Project Format
 
+*The full design is in the [Layer 2 Overview](Layer2-Overview.md).*
+
 * **Purpose**: A clean, modern representation of game objects for version control and human readability.
 * **Extension**: `.creature`, `.item`, `.scene`.
 * **Philosophy**: Unknown byte preservation **stops here**. Once data enters Layer 2, it is a semantic representation. If a byte isn't mapped to a field name in a project schema, it is discarded. This creates a stable base for modding and diffing.
