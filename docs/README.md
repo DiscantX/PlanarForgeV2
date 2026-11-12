@@ -35,6 +35,7 @@ See [Project Status](Project-Status.md) for the current state of each component.
 ### Project Layer (Layer 2)
 
 * [Project Format and Schemas](Project-Format-and-Schemas.md)
+* [Prop System](Prop-System.md) (concept only)
 * [Layer 2 Overview](Layer2-Overview.md)
     * [Project Model and Session](Layer2-Project-Model.md)
     * [Dependency Graph](Layer2-Dependency-Graph.md)
