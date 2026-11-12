@@ -42,7 +42,7 @@ The parser is logic-driven: it reads what the header and the structures referenc
 
 **Unreferenced "zombie" data.** `PTION41.ITM` in BGEE physically holds 10 feature blocks but is referenced by only 8, leaving 96 bytes that nothing points at. These are valid structures the game never uses. A heuristic reads any surplus blocks at the end of the file so that an unmodified round trip preserves them (2026-03-17, *Unreferenced "Zombie" Data*). Later entries generalise this to automatic tail preservation and an audit of every byte range the schema does not map.
 
-The audit is covered separately in the planned article on unknown bytes and the gap audit.
+These patterns are treated in detail in [Shared and Orphaned Data Blocks](Shared-and-Orphaned-Data-Blocks.md). The audit is covered separately in the planned article on unknown bytes and the gap audit.
 
 ## 4. Schema definition errors
 
@@ -79,10 +79,12 @@ The practical lesson is to suspect the inputs first when the failure is at byte 
 
 ## Discrepancies noticed while writing
 
-The archived log and the current repository disagree in two places. They are recorded here, not resolved, pending maintainer review:
+The archived log and the current repository disagree in two places. The maintainer's ruling is that **the repository is correct and the log is outdated**; the log is kept as a historical record only.
 
-- The 2026-03-18 entry says the duplicate `itm_v2_0.yaml` was deleted and `itm_v2.yaml` kept. The repository now contains `itm_v2_0.yaml` and no `itm_v2.yaml`, and the 2026-04-03 entry edits `itm_v2_0.yaml`.
+- The 2026-03-18 entry says the duplicate `itm_v2_0.yaml` was deleted and `itm_v2.yaml` kept. The repository contains `itm_v2_0.yaml` and no `itm_v2.yaml`.
 - That entry says the renamed fields became `kit_usability_1` and `attack_type_special`. The current schema uses `kit_usability`, `kit_usability_2` to `_4`, and `attack_type`, `attack_type_2`.
+
+Two points are flagged for verification when active development resumes: whether the schema loader really rejects duplicate field names (the log recommends it, and this article could not confirm it exists), and whether other log statements about schema file names still hold.
 
 ## See also
 
