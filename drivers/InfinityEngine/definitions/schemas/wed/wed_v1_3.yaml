@@ -195,7 +195,7 @@ doors:
 # Physical position: immediately after the doors section.
 # The offset is taken from overlays[0].offset_to_tilemap.
 #
-# Entry size: 10 bytes (NearInfinity-verified; IESDP incorrectly states 8).
+# Entry size: 10 bytes (2+2+2+1+3), matching current IESDP and NearInfinity.
 # ---------------------------------------------------------------------------
 tilemaps:
   offset_from:

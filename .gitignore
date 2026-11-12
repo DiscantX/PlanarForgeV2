@@ -79,3 +79,9 @@ logs/
 *.saved.*
 /game-data/
 /extracted/
+
+# Qdrant Local Isolated Database (created by a VSCode extension)
+.qdrant_storage/
+.qdrant-initialized
+storage/
+snapshots/
