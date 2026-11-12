@@ -42,3 +42,5 @@ Areas are unique because they are composites. A "Scene" in PlanarForge is a Laye
 * **BMP**: Search and light maps.
 
 The **SceneAssembler** component is responsible for merging these disparate resources into a single cohesive workspace.
+
+Scenes are also where [props](Prop-System.md) would live: a planned project-level layer of placeable objects, with no equivalent in the original formats, that is flattened away on export.
