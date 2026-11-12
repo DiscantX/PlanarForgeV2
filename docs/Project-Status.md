@@ -8,7 +8,7 @@ PlanarForge is a modding and file-viewing tool for the Infinity Engine games (Ba
 
 | Area | State | Where to read more |
 |------|-------|--------------------|
-| Layer 1: schema-driven reading and writing (ARE, ITM, SPL, CRE, WED) | Complete; round-trip fidelity milestone recorded 2026-04-03 | [Round-trip Fidelity](Round-trip-Fidelity.md), [Engineering Log: Fidelity Fixes](archive/Engineering-Log-Fidelity-Fixes.md) |
+| Layer 1: schema-driven reading and writing (ARE, ITM, SPL, CRE, WED) | Complete; round-trip fidelity milestone recorded 2026-04-03 | [Round-trip Fidelity](Round-trip-Fidelity.md), [Round-trip Failure Taxonomy](Round-trip-Failure-Taxonomy.md) |
 | WED V1.3 relational engine (pointer-based sections, computed fields) | Complete | [Relational Logic in WED](Relational-Logic-in-WED.md), [WED V1.3 Engine Upgrade](WED-V1.3-Engine-Upgrade.md) |
 | Other schemas (BAM, KEY, BIFF, STO, PRO, VVC, PLT) | Present; not covered by the fidelity documentation | [Project Priorities](Project-Priorities.md) |
 | Image viewer: BAM playback, controls, grid overlay | Implemented on `main`; not re-verified since the revival | `tools/image_viewer/` |

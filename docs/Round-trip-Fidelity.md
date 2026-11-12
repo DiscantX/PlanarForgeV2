@@ -45,6 +45,6 @@ When a fidelity test fails:
 
 ---
 
-For a detailed chronological history of the bugs found and fixed during the development of the fidelity engine, see the [Engineering Log Fidelity Fixes](archive/Engineering-Log-Fidelity-Fixes.md).
+For the history of the bugs found and fixed during the development of the fidelity engine, see [Round-trip Failure Taxonomy](Round-trip-Failure-Taxonomy.md), [Debugging Lessons](Debugging-Lessons.md) and the [archived log](archive/Engineering-Log-Fidelity-Fixes.md) on which they draw.
 
 For a classification of the failure kinds, see [Round-trip Failure Taxonomy](Round-trip-Failure-Taxonomy.md).
