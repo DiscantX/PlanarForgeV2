@@ -110,12 +110,21 @@ class BiffHandler:
                 decompressed_stream.seek(0)
                 yield decompressed_stream
 
-    def get_resource_data(self, bif_file_path, resource_index, tileset_index=None):
+    def get_resource_data(self, bif_file_path, resource_index, tileset_index=None, tileset_tile_count=None):
         """
         Extracts raw resource bytes from a BIFF container.
 
-        If ``tileset_index`` is provided, data is read from the BIFF tileset-entry
-        table and wrapped with a synthetic TIS header for schema-based parsing.
+        For tileset resources (TIS), ``resource_index`` is the index of the
+        *first tile belonging to this TIS* within the shared tileset pool.
+        The pool may contain tiles for many TIS files packed together; we
+        must start reading at ``resource_index * tile_size`` bytes into the
+        pool so that tile 0 in our synthetic header corresponds to the
+        correct tile in the file.
+
+        If ``tileset_index`` is provided, data is read from the BIFF
+        tileset-entry table and wrapped with a synthetic TIS header for
+        schema-based parsing. ``tileset_tile_count`` optionally constrains
+        how many tiles belong to this logical TIS inside the shared pool.
         """
         with self.get_stream(bif_file_path) as bif_stream:
             reader = BinaryReader(bif_stream)
@@ -128,27 +137,46 @@ class BiffHandler:
                     return None
 
                 entry_offset = tileset_entries_offset + (tileset_index * self.TILESET_ENTRY_SIZE)
-                reader.seek(entry_offset + 4)
-                resource_offset = reader.read_uint32()
-                tile_count = reader.read_uint32()
-                tile_size = reader.read_uint32()
+                reader.seek(entry_offset + 4)          # skip resource_locator field
+                pool_offset = reader.read_uint32()     # byte offset of pool start in BIF
+                pool_tile_count = reader.read_uint32() # total tiles in the shared pool
+                tile_size = reader.read_uint32()       # bytes per tile (12 for PVRZ, 5120 for palette)
 
-                if tile_count <= 0 or tile_size <= 0:
+                if pool_tile_count <= 0 or tile_size <= 0:
                     return None
 
-                resource_size = tile_count * tile_size
-                reader.seek(resource_offset)
+                # resource_index is the index of this TIS's first tile within
+                # the pool. Tiles for this TIS start at:
+                #   pool_offset + resource_index * tile_size
+                start_tile = resource_index if resource_index is not None else 0
+                if start_tile < 0 or start_tile >= pool_tile_count:
+                    return None
+
+                remaining_tiles = pool_tile_count - start_tile
+                if isinstance(tileset_tile_count, int) and tileset_tile_count > 0:
+                    this_tile_count = min(tileset_tile_count, remaining_tiles)
+                else:
+                    this_tile_count = remaining_tiles
+
+                if this_tile_count <= 0:
+                    return None
+
+                start_byte_offset = pool_offset + start_tile * tile_size
+                resource_size = this_tile_count * tile_size
+
+                reader.seek(start_byte_offset)
                 tile_payload = reader.read(resource_size)
                 if len(tile_payload) != resource_size:
                     return None
 
-                # BIFF tileset entries contain only tile payload. Build a standard
-                # TIS header so the generic schema parser can process it.
+                # Build a standard TIS header so the generic schema parser
+                # can process the data.  tile_count reflects only the tiles
+                # belonging to this TIS (from start_tile onward).
                 tis_header = struct.pack(
                     "<4s4sIIII",
                     b"TIS ",
                     b"V1  ",
-                    tile_count,
+                    this_tile_count,
                     tile_size,
                     self.TIS_HEADER_SIZE,
                     self.TIS_TILE_DIMENSION,

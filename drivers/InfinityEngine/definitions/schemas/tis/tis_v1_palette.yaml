@@ -1,9 +1,10 @@
-name: TIS
+name: TIS_PALETTE
 version: V1
 games: [BG1, BG2, IWD, IWD2, PST, BGEE, BG2EE, IWDEE, PSTEE]
 
 header:
   fields:
+
   - name: signature
     type: char_array
     size: 4
@@ -34,10 +35,20 @@ header:
     size: 4
     offset: 0x0014
 
+# Each tile is a 256-colour BGRA palette (1024 bytes) followed by
+# 64x64 = 4096 bytes of 8-bit palette indices (row-major, left to right,
+# top to bottom). Index 0 is hardcoded transparent.
 tiles:
   offset_field: offset_to_tiles
   count_field: count_of_tiles
   fields:
-  - name: raw_data
+
+  - name: palette
     type: bytes
-    size_ref: tile_data_block_size
+    size: 1024
+    offset: 0x0000
+
+  - name: pixel_data
+    type: bytes
+    size: 4096
+    offset: 0x0400
