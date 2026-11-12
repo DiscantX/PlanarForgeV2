@@ -57,6 +57,7 @@ See [Project Status](Project-Status.md) for the current state of each component.
     * [Round-trip Failure Taxonomy](Round-trip-Failure-Taxonomy.md)
     * [Shared and Orphaned Data Blocks](Shared-and-Orphaned-Data-Blocks.md)
     * [Unknown Bytes and the Gap Audit](Unknown-Bytes-and-the-Gap-Audit.md)
+    * [Offset Drift and Schema Versioning](Offset-Drift-and-Schema-Versioning.md)
 * [Optimization Log](Optimization-Log.md)
 
 ### Future Vision
