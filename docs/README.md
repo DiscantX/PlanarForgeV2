@@ -59,6 +59,7 @@ See [Project Status](Project-Status.md) for the current state of each component.
     * [Shared and Orphaned Data Blocks](Shared-and-Orphaned-Data-Blocks.md)
     * [Unknown Bytes and the Gap Audit](Unknown-Bytes-and-the-Gap-Audit.md)
     * [Offset Drift and Schema Versioning](Offset-Drift-and-Schema-Versioning.md)
+    * [Debugging Lessons](Debugging-Lessons.md)
 * [Optimization Log](Optimization-Log.md)
 
 ### Future Vision
