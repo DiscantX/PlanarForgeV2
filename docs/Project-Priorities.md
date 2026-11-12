@@ -1,6 +1,8 @@
 # Project Priorities
 
-This checklist tracks the implementation status of Infinity Engine resource types, prioritized by their importance to the core goal of a game editor.
+This checklist ranks Infinity Engine resource types by their importance to the core goal of a game editor, and records what the repository currently provides for each. For the wider picture, see [Project Status](Project-Status.md).
+
+**Reading the labels.** *Confirmed Working* means the type has been parsed and, where applicable, round-tripped (see [Round-trip Fidelity](Round-trip-Fidelity.md)). *Schema present* means a YAML schema exists in `drivers/InfinityEngine/definitions/schemas/` but the type is not covered by the fidelity documentation. *Incomplete* means partial work exists. Types with no label have no schema or handler in the repository yet.
 
 ## 1. Infrastructure & Core Data (Critical)
 
@@ -27,11 +29,11 @@ The primary entities users edit.
     - Magic spells and innate abilities.
 * **CRE** (Creature) - *Confirmed Working*
     - Actors, enemies, and NPCs.
-* **STO** (Store)
+* **STO** (Store) - *Schema present*
     - Merchant inventories and container definitions.
 * **EFF** (Effect)
     - External effect definitions.
-* **ARE** (Area) - *Confirmed Working*
+* **ARE** (Area) - *Confirmed Working (PST layout: known bugs, issues #6 and #7)*
     - Defines actors, containers, traps, and regions.
 * **WED** (World Environment) - *Confirmed Working*
     - Visual map definitions (overlays, door polygons).
@@ -55,11 +57,11 @@ Standard or proprietary media formats.
     - Portraits and textures.
 * **WAV** (Wave Audio)
     - Sound effects.
-* **BAM** (Bitmap Animation)
+* **BAM** (Bitmap Animation) - *Schema present; viewer playback not re-verified since the revival*
     - Sprite animations (RLE compressed).
 * **MOS** (Mosaic)
     - Background images.
-* **TIS** (Tileset)
+* **TIS** (Tileset) - *Incomplete; see [issue #5](https://github.com/DiscantX/PlanarForgeV2/issues/5)*
     - The graphical tiles creating the map visual.
 
 ## 5. UI & Configuration

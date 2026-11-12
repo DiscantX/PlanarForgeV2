@@ -2,7 +2,7 @@
 
 PlanarForge is a modern development environment for Infinity Engine games, supporting the original titles (BG1, BG2, PST, IWD) and the Enhanced Editions.
 
-See [Project Status](Project-Status.md) for the current state of each component. The project is currently at **Stage 1/2**—providing a robust, schema-driven binary parser and writer that maintains 100% round-trip fidelity for major formats including ARE, ITM, SPL, CRE, and WED.
+See [Project Status](Project-Status.md) for the current state of each component. Layer 1, a schema-driven binary parser and writer, is complete for ARE, ITM, SPL, CRE and WED, with round-trip fidelity recorded against real game installations. Layer 2 (the project format) is designed but not implemented, and the tileset (TIS) pipeline is still incomplete.
 
 ## Core Philosophies
 
@@ -12,12 +12,15 @@ See [Project Status](Project-Status.md) for the current state of each component.
 
 ## Current Status
 
-| Milestone | Status |
-|-----------|--------|
-| Binary Parsing (Layer 1) | ✅ Complete |
-| Round-trip Fidelity | ✅ Complete |
-| Area Visualization | 🔜 Near-term |
-| Scene Editing | 🔲 Long-term |
+| Milestone | Status | Notes |
+|-----------|--------|-------|
+| Binary parsing (Layer 1) | ✅ Complete | ARE, ITM, SPL, CRE, WED |
+| Round-trip fidelity | ✅ Complete | Recorded against game installations; see [Round-trip Fidelity](Round-trip-Fidelity.md) |
+| Image viewer | 🔶 Partial | BAM implemented; TIS rendering incomplete ([#5](https://github.com/DiscantX/PlanarForgeV2/issues/5)) |
+| Project format (Layer 2) | 📐 Designed | Not implemented; see [Layer 2 Overview](Layer2-Overview.md) |
+| Area visualisation and scene editing | 🔲 Not started | Depends on TIS and Layer 2 |
+
+The authoritative, detailed record is [Project Status](Project-Status.md).
 
 ## Contents
 
