@@ -56,6 +56,7 @@ See [Project Status](Project-Status.md) for the current state of each component.
 * [Round-trip Fidelity](Round-trip-Fidelity.md)
     * [Round-trip Failure Taxonomy](Round-trip-Failure-Taxonomy.md)
     * [Shared and Orphaned Data Blocks](Shared-and-Orphaned-Data-Blocks.md)
+    * [Unknown Bytes and the Gap Audit](Unknown-Bytes-and-the-Gap-Audit.md)
 * [Optimization Log](Optimization-Log.md)
 
 ### Future Vision
