@@ -4,7 +4,7 @@ This directory holds historical documents that are kept for reference but are **
 
 | Document | Covers | Superseded by |
 |----------|--------|---------------|
-| [Engineering Log: Fidelity Fixes](Engineering-Log-Fidelity-Fixes.md) | Round-trip troubleshooting, 2026-03-17 to 2026-04-03 | [Round-trip Failure Taxonomy](../Round-trip-Failure-Taxonomy.md) (more articles to follow, see [#16](https://github.com/DiscantX/PlanarForgeV2/issues/16)) |
+| [Engineering Log: Fidelity Fixes](Engineering-Log-Fidelity-Fixes.md) | Round-trip troubleshooting, 2026-03-17 to 2026-04-03 | [Round-trip Failure Taxonomy](../Round-trip-Failure-Taxonomy.md) and [Shared and Orphaned Data Blocks](../Shared-and-Orphaned-Data-Blocks.md); more articles to follow (see [#17](https://github.com/DiscantX/PlanarForgeV2/issues/17)) |
 | [Engineering Log: WED Upgrade](Engineering-Log-WED-Upgrade.md) | WED V1.3 and relational engine work, 2026-04-01 to 2026-04-03 | Articles pending (see [#16](https://github.com/DiscantX/PlanarForgeV2/issues/16)) |
 
 The logs are chronological and contain entries that were later corrected by other entries. Read them as a record of the debugging process, not as a statement of the current design.

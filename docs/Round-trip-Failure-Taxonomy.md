@@ -42,7 +42,7 @@ The parser is logic-driven: it reads what the header and the structures referenc
 
 **Unreferenced "zombie" data.** `PTION41.ITM` in BGEE physically holds 10 feature blocks but is referenced by only 8, leaving 96 bytes that nothing points at. These are valid structures the game never uses. A heuristic reads any surplus blocks at the end of the file so that an unmodified round trip preserves them (2026-03-17, *Unreferenced "Zombie" Data*). Later entries generalise this to automatic tail preservation and an audit of every byte range the schema does not map.
 
-The audit is covered separately in the planned article on unknown bytes and the gap audit.
+These patterns are treated in detail in [Shared and Orphaned Data Blocks](Shared-and-Orphaned-Data-Blocks.md). The audit is covered separately in the planned article on unknown bytes and the gap audit.
 
 ## 4. Schema definition errors
 
