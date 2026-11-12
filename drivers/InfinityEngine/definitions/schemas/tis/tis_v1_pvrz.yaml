@@ -1,0 +1,61 @@
+name: TIS_PVRZ
+version: V1
+games: [BGEE, BG2EE, IWDEE, PSTEE]
+
+header:
+  fields:
+
+  - name: signature
+    type: char_array
+    size: 4
+    offset: 0x0000
+
+  - name: version
+    type: char_array
+    size: 4
+    offset: 0x0004
+
+  - name: count_of_tiles
+    type: dword
+    size: 4
+    offset: 0x0008
+
+  - name: tile_data_block_size
+    type: dword
+    size: 4
+    offset: 0x000c
+
+  - name: offset_to_tiles
+    type: dword
+    size: 4
+    offset: 0x0010
+
+  - name: tile_dimension
+    type: dword
+    size: 4
+    offset: 0x0014
+
+# Each tile references a 64x64 block of pixels within an associated PVRZ file.
+# The PVRZ filename is derived from the TIS name:
+#   first char of TIS name + 4-digit area code + optional 'N' + zero-padded 2-digit page
+#   e.g. AR2600N.TIS -> A2600Nxx.PVRZ
+# A pvrz_page value of 0xffffffff (-1 as signed int32) means solid black — no PVRZ reference.
+tiles:
+  offset_field: offset_to_tiles
+  count_field: count_of_tiles
+  fields:
+
+  - name: pvrz_page
+    type: dword
+    size: 4
+    offset: 0x0000
+
+  - name: pvrz_x
+    type: dword
+    size: 4
+    offset: 0x0004
+
+  - name: pvrz_y
+    type: dword
+    size: 4
+    offset: 0x0008

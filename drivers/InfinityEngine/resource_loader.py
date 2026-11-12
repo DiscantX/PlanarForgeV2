@@ -130,10 +130,12 @@ class ResourceLoader:
             is_tis = (str(restype).upper() == "TIS") if restype else (int(res_type_code) == tis_type_code)
 
             if is_tis and isinstance(tileset_index, int):
+                tileset_tile_count = self._estimate_tis_tile_count(res_entry, game)
                 raw_bytes = self.biff_handler.get_resource_data(
                     bif_file_path,
                     resource_index,
                     tileset_index=tileset_index,
+                    tileset_tile_count=tileset_tile_count,
                 )
             else:
                 raw_bytes = self.biff_handler.get_resource_data(bif_file_path, resource_index)
@@ -282,6 +284,20 @@ class ResourceLoader:
             return schema
 
         resolved = self.schema_loader.get(restype, game=game)
+        # TIS: route to palette or PVRZ variant based on tile_data_block_size
+        # stored at header offset 0x000c (bytes 12-15).
+        if restype == "TIS" and raw_bytes is not None and len(raw_bytes) >= 16:
+            import struct as _struct
+            block_size = _struct.unpack_from("<I", raw_bytes, 12)[0]
+            if block_size == 12:      # PVRZ-based
+                pvrz_schema = self.schema_loader.get("TIS_PVRZ", game=game)
+                if pvrz_schema is not None:
+                    return pvrz_schema
+            elif block_size == 5120:  # palette-based
+                palette_schema = self.schema_loader.get("TIS_PALETTE", game=game)
+                if palette_schema is not None:
+                    return palette_schema
+
         if resolved is None or raw_bytes is None:
             return resolved
 
@@ -574,6 +590,58 @@ class ResourceLoader:
         resource.strref_resolver = lambda strref, _game=game: self.get_string(strref, game=_game)
         resource.table_resolver = self.table_resolver
         return resource
+
+    def _estimate_tis_tile_count(self, res_entry, game):
+        """
+        Estimate tile count for a BIFF-packed TIS by locating the next TIS
+        start index in the same (bif_index, tileset_index) pool.
+        """
+        def _to_nonneg_int(value):
+            try:
+                parsed = int(value)
+            except (TypeError, ValueError):
+                return None
+            return parsed if parsed >= 0 else None
+
+        locator = (res_entry or {}).get("resource_locator") or {}
+        start_index = _to_nonneg_int(locator.get("resource_index"))
+        tileset_index = _to_nonneg_int(locator.get("tileset_index"))
+        bif_index = _to_nonneg_int(locator.get("bif_index"))
+        if start_index is None or tileset_index is None or bif_index is None:
+            return None
+
+        if game not in self.chitins:
+            self._load_chitin(game)
+        chitin = self.chitins.get(game)
+        if not chitin:
+            return None
+
+        tis_type_code = int(RESOURCE_TYPE_MAP_REV.get("TIS", 1003))
+        next_start = None
+        for entry in chitin.sections.get("resource_entries", []):
+            if int(entry.get("resource_type", -1)) != tis_type_code:
+                continue
+            other_locator = entry.get("resource_locator") or {}
+            other_bif = _to_nonneg_int(other_locator.get("bif_index"))
+            other_tileset = _to_nonneg_int(other_locator.get("tileset_index"))
+            if other_bif is None or other_tileset is None:
+                continue
+            if other_bif != bif_index:
+                continue
+            if other_tileset != tileset_index:
+                continue
+
+            other_start = _to_nonneg_int(other_locator.get("resource_index"))
+            if other_start is None or other_start <= start_index:
+                continue
+            if next_start is None or other_start < next_start:
+                next_start = other_start
+
+        if next_start is None:
+            return None
+
+        count = next_start - start_index
+        return count if count > 0 else None
     
     def _find_resource_location(self, resref, restype=None, game=None):
         game = game or self.default_game
