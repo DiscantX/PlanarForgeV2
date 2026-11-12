@@ -50,12 +50,11 @@ See [Project Status](Project-Status.md) for the current state of each component.
 * [Field Types Reference](Field-Types-Reference.md)
 * [Schema Naming Style Guide](Schema-Naming-Style-Guide.md)
 * [Relational Logic in WED](Relational-Logic-in-WED.md)
-* [Engineering Log: WED Upgrade](Engineering-Log-WED-Upgrade.md)
 
 ### Maintenance and QA
 
 * [Round-trip Fidelity](Round-trip-Fidelity.md)
-* [Engineering Log: Fidelity Fixes](Engineering-Log-Fidelity-Fixes.md)
+    * [Round-trip Failure Taxonomy](Round-trip-Failure-Taxonomy.md)
 * [Optimization Log](Optimization-Log.md)
 
 ### Future Vision
@@ -65,6 +64,10 @@ See [Project Status](Project-Status.md) for the current state of each component.
 ### Tools
 
 * [IESDP Converter](IESDP-Converter.md)
+
+### Archive
+
+* [Archive index](archive/README.md): frozen engineering logs, kept for reference
 
 ## Project Notes
 
