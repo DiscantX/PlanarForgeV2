@@ -32,4 +32,4 @@ By modeling these as flat global sections and using recomputation logic, PlanarF
 
 ---
 
-For the chronological development history and troubleshooting details of these features, see the [Engineering Log WED Upgrade](archive/Engineering-Log-WED-Upgrade.md).
+For the chronological development history and troubleshooting details of these features, see [WED V1.3 Engine Upgrade](WED-V1.3-Engine-Upgrade.md) (source: the [archived log](archive/Engineering-Log-WED-Upgrade.md)).
