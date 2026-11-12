@@ -12,7 +12,7 @@ The material is drawn from the [Fidelity Fixes engineering log](archive/Engineer
 | **Missing section** | The header holds an offset and count, but the schema defines no section for it | CRE `item_slots` and `effects`; IWD2 spell groups |
 | **Unreferenced data** | Valid structures present in the file that nothing points at | Surplus feature blocks; trailing actors in PSTEE areas |
 
-The first two are errors of *modelling*: the information is reachable, but the schema or parser did not follow it. The third cannot be reached by following references at all and needs a different mechanism (see [Unreferenced data](#unreferenced-data) below and the planned article on the gap audit).
+The first two are errors of *modelling*: the information is reachable, but the schema or parser did not follow it. The third cannot be reached by following references at all and needs a different mechanism (see [Unreferenced data](#unreferenced-data) below and [Unknown Bytes and the Gap Audit](Unknown-Bytes-and-the-Gap-Audit.md)).
 
 ## Shared pool: ITM and SPL feature blocks
 
