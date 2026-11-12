@@ -50,6 +50,7 @@ See [Project Status](Project-Status.md) for the current state of each component.
 * [Field Types Reference](Field-Types-Reference.md)
 * [Schema Naming Style Guide](Schema-Naming-Style-Guide.md)
 * [Relational Logic in WED](Relational-Logic-in-WED.md)
+    * [WED V1.3 Engine Upgrade](WED-V1.3-Engine-Upgrade.md)
 
 ### Maintenance and QA
 
