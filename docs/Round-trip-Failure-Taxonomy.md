@@ -50,7 +50,7 @@ When the YAML does not describe the binary accurately, no amount of parser corre
 
 **Wrong schema selected.** PSTEE items were assigned to the original PST schema (`ITM V1.1`, 154-byte header). The Enhanced Edition uses a V1-style 114-byte header, so the parser consumed 40 bytes of the first extended header as header fields. The fix was a dedicated `itm_pstee.yaml` (2026-03-18, *PSTEE Fidelity Errors*). For the structure of the formats themselves, see [Format Notes](Format-Notes.md) and the item format at [IESDP](https://iesdp.bgforge.net/).
 
-**Duplicate field names.** Fields in a section are stored in a map keyed by name, so two fields with one name overwrite each other on read, and the surviving value is written to both offsets. IWD2 items had four `kit_usability` fields and two `attack_type` fields, producing a stray `0x00` at offset `0x82` (2026-03-18, *IWD2 Fidelity Errors Resolved*). Names were made unique. The log's own recommendation, not yet implemented as far as this article can verify, is that the schema loader should reject duplicate names automatically.
+**Duplicate field names.** Fields in a section are stored in a map keyed by name, so two fields with one name overwrite each other on read, and the surviving value is written to both offsets. IWD2 items had four `kit_usability` fields and two `attack_type` fields, producing a stray `0x00` at offset `0x82` (2026-03-18, *IWD2 Fidelity Errors Resolved*). Names were made unique. The log recommended that the schema loader reject duplicate names automatically. It now does: `core/schema_loader.py` raises an error for a duplicate field name within a section (added 2026-03-18).
 
 **Wrongly sized fields.** In ARE, several 2-byte values were declared as `dword`, so they consumed neighbouring bytes (2026-03-31, *ARE Field Type and Padding Fidelity*).
 
@@ -66,7 +66,7 @@ Some failures are not in the parser at all.
 
 **The same bug in the test.** After the loader was fixed, many tests still failed at the first byte because the test harness fetched the original bytes without a `restype`, comparing a saved item against a store or spell of the same name. Passing `restype=schema_name` removed most of the remaining failures (2026-03-17, *Test Suite False Negatives*).
 
-The practical lesson is to suspect the inputs first when the failure is at byte zero or involves a wrong signature. Lessons of this kind are collected in the planned debugging-lessons article.
+The practical lesson is to suspect the inputs first when the failure is at byte zero or involves a wrong signature. Lessons of this kind are collected in [Debugging Lessons](Debugging-Lessons.md).
 
 ## Recommended order of investigation
 
@@ -84,7 +84,7 @@ The archived log and the current repository disagree in two places. The maintain
 - The 2026-03-18 entry says the duplicate `itm_v2_0.yaml` was deleted and `itm_v2.yaml` kept. The repository contains `itm_v2_0.yaml` and no `itm_v2.yaml`.
 - That entry says the renamed fields became `kit_usability_1` and `attack_type_special`. The current schema uses `kit_usability`, `kit_usability_2` to `_4`, and `attack_type`, `attack_type_2`.
 
-Two points are flagged for verification when active development resumes: whether the schema loader really rejects duplicate field names (the log recommends it, and this article could not confirm it exists), and whether other log statements about schema file names still hold.
+One point is flagged for verification when active development resumes: whether other log statements about schema file names still hold. (The duplicate-field-name check the log recommended was confirmed to exist.)
 
 ## See also
 
