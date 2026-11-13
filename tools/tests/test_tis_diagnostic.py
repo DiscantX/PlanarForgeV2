@@ -129,6 +129,62 @@ class TisRecordTests(unittest.TestCase):
         self.assertIn("A00720A", td.pvrz_page_candidates("AR0072", 10))
 
 
+class BifTableTests(unittest.TestCase):
+    def test_slack_and_tiles_that_fit(self):
+        files = [{"offset": 1000, "size": 100}]
+        tilesets = [{"offset": 2000, "tile_count": 10, "tile_size": 12},
+                    {"offset": 2200, "tile_count": 5, "tile_size": 12}]
+        rows = td.analyze_bif_table(3000, 100, files, 140, tilesets)
+        self.assertEqual(rows[0]["data_end"], 2120)
+        self.assertEqual(rows[0]["next_start"], 2200)
+        self.assertEqual(rows[0]["slack_bytes"], 80)
+        self.assertEqual(rows[0]["tiles_that_fit"], 16)   # 200 // 12
+        self.assertEqual(rows[1]["next_start"], 3000)
+
+    def test_overlap_gives_negative_slack(self):
+        tilesets = [{"offset": 2000, "tile_count": 30, "tile_size": 12},
+                    {"offset": 2100, "tile_count": 5, "tile_size": 12}]
+        rows = td.analyze_bif_table(5000, 100, [], 140, tilesets)
+        self.assertLess(rows[0]["slack_bytes"], 0)
+
+    def test_read_bif_table_round_trip(self):
+        import tempfile, os
+        fe_off = 20
+        blob = (b"BIFF" + b"V1  " + struct.pack("<III", 1, 1, fe_off)
+                + struct.pack("<IIIHH", 0, 500, 64, 1, 0)           # one file entry (16 bytes)
+                + struct.pack("<IIIIHH", 0, 600, 4, 12, 1003, 0))   # one tileset entry (20 bytes)
+        blob += b"\0" * 100
+        with tempfile.NamedTemporaryFile(delete=False) as fh:
+            fh.write(blob)
+            name = fh.name
+        try:
+            info = td.read_bif_table(name)
+        finally:
+            os.unlink(name)
+        self.assertEqual(info["files"], [{"offset": 500, "size": 64}])
+        self.assertEqual(info["tilesets"], [{"offset": 600, "tile_count": 4, "tile_size": 12}])
+        self.assertEqual(info["tileset_entries_offset"], fe_off + 16)
+
+    def test_not_a_biff(self):
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(delete=False) as fh:
+            fh.write(b"NOPE" * 10)
+            name = fh.name
+        try:
+            self.assertIn("error", td.read_bif_table(name))
+        finally:
+            os.unlink(name)
+
+
+class OutOfRangeKeepsRawIndexTest(unittest.TestCase):
+    def test_raw_index_kept_for_comparison_with_viewer(self):
+        ov = [{"width": 2, "height": 1, "offset_to_tilemap": 0, "offset_to_tile_index_lookup": 0}]
+        tms = [{"primary_tile_index": 0, "primary_tile_count": 1}, {"primary_tile_index": 1, "primary_tile_count": 1}]
+        m = td.analyze_mapping(ov, tms, [0, 900], 10, 0)
+        self.assertEqual(m["reasons"]["tis_out_of_range"], 1)
+        self.assertEqual(m["tis_indices"], [0, 900])
+
+
 class _Schema:
     def __init__(self, name):
         self.name = name

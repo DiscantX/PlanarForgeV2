@@ -214,7 +214,9 @@ def analyze_mapping(overlays, tilemaps, lookup, tis_count, overlay_idx, detail_c
         elif first_unresolved is None:
             first_unresolved = {"cell": cell, "row": cell // width if width else 0,
                                 "col": cell % width if width else 0, "reason": reason}
-        tis_indices.append(tis if reason == "ok" else -1)
+        # Keep the raw lookup value when the TIS has no such tile, so it compares like for like
+        # with the viewer (which also keeps it); only truly unresolvable cells become -1.
+        tis_indices.append(tis if reason in ("ok", "tis_out_of_range") else -1)
         if len(detail) < detail_cells:
             detail.append({"cell": cell, "tm_idx": tm_idx, "primary": prim, "count": count,
                            "lookup_idx": lookup_idx, "tis_index": tis, "status": reason})
@@ -300,6 +302,111 @@ def pvrz_page_candidates(tis_name, page_index):
             add(f"{tis_name[:6]}{page_index:02X}")
     add(f"MOS{page_index:04d}")
     return out
+
+
+# --------------------------------------------------------------------------
+# BIF tileset table
+# --------------------------------------------------------------------------
+
+def analyze_bif_table(file_size, file_entries_offset, file_entries, tileset_entries_offset, tileset_entries):
+    """Describe each tileset entry of a BIF and how much room its data has.
+
+    file_entries: list of dicts with offset/size.  tileset_entries: list of dicts
+    with offset/tile_count/tile_size.  For every tileset entry this reports where
+    its data ends, where the next known structure starts, the slack between the
+    two (negative means the data overlaps something) and how many tiles would
+    fit up to the next structure."""
+    starts = {file_size, file_entries_offset, tileset_entries_offset}
+    starts.update(e["offset"] for e in file_entries if e["offset"] > 0)
+    starts.update(e["offset"] for e in tileset_entries if e["offset"] > 0)
+    out = []
+    for i, e in enumerate(tileset_entries):
+        data_end = e["offset"] + e["tile_count"] * e["tile_size"]
+        later = [v for v in starts if v > e["offset"]]
+        next_start = min(later) if later else file_size
+        fit = (next_start - e["offset"]) // e["tile_size"] if e["tile_size"] else 0
+        out.append({"index": i, "offset": e["offset"], "tile_count": e["tile_count"], "tile_size": e["tile_size"],
+                    "data_end": data_end, "next_start": next_start, "slack_bytes": next_start - data_end,
+                    "tiles_that_fit": fit})
+    return out
+
+
+def read_bif_table(path):
+    """Read the BIF V1 header, file entries and tileset entries from a file."""
+    with open(path, "rb") as fh:
+        fh.seek(0, 2)
+        size = fh.tell()
+        fh.seek(0)
+        head = fh.read(20)
+        if len(head) < 20 or head[:4] != b"BIFF":
+            return {"error": "not a BIFF file"}
+        file_count, tileset_count, fe_off = struct.unpack_from("<III", head, 8)
+        fh.seek(fe_off)
+        fblob = fh.read(file_count * 16)
+        files = []
+        for i in range(len(fblob) // 16):
+            _loc, off, sz = struct.unpack_from("<III", fblob, i * 16)
+            files.append({"offset": off, "size": sz})
+        ts_off = fe_off + file_count * 16
+        tblob = fh.read(tileset_count * 20)
+        tilesets = []
+        for i in range(len(tblob) // 20):
+            _loc, off, cnt, tsz = struct.unpack_from("<IIII", tblob, i * 20)
+            tilesets.append({"offset": off, "tile_count": cnt, "tile_size": tsz})
+    return {"file_size": size, "file_count": file_count, "tileset_count": tileset_count,
+            "file_entries_offset": fe_off, "tileset_entries_offset": ts_off,
+            "files": files, "tilesets": tilesets}
+
+
+def report_bif_table(rep, loader, game, entry, declared_count):
+    """Dump the BIF tileset table around this TIS, plus the KEY entries that point into it."""
+    try:
+        path = loader._find_bif_file(entry, game)
+    except Exception as exc:
+        rep.add("  BIF lookup failed: %r" % (exc,))
+        return
+    if not path:
+        rep.add("  BIF file not found")
+        return
+    info = read_bif_table(path)
+    if "error" in info:
+        rep.flag("BIF table: " + info["error"])
+        return
+    rep.section("BIF tileset table (%s)" % Path(str(path)).name)
+    rep.add("  file size=%d, file entries=%d, tileset entries=%d" % (
+        info["file_size"], info["file_count"], info["tileset_count"]))
+    rows = analyze_bif_table(info["file_size"], info["file_entries_offset"], info["files"],
+                             info["tileset_entries_offset"], info["tilesets"])
+    mine = (entry.get("resource_locator") or {}).get("tileset_index")
+    for r in rows:
+        mark = "  <== this TIS" if r["index"] == mine else ""
+        rep.add("  tileset %d: offset=0x%X tiles=%d x %d bytes, data ends 0x%X, next structure 0x%X, "
+                "slack=%d bytes, tiles that would fit=%d%s" % (
+                    r["index"], r["offset"], r["tile_count"], r["tile_size"], r["data_end"],
+                    r["next_start"], r["slack_bytes"], r["tiles_that_fit"], mark))
+        if r["slack_bytes"] < 0:
+            rep.flag("BIF tileset %d data overlaps the next structure by %d bytes" % (r["index"], -r["slack_bytes"]))
+        if r["index"] == mine and r["tiles_that_fit"] > r["tile_count"]:
+            rep.flag("BIF tileset %d declares %d tiles but %d would fit before the next structure"
+                     % (r["index"], r["tile_count"], r["tiles_that_fit"]))
+    # KEY entries that point into this BIF's tilesets
+    try:
+        locator = entry.get("resource_locator") or {}
+        bif_index = locator.get("bif_index")
+        chitin = loader.chitins.get(game)
+        tis_code = 1003
+        found = []
+        for e in chitin.sections.get("resource_entries", []):
+            if int(e.get("resource_type", -1)) != tis_code:
+                continue
+            loc = e.get("resource_locator") or {}
+            if loc.get("bif_index") == bif_index:
+                found.append((loc.get("tileset_index"), loc.get("resource_index"), str(e.get("resource_name"))))
+        found.sort(key=lambda t: (t[0] is None, t[0], t[1] is None, t[1]))
+        rep.add("  KEY entries (TIS) in this BIF: " + ", ".join(
+            "%s(ts=%s,res=%s)" % (n, ts, ri) for ts, ri, n in found))
+    except Exception as exc:
+        rep.add("  KEY entries lookup failed: %r" % (exc,))
 
 
 # --------------------------------------------------------------------------
@@ -397,6 +504,7 @@ def run_one(loader, game, resref, args):
     if dim not in (None, TILE_SIZE):
         rep.flag("tile_dimension is %s; the decoder assumes %d" % (dim, TILE_SIZE))
 
+    bif_entry = None
     try:
         entry = loader._find_exact_resource_location(resref, "TIS", game)
         if entry:
@@ -411,6 +519,7 @@ def run_one(loader, game, resref, args):
             rep.add("  no CHITIN.KEY entry (probably an override file)")
     except Exception as exc:
         rep.add("  key locator lookup failed: %r" % (exc,))
+        bif_entry = entry
 
     page_dims = {}
     if block == PVRZ_TILE_DATA_SIZE:
@@ -429,7 +538,8 @@ def run_one(loader, game, resref, args):
                 % (stats["records"], stats["no_page"], len(stats["pages"]), stats["max_x"], stats["max_y"], stats["unaligned"]))
         rep.add("  tiles per page: " + ", ".join("%d:%d" % kv for kv in stats["pages"].items()))
         if stats["unaligned"]:
-            rep.flag("%d tile records have x or y that is not a multiple of 64" % stats["unaligned"])
+            rep.add("  note: %d records have x or y that is not a multiple of 64 (seen in areas that render correctly, "
+                    "so informational only)" % stats["unaligned"])
         if stats["out_of_bounds"]:
             rep.flag("%d tile records point outside their decoded page" % stats["out_of_bounds"])
         rep.add("  first records (page,x,y): " + ", ".join("(%d,%d,%d)" % r for r in records[:6]))
@@ -440,6 +550,9 @@ def run_one(loader, game, resref, args):
             rep.flag("TIS bytes (%d) are shorter than %d tiles of 5,120 bytes need (%d)" % (len(raw), count, need))
     else:
         rep.flag("tile_data_block_size %s is neither 5120 (palette) nor 12 (PVRZ); the decoder returns nothing" % (block,))
+
+    if bif_entry and not getattr(args, "no_bif", False):
+        report_bif_table(rep, loader, game, bif_entry, count)
 
     # ---- WED ---------------------------------------------------------------
     rep.section("WED %s" % resref)
@@ -597,6 +710,7 @@ def main(argv=None):
     ap.add_argument("--overlay", type=int, default=None, help="overlay to map (default: the viewer's choice)")
     ap.add_argument("--cells", type=int, default=8, help="how many leading cells to list in detail")
     ap.add_argument("--no-pages", action="store_true", help="skip loading/decoding PVRZ pages")
+    ap.add_argument("--no-bif", action="store_true", help="skip the BIF tileset table dump")
     ap.add_argument("--no-viewer", action="store_true", help="skip the comparison with the viewer's mapping")
     ap.add_argument("--out", default=None, help="also write the report to this file (keep it outside the repo)")
     args = ap.parse_args(argv)
