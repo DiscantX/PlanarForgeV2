@@ -249,5 +249,52 @@ class RunOneSmokeTest(unittest.TestCase):
         self.assertIn("SUMMARY OF FLAGS (2)", text)
 
 
+class BifSectionIsReportedTest(unittest.TestCase):
+    def test_bif_section_printed_when_key_entry_exists(self):
+        import argparse, os, tempfile
+        fe_off = 20
+        blob = (b"BIFF" + b"V1  " + struct.pack("<III", 1, 1, fe_off)
+                + struct.pack("<IIIHH", 0, 500, 64, 1, 0)
+                + struct.pack("<IIIIHH", 0, 600, 4, 12, 1003, 0)) + b"\0" * 100
+        with tempfile.NamedTemporaryFile(delete=False) as fh:
+            fh.write(blob)
+            bif_path = fh.name
+
+        class _Chitin:
+            sections = {"resource_entries": [
+                {"resource_name": "AR0001", "resource_type": 1003,
+                 "resource_locator": {"bif_index": 7, "tileset_index": 0, "resource_index": 0}}]}
+
+        class _KeyedLoader(_FakeLoader):
+            chitins = {"FAKE": _Chitin()}
+
+            def _find_exact_resource_location(self, *args):
+                return {"resource_locator": {"bif_index": 7, "tileset_index": 0, "resource_index": 0}}
+
+            def _find_bif_file(self, entry, game):
+                return bif_path
+
+        tilemaps = [(i, 1) for i in range(12)]
+        wed_raw = build_wed([(4, 3, "AR0001", 12)], tilemaps, list(range(12)))
+        tm_off, lk_off = struct.unpack_from("<II", wed_raw, 32 + 16)
+        tis_raw = b"TIS V1  " + struct.pack("<IIII", 4, 12, 24, 64) + b"\0" * 48
+        tis = _Res("AR0001", {"count_of_tiles": 4, "tile_data_block_size": 12, "offset_to_tiles": 24,
+                              "tile_dimension": 64}, {"tiles": []}, tis_raw, _Schema("TIS_PVRZ"))
+        wed = _Res("AR0001", {}, {
+            "overlays": [{"width": 4, "height": 3, "tileset_name": "AR0001", "unique_tile_count": 12,
+                          "offset_to_tilemap": tm_off, "offset_to_tile_index_lookup": lk_off}],
+            "tilemaps": [{"primary_tile_index": p, "primary_tile_count": c} for p, c in tilemaps],
+            "tile_index_lookup": [{"tis_index": i} for i in range(12)]}, wed_raw)
+        args = argparse.Namespace(overlay=None, cells=2, no_pages=True, no_viewer=True)
+        try:
+            text = td.run_one(_KeyedLoader(tis, wed), "FAKE", "AR0001", args).render()
+        finally:
+            os.unlink(bif_path)
+        self.assertIn("== BIF tileset table", text)
+        self.assertIn("tileset 0: offset=0x258", text)
+        self.assertIn("<== this TIS", text)
+        self.assertIn("AR0001(ts=0,res=0)", text)
+
+
 if __name__ == "__main__":
     unittest.main()
