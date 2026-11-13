@@ -4,6 +4,15 @@ import struct
 import numba
 
 
+# Numba JIT compilation for performance - compiles Python to native code for ~20-100x speedup
+@numba.jit
+def _unpack_565_numba(color):
+    r = ((color >> 11) & 0x1F) * 255 // 31
+    g = ((color >> 5) & 0x3F) * 255 // 63
+    b = (color & 0x1F) * 255 // 31
+    return r, g, b
+
+
 class PvrzDecoder:
     """Decode PVRZ resources and raw PVR textures."""
 
@@ -357,22 +366,6 @@ class PvrzDecoder:
                         out[pixel_y, pixel_x, 3] = alpha_values[alpha_index]
 
         return out
-
-    @staticmethod
-    @numba.jit
-    def _unpack_565(color):
-        r = ((color >> 11) & 0x1F) * 255 // 31
-        g = ((color >> 5) & 0x3F) * 255 // 63
-        b = (color & 0x1F) * 255 // 31
-        return r, g, b
-
-# Numba JIT compilation for performance - compiles Python to native code for ~20-100x speedup
-@numba.jit
-def _unpack_565_numba(color):
-    r = ((color >> 11) & 0x1F) * 255 // 31
-    g = ((color >> 5) & 0x3F) * 255 // 63
-    b = (color & 0x1F) * 255 // 31
-    return r, g, b
 
     @staticmethod
     def _mask_shift(mask):
