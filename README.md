@@ -43,6 +43,7 @@ All commands are run from the repository root.
 | Command | What it does |
 |---------|--------------|
 | `python tools/image_viewer/app.py` | Opens the image viewer for BAM and TIS resources (needs `dearpygui` and a game installation) |
+| `python tools/tis_diagnostic.py AR0072 --game BG2EE` | Text-only TIS/WED diagnostic: header, PVRZ page and WED mapping facts for one or more tilesets, for comparing with Near Infinity (needs a game installation; prints only resrefs, sizes, offsets and counts) |
 | `python main.py FEMUR` | Loads an item from the game and writes it back out for a round-trip check (edit `target_game` in `main.py` first) |
 | `python tools/tests/test_suite.py --help` | Round-trip fidelity suite against installed games |
 | `python tools/resource_explorer.py` | Interactive resource browser (needs `requirements-tools.txt`) |
