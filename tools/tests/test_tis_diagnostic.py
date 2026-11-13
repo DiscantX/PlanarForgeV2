@@ -162,8 +162,14 @@ class BifTableTests(unittest.TestCase):
         finally:
             os.unlink(name)
         self.assertEqual(info["files"], [{"offset": 500, "size": 64}])
-        self.assertEqual(info["tilesets"], [{"offset": 600, "tile_count": 4, "tile_size": 12}])
+        self.assertEqual(info["tilesets"], [{"locator": 0, "offset": 600, "tile_count": 4, "tile_size": 12}])
         self.assertEqual(info["tileset_entries_offset"], fe_off + 16)
+
+    def test_locator_bits_exposed_and_matched(self):
+        tilesets = [{"locator": 1 << 14, "offset": 2000, "tile_count": 10, "tile_size": 12},
+                    {"locator": 2 << 14, "offset": 2200, "tile_count": 5, "tile_size": 12}]
+        rows = td.analyze_bif_table(3000, 100, [], 140, tilesets)
+        self.assertEqual([r["ts_bits"] for r in rows], [1, 2])
 
     def test_not_a_biff(self):
         import tempfile, os
@@ -291,8 +297,8 @@ class BifSectionIsReportedTest(unittest.TestCase):
         finally:
             os.unlink(bif_path)
         self.assertIn("== BIF tileset table", text)
-        self.assertIn("tileset 0: offset=0x258", text)
-        self.assertIn("<== this TIS", text)
+        self.assertIn("entry at position 0: locator=0x00000000 (tileset bits=0) offset=0x258", text)
+        self.assertIn("<== matched by locator (IESDP) for this TIS", text)
         self.assertIn("AR0001(ts=0,res=0)", text)
 
 

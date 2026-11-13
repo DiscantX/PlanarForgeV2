@@ -325,7 +325,9 @@ def analyze_bif_table(file_size, file_entries_offset, file_entries, tileset_entr
         later = [v for v in starts if v > e["offset"]]
         next_start = min(later) if later else file_size
         fit = (next_start - e["offset"]) // e["tile_size"] if e["tile_size"] else 0
-        out.append({"index": i, "offset": e["offset"], "tile_count": e["tile_count"], "tile_size": e["tile_size"],
+        loc = e.get("locator", 0)
+        out.append({"index": i, "locator": loc, "ts_bits": (loc >> 14) & 0x3F,
+                    "offset": e["offset"], "tile_count": e["tile_count"], "tile_size": e["tile_size"],
                     "data_end": data_end, "next_start": next_start, "slack_bytes": next_start - data_end,
                     "tiles_that_fit": fit})
     return out
@@ -351,8 +353,8 @@ def read_bif_table(path):
         tblob = fh.read(tileset_count * 20)
         tilesets = []
         for i in range(len(tblob) // 20):
-            _loc, off, cnt, tsz = struct.unpack_from("<IIII", tblob, i * 20)
-            tilesets.append({"offset": off, "tile_count": cnt, "tile_size": tsz})
+            loc, off, cnt, tsz = struct.unpack_from("<IIII", tblob, i * 20)
+            tilesets.append({"locator": loc, "offset": off, "tile_count": cnt, "tile_size": tsz})
     return {"file_size": size, "file_count": file_count, "tileset_count": tileset_count,
             "file_entries_offset": fe_off, "tileset_entries_offset": ts_off,
             "files": files, "tilesets": tilesets}
@@ -378,17 +380,28 @@ def report_bif_table(rep, loader, game, entry, declared_count):
     rows = analyze_bif_table(info["file_size"], info["file_entries_offset"], info["files"],
                              info["tileset_entries_offset"], info["tilesets"])
     mine = (entry.get("resource_locator") or {}).get("tileset_index")
+    # IESDP: the KEY tileset index is matched against bits 14-19 of each entry's own locator.
+    spec_pos = next((r["index"] for r in rows if r["ts_bits"] == mine), None)
     for r in rows:
-        mark = "  <== this TIS" if r["index"] == mine else ""
-        rep.add("  tileset %d: offset=0x%X tiles=%d x %d bytes, data ends 0x%X, next structure 0x%X, "
-                "slack=%d bytes, tiles that would fit=%d%s" % (
-                    r["index"], r["offset"], r["tile_count"], r["tile_size"], r["data_end"],
-                    r["next_start"], r["slack_bytes"], r["tiles_that_fit"], mark))
+        mark = "  <== matched by locator (IESDP) for this TIS" if r["index"] == spec_pos else ""
+        rep.add("  entry at position %d: locator=0x%08X (tileset bits=%d) offset=0x%X tiles=%d x %d bytes, "
+                "data ends 0x%X, next structure 0x%X, slack=%d bytes, tiles that would fit=%d%s" % (
+                    r["index"], r["locator"], r["ts_bits"], r["offset"], r["tile_count"], r["tile_size"],
+                    r["data_end"], r["next_start"], r["slack_bytes"], r["tiles_that_fit"], mark))
         if r["slack_bytes"] < 0:
-            rep.flag("BIF tileset %d data overlaps the next structure by %d bytes" % (r["index"], -r["slack_bytes"]))
-        if r["index"] == mine and r["tiles_that_fit"] > r["tile_count"]:
-            rep.flag("BIF tileset %d declares %d tiles but %d would fit before the next structure"
+            rep.flag("BIF tileset entry %d data overlaps the next structure by %d bytes" % (r["index"], -r["slack_bytes"]))
+        if r["index"] == spec_pos and r["tiles_that_fit"] > r["tile_count"]:
+            rep.flag("BIF tileset entry %d declares %d tiles but %d would fit before the next structure"
                      % (r["index"], r["tile_count"], r["tiles_that_fit"]))
+    if mine is not None:
+        if spec_pos is None:
+            rep.flag("no tileset entry has locator tileset bits %s (KEY asks for it)" % mine)
+        elif spec_pos != mine:
+            rep.flag("KEY tileset index %s is entry position %d by locator matching, not position %s "
+                     "(position-based lookup would read the wrong entry)" % (mine, spec_pos, mine))
+        if spec_pos is not None and rows[spec_pos]["tile_count"] != declared_count:
+            rep.flag("TIS loaded %d tiles but the locator-matched entry holds %d"
+                     % (declared_count, rows[spec_pos]["tile_count"]))
     # KEY entries that point into this BIF's tilesets
     try:
         locator = entry.get("resource_locator") or {}

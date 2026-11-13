@@ -110,6 +110,21 @@ class BiffHandler:
                 decompressed_stream.seek(0)
                 yield decompressed_stream
 
+    TILESET_LOCATOR_SHIFT = 14
+    TILESET_LOCATOR_MASK = 0x3F
+
+    def _find_tileset_entry_position(self, reader, tileset_count, tileset_entries_offset, tileset_index):
+        """Return the table position of the tileset entry whose locator carries
+        `tileset_index` in bits 14-19, or None if no entry does."""
+        if tileset_index is None or tileset_index < 0:
+            return None
+        for position in range(tileset_count):
+            reader.seek(tileset_entries_offset + position * self.TILESET_ENTRY_SIZE)
+            locator = reader.read_uint32()
+            if ((locator >> self.TILESET_LOCATOR_SHIFT) & self.TILESET_LOCATOR_MASK) == tileset_index:
+                return position
+        return None
+
     def get_resource_data(self, bif_file_path, resource_index, tileset_index=None, tileset_tile_count=None):
         """
         Extracts raw resource bytes from a BIFF container.
@@ -133,10 +148,16 @@ class BiffHandler:
             file_count, tileset_count, file_entries_offset, tileset_entries_offset = self._get_layout(reader, cache_key)
 
             if tileset_index is not None:
-                if tileset_index < 0 or tileset_index >= tileset_count:
+                # IESDP (BIFF V1): each tileset entry has its own resource locator; only bits
+                # 14-19 of it are matched against the tileset index in the KEY locator. The
+                # entry's position in the table is not the key.
+                position = self._find_tileset_entry_position(
+                    reader, tileset_count, tileset_entries_offset, tileset_index
+                )
+                if position is None:
                     return None
 
-                entry_offset = tileset_entries_offset + (tileset_index * self.TILESET_ENTRY_SIZE)
+                entry_offset = tileset_entries_offset + (position * self.TILESET_ENTRY_SIZE)
                 reader.seek(entry_offset + 4)          # skip resource_locator field
                 pool_offset = reader.read_uint32()     # byte offset of pool start in BIF
                 pool_tile_count = reader.read_uint32() # total tiles in the shared pool
