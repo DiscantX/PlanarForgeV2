@@ -223,9 +223,6 @@ class _FakeLoader:
     def _find_exact_resource_location(self, *args):
         return None
 
-    def _estimate_tis_tile_count(self, *args):
-        return None
-
     def iter_resources(self, game=None):
         return iter(())
 
