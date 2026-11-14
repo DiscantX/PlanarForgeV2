@@ -69,6 +69,17 @@ class TilesetSelectionTests(unittest.TestCase):
         self.assertEqual(len(blob), 24 + 3 * TILE)
         self.assertEqual(blob[24:], bytes([0xBB]) * (3 * TILE))
 
+    def test_resource_index_is_ignored_for_tilesets(self):
+        # No pooling: a non-zero KEY resource_index must not shift the read into the entry.
+        entries = [(1 << 14, 4, 0xAA), (2 << 14, 6, 0xBB)]
+        for resource_index in (0, 1, 3, 99):
+            self.assertEqual(self.count_and_fill(self.read(entries, 2, resource_index)), (6, 0xBB))
+
+    def test_whole_entry_is_returned(self):
+        blob = self.read([(1 << 14, 7, 0x33)], 1)
+        self.assertEqual(self.count_and_fill(blob), (7, 0x33))
+        self.assertEqual(len(blob), 24 + 7 * TILE)
+
 
 if __name__ == "__main__":
     unittest.main()

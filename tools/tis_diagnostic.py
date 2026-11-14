@@ -733,11 +733,7 @@ def run_one(loader, game, resref, args):
             loc = entry.get("resource_locator") or {}
             rep.add("  key locator: bif_index=%s tileset_index=%s resource_index=%s" % (
                 loc.get("bif_index"), loc.get("tileset_index"), loc.get("resource_index")))
-            est = loader._estimate_tis_tile_count(entry, game)
-            rep.add("  tile count estimated from the BIFF pool (distance to next TIS): %s" % est)
             bif_entry = entry
-            if est is not None and est != count:
-                rep.flag("header count_of_tiles=%d but the pool estimate is %d" % (count, est))
         else:
             rep.add("  no CHITIN.KEY entry (probably an override file)")
     except Exception as exc:

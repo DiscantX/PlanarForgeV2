@@ -1,6 +1,6 @@
 # Infinity Engine Format Notes
 
-This page collects what the project has learned, usually the hard way, about the file formats used by the Infinity Engine games. It is aimed at readers who know programming but have not met these formats before. Entries that describe unmerged work say so.
+This page collects what the project has learned, usually the hard way, about the file formats used by the Infinity Engine games. It is aimed at readers who know programming but have not met these formats before.
 
 ## Background
 
@@ -34,10 +34,11 @@ A **TIS** file holds the picture tiles of an area. It is only graphics; where ea
 
 A loose TIS file begins with a 24-byte header. Inside a BIFF archive the layout is different, and two behaviours have caused bugs:
 
-* **Tiles share a pool and are found by `resource_index`.** A BIFF tileset entry holds the tiles of many TIS resources, packed one after another. The key file's `resource_index` for a given TIS names the *first tile* belonging to it, so reading must start that many tiles into the pool. Starting at the beginning of the pool silently returns another area's tiles. The fix is implemented on the unmerged `uncommitted` branch, not yet on `main` ([issue #5](https://github.com/DiscantX/PlanarForgeV2/issues/5)).
-* **There is no per-resource header, so one must be synthesised.** The archive stores tile payloads without the 24-byte TIS header, so the tool builds a header for the schema parser. The tile count has to be derived from the pool (the distance to the next TIS in the same pool) rather than assumed. IESDP also notes that Planescape: Torment can only load TIS files that live in a BIFF.
+* **Each TIS has its own tileset entry, found by the entry's locator, not by its position.** A BIFF tileset entry has its own resource locator, and bits 14 to 19 of it are matched against the tileset index in the KEY locator ([BIFF V1](https://iesdp.bgforge.net/file_formats/ie_formats/bif_v1)). In `AREA150C.bif`, AR0072 has KEY tileset index 1, but its 1,211-tile entry is at position 0 and its locator carries tileset bits 1. Using the KEY index as a table position read AR0072 from the neighbouring 822-tile entry, which gave the right textures in the wrong places and left AR1516 unloadable ([issue #47](https://github.com/DiscantX/PlanarForgeV2/issues/47)). A scan of BG2EE's 460 TIS found 349 that the position-based lookup read from the wrong entry and 111 it could not load at all.
+* **An earlier "shared pool" explanation was a misdiagnosis.** The project once held that one tileset entry packs the tiles of many TIS and that the KEY `resource_index` names the first tile. In BG2EE every `resource_index` is 0, no tileset entry is claimed by more than one TIS, and none is unclaimed, so such a rule would never have had any effect. Its symptom, another area's tiles, is what the locator bug above produces. The tool therefore ignores `resource_index` for tilesets ([issue #52](https://github.com/DiscantX/PlanarForgeV2/issues/52)). This is verified for BG2EE only; other games' BIFFs are unverified until `python tools/tis_diagnostic.py --scan` is run against them.
+* **There is no per-resource header, so one must be synthesised.** The archive stores tile payloads without the 24-byte TIS header, so the tool builds a header for the schema parser, taking the tile count and tile size from the tileset entry. IESDP also notes that Planescape: Torment can only load TIS files that live in a BIFF.
 
-Choosing the palette or PVRZ schema is done by looking at the `tile_data_block_size` field of the header (12 or 5,120). On the `uncommitted` branch the single `tis_v1.yaml` is split into `tis_v1_palette.yaml` and `tis_v1_pvrz.yaml` for this purpose.
+Choosing the palette or PVRZ schema is done by looking at the `tile_data_block_size` field of the header (12 or 5,120). The single `tis_v1.yaml` is split into `tis_v1_palette.yaml` and `tis_v1_pvrz.yaml` for this purpose.
 
 ## Look-alike formats: PST versus Enhanced Edition
 
