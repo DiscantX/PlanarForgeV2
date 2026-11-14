@@ -1525,36 +1525,40 @@ if __name__ == "__main__":
         epilog="""
 Examples:
   Run all tests:
-    python tests/test_suite.py
+    python tools/tests/test_suite.py
 
   Run a specific test by number:
-    python tests/test_suite.py --test 1
+    python tools/tests/test_suite.py --test 1
 
   Run the fidelity test (test #2) for a single schema:
-    python tests/test_suite.py --test 2 --schema ITM
+    python tools/tests/test_suite.py --test 2 --schema ITM
 
   Run the fidelity test (test #2) for a single resource:
-    python tests/test_suite.py --test 2 --resref BAG29
+    python tools/tests/test_suite.py --test 2 --resref BAG29
 
   Run WED fidelity with unknown-gap audit enabled:
-    python tests/test_suite.py --test 2 --schema WED --audit-gaps
+    python tools/tests/test_suite.py --test 2 --schema WED --audit-gaps
 
   Run audit in summary-only mode (fastest):
-    python tests/test_suite.py --test 2 --schema WED --audit-gaps --gap-detail-level summary
+    python tools/tests/test_suite.py --test 2 --schema WED --audit-gaps --gap-detail-level summary
 
   Run with performance profiling:
-    python tests/test_suite.py --test 2 --schema ARE --game PSTEE --profile-performance
+    python tools/tests/test_suite.py --test 2 --schema ARE --game PSTEE --profile-performance
 
   Use a custom gap allowlist:
-    python tests/test_suite.py --test 2 --schema WED --audit-gaps --gap-allowlist tools/tests/gap_allowlist.json
+    python tools/tests/test_suite.py --test 2 --schema WED --audit-gaps --gap-allowlist tools/tests/gap_allowlist.json
 
 Available Tests:
   1: BIF Parsing & Decompression
   2: Resource Fidelity Round-trip
-  4: BIF Caching
+  3: BIF Caching (real files)
+  4: BIF Caching (generated file)
+
+Tests 1, 2 and 3 need an installed game and are skipped without one.
+Test 4 needs no game.
 """
     )
-    parser.add_argument('--test', type=int, help='Run a specific test by number (1, 2, or 3).')
+    parser.add_argument('--test', type=int, help='Run a specific test by number (1, 2, 3 or 4).')
     parser.add_argument('--schema', type=str, help='Limit fidelity test to a specific schema (e.g., ITM, SPL).')
     parser.add_argument('--resref', type=str, help='Limit fidelity test to a specific resource reference (e.g., BAG29).')
     parser.add_argument('--game', type=str, help='Limit tests to a specific game ID or comma-separated list (e.g., BG2EE,IWDEE). Defaults to all found games.')

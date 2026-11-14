@@ -14,16 +14,31 @@ from drivers.InfinityEngine.resource_loader import ResourceLoader
 
 
 class TestResourceSerialization(unittest.TestCase):
+    # FEMUR is a Planescape: Torment item; the test below asserts its PST values.
+    SAMPLE_RESREF = "FEMUR"
+    SAMPLE_GAMES = ("PSTEE", "PST")
+
     @classmethod
     def setUpClass(cls):
-        cls.project_root = Path(__file__).resolve().parents[2]
-        cls.sample_path = cls.project_root / "FEMUR.saved.itm"
         cls.loader = ResourceLoader()
-        cls.resource = cls.loader.load_file(
-            resref="FEMUR",
-            restype="ITM",
-            file_path=cls.sample_path,
-        )
+
+    def _load_sample_item(self):
+        """Loads FEMUR from an installed Planescape: Torment game.
+
+        Returns:
+            Resource: The parsed item.
+
+        Raises:
+            unittest.SkipTest: If no suitable game is installed or the item
+                cannot be loaded.
+        """
+        installed = {inst.game_id for inst in self.loader.install_finder.find_all()}
+        for game in self.SAMPLE_GAMES:
+            if game in installed:
+                resource = self.loader.load(self.SAMPLE_RESREF, restype="ITM", game=game)
+                if resource is not None:
+                    return resource
+        self.skipTest("Needs an installed Planescape: Torment game (PSTEE or PST)")
 
     def test_resref_string_repr_uses_display_value(self):
         value = ResRefString("II083\x00\x00")
@@ -32,7 +47,7 @@ class TestResourceSerialization(unittest.TestCase):
         self.assertEqual(repr(value), "'II083'")
 
     def test_to_dict_formats_resrefs_and_bytes_for_display(self):
-        data = self.resource.to_dict()
+        data = self._load_sample_item().to_dict()
 
         self.assertEqual(data["header"][0]["item_type"], "Maces (in BG, this includes clubs)")
         self.assertEqual(data["header"][0]["inventory_icon"], "II083")
@@ -61,7 +76,8 @@ class TestResourceSerialization(unittest.TestCase):
         classic_itm = self.loader.schema_loader.get("ITM", game="BG2")
         ee_itm = self.loader.schema_loader.get("ITM", game="BG2EE")
 
-        classic_flags = classic_itm.get_section("feature_block").get_field("saving_throw_type").attributes["flags"]
+        # The classic (itm_v1) schema names its sections in the plural; the EE schemas use the singular.
+        classic_flags = classic_itm.get_section("feature_blocks").get_field("saving_throw_type").attributes["flags"]
         ee_flags = ee_itm.get_section("feature_block").get_field("saving_throw_type").attributes["flags"]
 
         self.assertNotIn(0x00000020, classic_flags)

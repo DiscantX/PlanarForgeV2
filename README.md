@@ -51,17 +51,19 @@ All commands are run from the repository root.
 
 ## Tests
 
-Some unit tests need no game files:
+Run everything from the repository root. No game installation is needed for this command; tests that need one are skipped, not failed:
 
 ```bash
-python -m unittest tools.tests.test_tis_decoder tools.tests.test_table_resolver tools.tests.test_tlk_handler
+python -m unittest discover -s tools/tests -t . -p "test_*.py"
 ```
 
-These pass on a clean install. Other tests do not currently work out of the box:
+| Module | Needs a game installation? |
+|--------|----------------------------|
+| `test_tis_decoder`, `test_table_resolver`, `test_tlk_handler`, `test_pvrz_decoder`, `test_pvrz_scan`, `test_biff_handler`, `test_installation_finder`, `test_tis_diagnostic` | No |
+| `test_resource_serialization` | One test needs Planescape: Torment (PSTEE or PST) and is skipped without it |
+| `test_suite` | Tests 1, 2 and 3 need an installed game and are skipped without one; test 4 does not |
 
-* `tools.tests.test_pvrz_decoder` fails because of a known bug ([#13](https://github.com/DiscantX/PlanarForgeV2/issues/13)).
-* `tools.tests.test_resource_serialization` needs a file produced by a manual run of `main.py` ([#14](https://github.com/DiscantX/PlanarForgeV2/issues/14)).
-* `tools/tests/test_suite.py` needs installed games. The round-trip fidelity claims in the documentation come from this suite and can only be reproduced for games you have installed.
+`tools/tests/test_suite.py` is also the round-trip fidelity suite (see `--help`). The fidelity claims in the documentation come from its test 2 and can only be reproduced for games you have installed.
 
 ## Contributing
 
