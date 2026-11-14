@@ -14,7 +14,7 @@ from drivers.InfinityEngine.resource_loader import ResourceLoader
 from drivers.InfinityEngine.graphics.bam_decoder import BamDecoder
 from drivers.InfinityEngine.graphics.pvrz_decoder import PvrzDecoder, PvrzError
 from drivers.InfinityEngine.graphics.tis_decoder import TisDecoder
-from canvas import PFCanvas
+from tools.image_viewer.canvas import PFCanvas
 
 class ImageViewerApp:
     def __init__(self):
