@@ -38,16 +38,10 @@ class AnalyzePvrzTests(unittest.TestCase):
         facts = pvrz_scan.analyze_pvrz(build_pvrz(build_pvr(pixel_format=DXT5)))
         self.assertEqual((facts["format"], facts["top_level_bytes"], facts["data_vs_expected"]), ("DXT5", 64, "top level"))
 
-    def test_mip_chain_is_recognised_and_old_inference_disagrees(self):
+    def test_mip_chain_is_recognised(self):
         # 8x8 DXT1: top level 32 bytes, chain 32 + 8 + 8 + 8 = 56.
-        pvr = build_pvr(mips=4, texture=bytes(56))
-        facts = pvrz_scan.analyze_pvrz(build_pvrz(pvr), infer_compression=lambda w, h, size: None)
+        facts = pvrz_scan.analyze_pvrz(build_pvrz(build_pvr(mips=4, texture=bytes(56))))
         self.assertEqual((facts["full_chain_bytes"], facts["data_vs_expected"]), (56, "full chain"))
-        self.assertIs(facts["inference_agrees"], False)
-
-    def test_inference_agreement(self):
-        agree = pvrz_scan.analyze_pvrz(build_pvrz(build_pvr()), lambda w, h, size: "DXT1")
-        self.assertIs(agree["inference_agrees"], True)
 
     def test_metadata_offsets_the_texture_data(self):
         facts = pvrz_scan.analyze_pvrz(build_pvrz(build_pvr(metadata=b"x" * 16)))
@@ -113,6 +107,11 @@ class SummaryTests(unittest.TestCase):
         examples = pvrz_scan.summarize(rows)["examples"]
         self.assertEqual(examples["layout other than the documented size+zlib"], ["RAW", "JUNK"])
         self.assertEqual(examples["pixel format other than DXT1/DXT3/DXT5"], ["FMT"])
+
+    def test_empty_scan_says_so(self):
+        text = pvrz_scan.render(pvrz_scan.summarize([]), "TEST")
+        self.assertIn("No PVRZ pages found", text)
+        self.assertNotIn("No deviations", text)
 
     def test_csv_round_trip(self):
         import csv

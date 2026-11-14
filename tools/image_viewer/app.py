@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
 import dearpygui.dearpygui as dpg
 from drivers.InfinityEngine.resource_loader import ResourceLoader
 from drivers.InfinityEngine.graphics.bam_decoder import BamDecoder
-from drivers.InfinityEngine.graphics.pvrz_decoder import PvrzDecoder
+from drivers.InfinityEngine.graphics.pvrz_decoder import PvrzDecoder, PvrzError
 from drivers.InfinityEngine.graphics.tis_decoder import TisDecoder
 from canvas import PFCanvas
 
@@ -502,7 +502,10 @@ class ImageViewerApp:
             dpg.set_value(self.frame_info_text, f"Real Frame: {real_frame_index} ({frame_data['width']}x{frame_data['height']})")
 
         elif restype == "PVRZ":
-            buffer = self.pvrz_decoder.decode_pvrz_bytes(resource._original_bytes)
+            try:
+                buffer = self.pvrz_decoder.decode_pvrz_bytes(resource._original_bytes)
+            except PvrzError as exc:
+                dpg.set_value(self.info_text, f"PVRZ decode failed: {exc}")
         elif restype == "TIS":
             pvrz_provider = self._get_tis_pvrz_page_provider(game)
             map_info = self._get_tis_wed_map_info(game, resource, self.current_overlay_idx)
