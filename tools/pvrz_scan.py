@@ -5,7 +5,9 @@ zlib stream holding a PVR v3 file (52-byte header, optional metadata, texture
 data). Desktop Enhanced Edition pages are DXT1 or DXT5 (IESDP "PVRZ file
 format"; PVR File Format Specification 3.0.0). This tool reports, per page and
 in summary, where the real files agree or disagree, so the decoder can be
-narrowed to what actually occurs (issue #39).
+narrowed to what actually occurs (issue #39). The decoder now accepts exactly
+what this scan found in BG2EE and IWDEE; rerun it for any other game before
+relying on the decoder there.
 
 Only numbers and resrefs are reported; no pixel data is decoded or written.
 Keep --out and --csv files outside the repo (docs/Game-Asset-Policy.md).
@@ -37,7 +39,7 @@ HEADER_SIZE = 52
 BLOCK_FORMATS = {7: ("DXT1", 8), 9: ("DXT3", 16), 11: ("DXT5", 16)}
 CSV_COLUMNS = ["resref", "bytes", "layout", "size_field", "decompressed", "trailing", "nested_zlib",
                "magic", "pixel_format", "format", "width", "height", "mips", "metadata", "texture_bytes",
-               "top_level_bytes", "full_chain_bytes", "data_vs_expected", "old_inference", "inference_agrees"]
+               "top_level_bytes", "full_chain_bytes", "data_vs_expected"]
 
 
 def _try_layouts(raw):
@@ -85,15 +87,11 @@ def _full_chain_bytes(width, height, block_bytes):
         width, height = max(1, width // 2), max(1, height // 2)
 
 
-def analyze_pvrz(raw, infer_compression=None):
+def analyze_pvrz(raw):
     """Describes how one PVRZ file compares with the documented layout.
 
     Args:
         raw: The PVRZ file bytes.
-        infer_compression: Optional ``f(width, height, data_size)`` returning
-            ``"DXT1"``, ``"DXT5"`` or None; pass the decoder's current
-            data-size inference to see where it disagrees with the header's
-            pixel format.
 
     Returns:
         A dict of facts (see ``CSV_COLUMNS``). Keys that do not apply are
@@ -137,9 +135,6 @@ def analyze_pvrz(raw, infer_compression=None):
         row.update(top_level_bytes=top, full_chain_bytes=chain,
                    data_vs_expected="top level" if texture_bytes == top else
                    "full chain" if texture_bytes == chain else "other")
-    if infer_compression:
-        row["old_inference"] = infer_compression(width, height, texture_bytes)
-        row["inference_agrees"] = row["old_inference"] == name
     return row
 
 
@@ -181,8 +176,6 @@ def summarize(rows):
         counts["texture data vs expected"][facts.get("data_vs_expected", "n/a")] += 1
         if facts["format"] == "other":
             examples["pixel format other than DXT1/DXT3/DXT5"].append(resref)
-        if facts.get("inference_agrees") is False:
-            examples["old size-based inference disagrees with pixel format"].append(resref)
     return {"total": len(rows), "counts": counts, "examples": examples}
 
 
@@ -199,8 +192,10 @@ def render(summary, game, limit=25):
         out.extend("    " + n for n in names[:limit])
         if len(names) > limit:
             out.append("    ... and %d more" % (len(names) - limit))
-    if not summary["examples"]:
-        out.append("")
+    out.append("")
+    if not summary["total"]:
+        out.append("  No PVRZ pages found: is the game installed and its CHITIN.KEY readable?")
+    elif not summary["examples"]:
         out.append("  No deviations from the documented layout found.")
     return "\n".join(out)
 
@@ -214,13 +209,12 @@ def write_csv(path, rows):
             writer.writerow(dict(facts, resref=resref))
 
 
-def scan_game(loader, game, infer_compression=None):
+def scan_game(loader, game):
     """Analyses every PVRZ resource listed in the game's KEY file.
 
     Args:
         loader: A ``ResourceLoader``.
         game: Game key, e.g. ``"BG2EE"``.
-        infer_compression: Passed through to ``analyze_pvrz``.
 
     Returns:
         A list of ``(resref, facts)`` pairs. Pages whose bytes cannot be read
@@ -236,7 +230,7 @@ def scan_game(loader, game, infer_compression=None):
                 raw, _source, _code = loader.get_raw_bytes(resref, restype="PVRZ", game=game)
         except Exception:
             raw = None
-        rows.append((resref, analyze_pvrz(raw, infer_compression) if raw else {"layout": "unreadable"}))
+        rows.append((resref, analyze_pvrz(raw) if raw else {"layout": "unreadable"}))
     return rows
 
 
@@ -249,12 +243,11 @@ def main(argv=None):
     parser.add_argument("--out", default=None, help="also write the report to this file (outside the repo)")
     args = parser.parse_args(argv)
 
-    from drivers.InfinityEngine.graphics.pvrz_decoder import PvrzDecoder
     from drivers.InfinityEngine.resource_loader import ResourceLoader
     loader = ResourceLoader()
     game = args.game or loader.default_game
 
-    rows = scan_game(loader, game, PvrzDecoder._infer_compression)
+    rows = scan_game(loader, game)
     if args.csv:
         write_csv(args.csv, rows)
     output = render(summarize(rows), game, args.limit)

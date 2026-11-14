@@ -1,174 +1,146 @@
+"""Tests for the PVRZ decoder (issue #39). Uses synthetic PVRZ pages; no game files."""
+import struct
 import unittest
 import zlib
+
 import numpy as np
-from drivers.InfinityEngine.graphics.pvrz_decoder import PvrzDecoder
+
+from drivers.InfinityEngine.graphics.pvrz_decoder import (
+    PIXEL_FORMAT_DXT1, PIXEL_FORMAT_DXT5, PVR3_MAGIC, PvrzDecoder, PvrzError)
+
+RED, BLUE = 0xF800, 0x001F
 
 
-class TestPvrzDecoder(unittest.TestCase):
-    def test_decode_raw_rgba_pvrz(self):
-        width = 2
-        height = 2
-        header_size = 52
-        pixel_data = bytes([
-            1, 2, 3, 255,
-            4, 5, 6, 255,
-            7, 8, 9, 255,
-            10, 11, 12, 255,
-        ])
+def dxt1_block(c0, c1, indices=0):
+    return struct.pack("<HHI", c0, c1, indices)
 
-        header = (
-            header_size.to_bytes(4, 'little') +
-            height.to_bytes(4, 'little') +
-            width.to_bytes(4, 'little') +
-            (1).to_bytes(4, 'little') +  # mipmap count
-            (0).to_bytes(4, 'little') +  # flags
-            len(pixel_data).to_bytes(4, 'little') +
-            (32).to_bytes(4, 'little') +  # bit count
-            (0x000000FF).to_bytes(4, 'little') +
-            (0x0000FF00).to_bytes(4, 'little') +
-            (0x00FF0000).to_bytes(4, 'little') +
-            (0xFF000000).to_bytes(4, 'little') +
-            b'PVR!' +
-            (1).to_bytes(4, 'little')
-        )
 
-        pvr_payload = header + pixel_data
-        compressed = zlib.compress(pvr_payload)
+def dxt5_block(alpha0, alpha1, alpha_bits, c0, c1, indices=0):
+    return bytes([alpha0, alpha1]) + alpha_bits.to_bytes(6, "little") + struct.pack("<HHI", c0, c1, indices)
 
-        decoded = PvrzDecoder.decode_pvrz_bytes(compressed)
-        self.assertEqual(decoded.shape, (height, width, 4))
-        self.assertTrue(np.array_equal(decoded[0, 0], [1, 2, 3, 255]))
-        self.assertTrue(np.array_equal(decoded[1, 1], [10, 11, 12, 255]))
 
-    def test_decode_uncompressed_pvr(self):
-        width = 2
-        height = 2
-        header_size = 52
-        pixel_data = bytes([
-            1, 2, 3, 255,
-            4, 5, 6, 255,
-            7, 8, 9, 255,
-            10, 11, 12, 255,
-        ])
+def build_pvr(width, height, texture, pixel_format=PIXEL_FORMAT_DXT1, mips=1, metadata=b"", version=PVR3_MAGIC):
+    header = struct.pack("<IIQ9I", version, 0, pixel_format, 0, 0, height, width, 1, 1, 1, mips, len(metadata))
+    return header + metadata + texture
 
-        header = (
-            header_size.to_bytes(4, 'little') +
-            height.to_bytes(4, 'little') +
-            width.to_bytes(4, 'little') +
-            (1).to_bytes(4, 'little') +  # mipmap count
-            (0).to_bytes(4, 'little') +  # flags
-            len(pixel_data).to_bytes(4, 'little') +
-            (32).to_bytes(4, 'little') +  # bit count
-            (0x000000FF).to_bytes(4, 'little') +
-            (0x0000FF00).to_bytes(4, 'little') +
-            (0x00FF0000).to_bytes(4, 'little') +
-            (0xFF000000).to_bytes(4, 'little') +
-            b'PVR!' +
-            (1).to_bytes(4, 'little')
-        )
 
-        pvr_payload = header + pixel_data
+def build_pvrz(pvr, size=None):
+    return struct.pack("<I", len(pvr) if size is None else size) + zlib.compress(pvr)
 
-        decoded = PvrzDecoder.decode_pvrz_bytes(pvr_payload)
-        self.assertEqual(decoded.shape, (height, width, 4))
-        self.assertTrue(np.array_equal(decoded[0, 0], [1, 2, 3, 255]))
-        self.assertTrue(np.array_equal(decoded[1, 1], [10, 11, 12, 255]))
 
-    def test_decode_dxt1_block(self):
-        color0 = 0xF800  # red
-        color1 = 0x001F  # blue
-        block = (
-            color0.to_bytes(2, 'little') +
-            color1.to_bytes(2, 'little') +
-            b'\x00\x00\x00\x00'
-        )
-
-        decoded = PvrzDecoder._decode_dxt1(block, 4, 4)
+class DecodeTests(unittest.TestCase):
+    def test_dxt1_page_round_trip(self):
+        block = dxt1_block(RED, BLUE, 0b01 << 2)  # pixel 1 uses colour 1
+        decoded = PvrzDecoder.decode_pvrz_bytes(build_pvrz(build_pvr(4, 4, block)))
         self.assertEqual(decoded.shape, (4, 4, 4))
-        self.assertTrue((decoded[:, :, 3] == 255).all())
-        self.assertTrue(np.all(decoded[0, 0, :3] == decoded[0, 1, :3]))
-        self.assertTrue(np.any(decoded[:, :, 0] > decoded[:, :, 2]))
+        self.assertEqual(list(decoded[0, 0]), [255, 0, 0, 255])
+        self.assertEqual(list(decoded[0, 1]), [0, 0, 255, 255])
+
+    def test_dxt1_three_colour_mode_has_transparent_black(self):
+        # c0 <= c1: index 2 is the midpoint, index 3 is transparent black.
+        block = dxt1_block(BLUE, RED, 0b11 << 2 | 0b10 << 4)
+        decoded = PvrzDecoder.decode_pvr_bytes(build_pvr(4, 4, block))
+        self.assertEqual(list(decoded[0, 1]), [0, 0, 0, 0])
+        self.assertEqual(list(decoded[0, 2]), [127, 0, 127, 255])
+
+    def test_dxt5_alpha_and_colour(self):
+        # 8-alpha mode (alpha0 > alpha1); pixel 0 -> alpha index 0, pixel 1 -> alpha index 1.
+        block = dxt5_block(200, 40, 0b001 << 3, RED, BLUE, 0b01 << 2)
+        decoded = PvrzDecoder.decode_pvr_bytes(build_pvr(4, 4, block, PIXEL_FORMAT_DXT5))
+        self.assertEqual(list(decoded[0, 0]), [255, 0, 0, 200])
+        self.assertEqual(list(decoded[0, 1]), [0, 0, 255, 40])
+
+    def test_dxt5_six_alpha_mode_has_transparent_and_opaque_ends(self):
+        # alpha0 <= alpha1: indices 6 and 7 are 0 and 255.
+        block = dxt5_block(10, 20, 6 | 7 << 3, RED, BLUE)
+        decoded = PvrzDecoder.decode_pvr_bytes(build_pvr(4, 4, block, PIXEL_FORMAT_DXT5))
+        self.assertEqual((decoded[0, 0, 3], decoded[0, 1, 3]), (0, 255))
+
+    def test_dxt5_colour_block_is_always_four_colour(self):
+        # c0 < c1 would give transparent black at index 3 in DXT1; DXT5 interpolates instead.
+        block = dxt5_block(255, 255, 0, BLUE, RED, 0b11)
+        decoded = PvrzDecoder.decode_pvr_bytes(build_pvr(4, 4, block, PIXEL_FORMAT_DXT5))
+        self.assertEqual(list(decoded[0, 0]), [170, 0, 85, 255])
+
+    def test_size_not_a_multiple_of_four_is_cropped(self):
+        blocks = dxt1_block(RED, BLUE) * 4  # 6x5 needs 2x2 blocks
+        self.assertEqual(PvrzDecoder.decode_pvr_bytes(build_pvr(6, 5, blocks)).shape, (5, 6, 4))
+
+    def test_blocks_are_laid_out_row_by_row(self):
+        blocks = dxt1_block(RED, BLUE) + dxt1_block(BLUE, RED)
+        decoded = PvrzDecoder.decode_pvr_bytes(build_pvr(8, 4, blocks))
+        self.assertEqual((list(decoded[0, 0]), list(decoded[0, 4])), ([255, 0, 0, 255], [0, 0, 255, 255]))
+
+    def test_metadata_is_skipped_and_mip_chain_ignored(self):
+        top = dxt1_block(RED, BLUE) * 4  # 8x8
+        decoded = PvrzDecoder.decode_pvr_bytes(build_pvr(8, 8, top + bytes(24), mips=4, metadata=b"x" * 16))
+        self.assertEqual(list(decoded[0, 0]), [255, 0, 0, 255])
+
+    def test_works_on_a_bytearray_or_view_of_the_page(self):
+        page = build_pvrz(build_pvr(4, 4, dxt1_block(RED, BLUE)))
+        self.assertEqual(PvrzDecoder.decode_pvrz_bytes(bytearray(page)).shape, (4, 4, 4))
 
 
-    @staticmethod
-    def _v2_header(width, height, bit_count, masks, data_size):
-        red, green, blue, alpha = masks
-        return (
-            (52).to_bytes(4, 'little') +
-            height.to_bytes(4, 'little') +
-            width.to_bytes(4, 'little') +
-            (1).to_bytes(4, 'little') +  # mipmap count
-            (0).to_bytes(4, 'little') +  # flags
-            data_size.to_bytes(4, 'little') +
-            bit_count.to_bytes(4, 'little') +
-            red.to_bytes(4, 'little') +
-            green.to_bytes(4, 'little') +
-            blue.to_bytes(4, 'little') +
-            alpha.to_bytes(4, 'little') +
-            b'PVR!' +
-            (1).to_bytes(4, 'little')
-        )
+class ErrorTests(unittest.TestCase):
+    def assert_rejected(self, data, fragment, pvrz=True):
+        decode = PvrzDecoder.decode_pvrz_bytes if pvrz else PvrzDecoder.decode_pvr_bytes
+        with self.assertRaises(PvrzError) as ctx:
+            decode(data)
+        self.assertIn(fragment, str(ctx.exception))
 
+    def test_pvrz_error_is_a_value_error(self):
+        self.assertTrue(issubclass(PvrzError, ValueError))
+
+    def test_too_small_or_missing(self):
+        self.assert_rejected(None, "too small")
+        self.assert_rejected(b"abc", "too small")
+
+    def test_unrecognised_data_is_an_error_not_a_blank_image(self):
+        # Previously 3 bytes gave a blank 256x256 image and 12 bytes raised UnboundLocalError.
+        self.assert_rejected(b"abcdefghij", "corrupt")
+        self.assert_rejected(bytes(range(12)), "corrupt")
+
+    def test_truncated_stream(self):
+        page = build_pvrz(build_pvr(4, 4, dxt1_block(RED, BLUE)))
+        self.assert_rejected(page[:-6], "truncated")
+
+    def test_size_field_mismatch(self):
+        self.assert_rejected(build_pvrz(build_pvr(4, 4, dxt1_block(RED, BLUE)), size=7), "size field")
+
+    def test_headerless_payload_is_not_guessed_at(self):
+        self.assert_rejected(bytes(64), "Not a PVR v3", pvrz=False)
+        self.assert_rejected(bytes(16), "smaller than", pvrz=False)
+
+    def test_wrong_version(self):
+        self.assert_rejected(build_pvr(4, 4, bytes(8), version=0x21525650), "Not a PVR v3", pvrz=False)
+
+    def test_unsupported_pixel_format_is_named(self):
+        self.assert_rejected(build_pvr(4, 4, bytes(8), pixel_format=6), "pixel format 6", pvrz=False)
+
+    def test_metadata_past_end(self):
+        pvr = build_pvr(4, 4, bytes(8))
+        corrupt = pvr[:48] + struct.pack("<I", 9999) + pvr[52:]
+        self.assert_rejected(corrupt, "metadata size", pvrz=False)
+
+    def test_zero_dimension(self):
+        self.assert_rejected(build_pvr(0, 4, bytes(8)), "zero dimension", pvrz=False)
+
+    def test_short_texture_data_is_not_padded_with_blank_pixels(self):
+        self.assert_rejected(build_pvr(8, 8, dxt1_block(RED, BLUE)), "top level needs", pvrz=False)
+        self.assert_rejected(build_pvr(4, 4, bytes(8), PIXEL_FORMAT_DXT5), "top level needs", pvrz=False)
+
+
+class StructureTests(unittest.TestCase):
     def test_class_has_all_decoder_methods(self):
         # Regression guard for #13: a mis-indented module-level function once
         # ended the class body early and orphaned the methods that followed it.
-        for name in (
-            'decode_pvrz_bytes', 'decode_pvr_bytes', '_decompress',
-            '_parse_header', '_parse_v2_header', '_parse_v3_header',
-            '_infer_compression', '_decode_dxt1', '_decode_dxt5',
-            '_mask_shift', '_decode_raw_pixels', '_decode_dds',
-        ):
+        for name in ("decode_pvrz_bytes", "decode_pvr_bytes", "_decompress", "_parse_header"):
             self.assertTrue(hasattr(PvrzDecoder, name), f"PvrzDecoder.{name} is missing")
 
-    def test_mask_shift(self):
-        self.assertEqual(PvrzDecoder._mask_shift(0), 0)
-        self.assertEqual(PvrzDecoder._mask_shift(0x000000FF), 0)
-        self.assertEqual(PvrzDecoder._mask_shift(0x0000FF00), 8)
-        self.assertEqual(PvrzDecoder._mask_shift(0xFF000000), 24)
-
-    def test_decode_raw_bgra_masks(self):
-        pixel_data = bytes([30, 20, 10, 255])  # B, G, R, A in memory
-        header = self._v2_header(
-            1, 1, 32, (0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000), len(pixel_data)
-        )
-        decoded = PvrzDecoder.decode_pvr_bytes(header + pixel_data)
-        self.assertEqual(decoded.shape, (1, 1, 4))
-        self.assertTrue(np.array_equal(decoded[0, 0], [10, 20, 30, 255]))
-
-    def test_decode_raw_custom_masks(self):
-        # Channel layout that matches neither fast path, so the generic mask/shift path runs.
-        pixel_data = bytes([10, 20, 30, 40])  # little-endian uint32 0x281E140A
-        header = self._v2_header(
-            1, 1, 32, (0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF), len(pixel_data)
-        )
-        decoded = PvrzDecoder.decode_pvr_bytes(header + pixel_data)
-        self.assertTrue(np.array_equal(decoded[0, 0], [40, 30, 20, 10]))
-
-    def test_decode_raw_24_bit(self):
-        pixel_data = bytes([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
-        header = self._v2_header(
-            2, 2, 24, (0x000000FF, 0x0000FF00, 0x00FF0000, 0), len(pixel_data)
-        )
-        decoded = PvrzDecoder.decode_pvr_bytes(header + pixel_data)
-        self.assertEqual(decoded.shape, (2, 2, 4))
-        self.assertTrue(np.array_equal(decoded[0, 0], [1, 2, 3, 255]))
-        self.assertTrue(np.array_equal(decoded[1, 1], [10, 11, 12, 255]))
-
-    def test_decode_dds_dxt1(self):
-        block = (
-            (0xF800).to_bytes(2, 'little') +  # red
-            (0x001F).to_bytes(2, 'little') +  # blue
-            b'\x00\x00\x00\x00'
-        )
-        dds_header = bytearray(124)
-        dds_header[8:12] = (4).to_bytes(4, 'little')    # height
-        dds_header[12:16] = (4).to_bytes(4, 'little')   # width
-        dds_header[84:88] = b'DXT1'                     # fourCC (pixel format offset 76 + 8)
-        decoded = PvrzDecoder.decode_pvr_bytes(b'DDS ' + bytes(dds_header) + block)
-        self.assertEqual(decoded.shape, (4, 4, 4))
-        self.assertTrue((decoded[:, :, 3] == 255).all())
-        self.assertTrue(np.all(decoded[:, :, 0] > decoded[:, :, 2]))
+    def test_instance_can_decode_like_the_viewer_does(self):
+        page = build_pvrz(build_pvr(4, 4, dxt1_block(RED, BLUE)))
+        self.assertEqual(PvrzDecoder().decode_pvrz_bytes(page).shape, (4, 4, 4))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

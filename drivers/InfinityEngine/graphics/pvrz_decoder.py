@@ -1,453 +1,229 @@
-import zlib
-import numpy as np
+"""Decoder for Infinity Engine PVRZ texture pages.
+
+A PVRZ file is a 4-byte little-endian uncompressed size followed by one zlib
+stream holding a PVR v3 file: a 52-byte header, optional metadata, then the
+texture data (PVR File Format Specification 3.0.0; IESDP "PVRZ file format").
+Desktop Enhanced Edition pages are DXT1 (BC1) or DXT5 (BC3). A scan of every
+PVRZ page in BG2EE and IWDEE (tools/pvrz_scan.py, issue #54) found no other
+layout, header version, pixel format, mip count or metadata, so nothing else is
+decoded here. Anything else raises ``PvrzError``.
+"""
+import logging
 import struct
+import threading
+import zlib
+
 import numba
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+PVR3_MAGIC = 0x03525650
+PVR3_HEADER_SIZE = 52
+PIXEL_FORMAT_DXT1 = 7
+PIXEL_FORMAT_DXT5 = 11
+_BLOCK_BYTES = {PIXEL_FORMAT_DXT1: 8, PIXEL_FORMAT_DXT5: 16}
+# version, flags, pixel format, colour space, channel type, height, width,
+# depth, surfaces, faces, mip count, metadata size
+_PVR3_HEADER = struct.Struct("<IIQ9I")
 
 
-# Numba JIT compilation for performance - compiles Python to native code for ~20-100x speedup
-@numba.jit
-def _unpack_565_numba(color):
-    r = ((color >> 11) & 0x1F) * 255 // 31
-    g = ((color >> 5) & 0x3F) * 255 // 63
-    b = (color & 0x1F) * 255 // 31
-    return r, g, b
+class PvrzError(ValueError):
+    """Raised when a PVRZ or PVR payload is corrupt or not in a supported layout."""
+
+
+@numba.njit
+def _expand_565(value):
+    """Expands a packed RGB565 value to 8-bit ``(r, g, b)``."""
+    return ((value >> 11) & 0x1F) * 255 // 31, ((value >> 5) & 0x3F) * 255 // 63, (value & 0x1F) * 255 // 31
+
+
+@numba.njit
+def _fill_colour_table(data, offset, four_colour_only, table):
+    """Fills ``table`` (4x4 uint8, RGBA) from the 8-byte colour block at ``offset``.
+
+    Args:
+        data: Block-compressed bytes as a uint8 array.
+        offset: Start of the colour block.
+        four_colour_only: True for the colour block of DXT5, which always
+            interpolates two colours; False for DXT1, where ``c0 <= c1``
+            selects three colours plus transparent black.
+        table: Output array, filled in place.
+    """
+    c0 = np.int64(data[offset]) | (np.int64(data[offset + 1]) << 8)
+    c1 = np.int64(data[offset + 2]) | (np.int64(data[offset + 3]) << 8)
+    r0, g0, b0 = _expand_565(c0)
+    r1, g1, b1 = _expand_565(c1)
+    table[0, 0], table[0, 1], table[0, 2], table[0, 3] = r0, g0, b0, 255
+    table[1, 0], table[1, 1], table[1, 2], table[1, 3] = r1, g1, b1, 255
+    if c0 > c1 or four_colour_only:
+        table[2, 0], table[2, 1], table[2, 2], table[2, 3] = (2 * r0 + r1) // 3, (2 * g0 + g1) // 3, (2 * b0 + b1) // 3, 255
+        table[3, 0], table[3, 1], table[3, 2], table[3, 3] = (r0 + 2 * r1) // 3, (g0 + 2 * g1) // 3, (b0 + 2 * b1) // 3, 255
+    else:
+        table[2, 0], table[2, 1], table[2, 2], table[2, 3] = (r0 + r1) // 2, (g0 + g1) // 2, (b0 + b1) // 2, 255
+        table[3, 0], table[3, 1], table[3, 2], table[3, 3] = 0, 0, 0, 0
+
+
+@numba.njit
+def _read_u32(data, offset):
+    """Reads a little-endian uint32 from a uint8 array."""
+    return (np.int64(data[offset]) | (np.int64(data[offset + 1]) << 8)
+            | (np.int64(data[offset + 2]) << 16) | (np.int64(data[offset + 3]) << 24))
+
+
+@numba.njit
+def _decode_dxt1(data, width, height):
+    """Decodes DXT1 (BC1) blocks to an ``(height, width, 4)`` RGBA uint8 array.
+
+    ``data`` must hold every block; the caller checks its length.
+    """
+    blocks_x, blocks_y = (width + 3) // 4, (height + 3) // 4
+    out = np.zeros((height, width, 4), dtype=np.uint8)
+    table = np.zeros((4, 4), dtype=np.uint8)
+    for block_y in range(blocks_y):
+        for block_x in range(blocks_x):
+            offset = (block_y * blocks_x + block_x) * 8
+            _fill_colour_table(data, offset, False, table)
+            indices = _read_u32(data, offset + 4)
+            for row in range(min(4, height - block_y * 4)):
+                for col in range(min(4, width - block_x * 4)):
+                    out[block_y * 4 + row, block_x * 4 + col, :] = table[(indices >> ((row * 4 + col) * 2)) & 3, :]
+    return out
+
+
+@numba.njit
+def _decode_dxt5(data, width, height):
+    """Decodes DXT5 (BC3) blocks to an ``(height, width, 4)`` RGBA uint8 array.
+
+    ``data`` must hold every block; the caller checks its length.
+    """
+    blocks_x, blocks_y = (width + 3) // 4, (height + 3) // 4
+    out = np.zeros((height, width, 4), dtype=np.uint8)
+    table = np.zeros((4, 4), dtype=np.uint8)
+    alphas = np.zeros(8, dtype=np.int64)
+    for block_y in range(blocks_y):
+        for block_x in range(blocks_x):
+            offset = (block_y * blocks_x + block_x) * 16
+            alpha0, alpha1 = np.int64(data[offset]), np.int64(data[offset + 1])
+            alphas[0], alphas[1] = alpha0, alpha1
+            if alpha0 > alpha1:
+                for i in range(1, 7):
+                    alphas[i + 1] = ((7 - i) * alpha0 + i * alpha1 + 3) // 7
+            else:
+                for i in range(1, 5):
+                    alphas[i + 1] = ((5 - i) * alpha0 + i * alpha1 + 2) // 5
+                alphas[6], alphas[7] = 0, 255
+            alpha_bits = np.int64(0)
+            for j in range(6):
+                alpha_bits |= np.int64(data[offset + 2 + j]) << (8 * j)
+            _fill_colour_table(data, offset + 8, True, table)
+            indices = _read_u32(data, offset + 12)
+            for row in range(min(4, height - block_y * 4)):
+                for col in range(min(4, width - block_x * 4)):
+                    pixel = row * 4 + col
+                    y, x = block_y * 4 + row, block_x * 4 + col
+                    out[y, x, :3] = table[(indices >> (pixel * 2)) & 3, :3]
+                    out[y, x, 3] = alphas[(alpha_bits >> (pixel * 3)) & 7]
+    return out
 
 
 class PvrzDecoder:
-    """Decode PVRZ resources and raw PVR textures."""
-
-    PVR_MAGIC = 0x21525650  # 'PVR!'
-    PVR3_MAGIC = 0x03525650  # 'PVR3'
+    """Decodes PVRZ pages (and bare PVR v3 payloads) to RGBA arrays."""
 
     @classmethod
     def decode_pvrz_bytes(cls, raw_bytes):
-        """Decompress a PVRZ blob and decode the contained PVR texture."""
-        if raw_bytes is None:
-            return None
+        """Decompresses a PVRZ file and decodes the texture inside it.
 
-        decompressed = cls._decompress(raw_bytes)
-        
-        # Attempt double decompression
-        try:
-            double_decompressed = zlib.decompress(decompressed)
-            decompressed = double_decompressed
-        except zlib.error:
-            # Try from offset 4 if it starts with zlib header there
-            if len(decompressed) > 4 and decompressed[4:6] == b'\x78\x9c':
-                try:
-                    double_decompressed = zlib.decompress(decompressed[4:])
-                    decompressed = double_decompressed
-                except zlib.error:
-                    pass
-        
-        return cls.decode_pvr_bytes(decompressed)
+        Args:
+            raw_bytes: The PVRZ file contents.
+
+        Returns:
+            A ``(height, width, 4)`` uint8 RGBA array.
+
+        Raises:
+            PvrzError: If the data is not a valid PVRZ file in a supported layout.
+        """
+        return cls.decode_pvr_bytes(cls._decompress(raw_bytes))
 
     @classmethod
-    def decode_pvr_bytes(cls, raw_bytes):
-        """Decode an already decompressed PVR binary payload into RGBA."""
-        if raw_bytes[:4] == b'DDS ':
-            return cls._decode_dds(raw_bytes)
+    def decode_pvr_bytes(cls, pvr_bytes):
+        """Decodes a decompressed PVR v3 payload (DXT1 or DXT5 only).
 
-        try:
-            header = cls._parse_header(raw_bytes)
-        except ValueError:
-            # Fallback: try to decode based on size
-            if len(raw_bytes) % 8 == 0:
-                blocks = len(raw_bytes) // 8
-                block_side = int(blocks ** 0.5 + 0.5)
-                if block_side * block_side == blocks:
-                    width = block_side * 4
-                    height = block_side * 4
-                    return cls._decode_dxt1(raw_bytes, width, height)
-            if len(raw_bytes) % 16 == 0:
-                blocks = len(raw_bytes) // 16
-                block_side = int(blocks ** 0.5 + 0.5)
-                if block_side * block_side == blocks:
-                    width = block_side * 4
-                    height = block_side * 4
-                    return cls._decode_dxt5(raw_bytes, width, height)
-            if len(raw_bytes) % 4 == 0:
-                total_pixels = len(raw_bytes) // 4
-                size = int(total_pixels ** 0.5 + 0.5)
-                if size * size == total_pixels:
-                    width = height = size
-                    img = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((height, width, 4))
-                    # Assume RGBA
-                    return img
-            else:
-                # Unrecognized format, return transparent placeholder to avoid crash
-                return np.zeros((256, 256, 4), dtype=np.uint8)
-        pixel_data = raw_bytes[header["data_offset"]:header["data_offset"] + header["data_size"]]
+        Only the top mip level is decoded; the PVR 3.0.0 layout stores it first.
 
-        if header["bit_count"] in (24, 32) and (header["red_mask"] or header["green_mask"] or header["blue_mask"]):
-            return cls._decode_raw_pixels(
-                pixel_data,
-                header["width"],
-                header["height"],
-                header["bit_count"],
-                header["red_mask"],
-                header["green_mask"],
-                header["blue_mask"],
-                header["alpha_mask"],
-            )
+        Args:
+            pvr_bytes: The PVR file contents.
 
-        if header["compression"] == "DXT1":
-            result = cls._decode_dxt1(pixel_data, header["width"], header["height"])
-            return result
-        if header["compression"] == "DXT5":
-            return cls._decode_dxt5(pixel_data, header["width"], header["height"])
+        Returns:
+            A ``(height, width, 4)`` uint8 RGBA array.
 
-        if header["bit_count"] in (24, 32):
-            return cls._decode_raw_pixels(
-                pixel_data,
-                header["width"],
-                header["height"],
-                header["bit_count"],
-                header["red_mask"],
-                header["green_mask"],
-                header["blue_mask"],
-                header["alpha_mask"],
-            )
-
-        raise ValueError("Unsupported PVR pixel format or unknown compression mode.")
+        Raises:
+            PvrzError: If the header is invalid, the pixel format is not DXT1
+                or DXT5, or the texture data is shorter than the top level.
+        """
+        width, height, pixel_format, data_offset = cls._parse_header(pvr_bytes)
+        needed = ((width + 3) // 4) * ((height + 3) // 4) * _BLOCK_BYTES[pixel_format]
+        if len(pvr_bytes) - data_offset < needed:
+            raise PvrzError("Texture data is %d bytes; a %dx%d top level needs %d."
+                            % (len(pvr_bytes) - data_offset, width, height, needed))
+        data = np.frombuffer(pvr_bytes, dtype=np.uint8, count=needed, offset=data_offset)
+        decode = _decode_dxt1 if pixel_format == PIXEL_FORMAT_DXT1 else _decode_dxt5
+        return decode(data, width, height)
 
     @staticmethod
     def _decompress(raw_bytes):
-        # Try standard zlib from offset 4
+        """Returns the PVR payload of a PVRZ file (size prefix, then one zlib stream)."""
+        if raw_bytes is None or len(raw_bytes) < 5:
+            raise PvrzError("PVRZ data is too small.")
+        expected = struct.unpack_from("<I", raw_bytes, 0)[0]
+        stream = zlib.decompressobj()
         try:
-            return zlib.decompress(raw_bytes[4:])
-        except zlib.error:
-            pass
-        # Try raw deflate from offset 4
-        try:
-            return zlib.decompress(raw_bytes[4:], wbits=-15)
-        except zlib.error:
-            pass
-        # Standard zlib
-        try:
-            return zlib.decompress(raw_bytes)
-        except zlib.error:
-            # PVRZ prefix
-            if raw_bytes[:4] == b"PVRZ":
-                try:
-                    return zlib.decompress(raw_bytes[4:])
-                except zlib.error:
-                    try:
-                        return zlib.decompress(raw_bytes[4:], wbits=-15)
-                    except zlib.error:
-                        pass
-            # Raw deflate
-            try:
-                return zlib.decompress(raw_bytes, wbits=-15)
-            except zlib.error:
-                pass
-            # Uncompressed
-            return raw_bytes
-
-    @classmethod
-    def _parse_header(cls, raw_bytes):
-        if raw_bytes is None or len(raw_bytes) < 52:
-            raise ValueError("Invalid PVR payload: too small for header.")
-
-        magic = int.from_bytes(raw_bytes[0:4], "little")
-        if magic == cls.PVR3_MAGIC:
-            return cls._parse_v3_header(raw_bytes)
-        if magic == cls.PVR_MAGIC:
-            return cls._parse_v2_header(raw_bytes)
-
-        pvr_tag = int.from_bytes(raw_bytes[44:48], "little")
-        if pvr_tag == cls.PVR_MAGIC:
-            return cls._parse_v2_header(raw_bytes)
-
-        raise ValueError("Unrecognized PVR header signature.")
+            data = stream.decompress(memoryview(raw_bytes)[4:])
+        except zlib.error as exc:
+            raise PvrzError("PVRZ zlib stream is corrupt: %s" % exc) from exc
+        if not stream.eof:
+            raise PvrzError("PVRZ zlib stream is truncated.")
+        if len(data) != expected:
+            raise PvrzError("PVRZ size field says %d bytes but the stream holds %d." % (expected, len(data)))
+        return data
 
     @staticmethod
-    def _parse_v2_header(raw_bytes):
-        header_size = int.from_bytes(raw_bytes[0:4], "little")
-        height = int.from_bytes(raw_bytes[4:8], "little")
-        width = int.from_bytes(raw_bytes[8:12], "little")
-        mipmap_count = int.from_bytes(raw_bytes[12:16], "little")
-        flags = int.from_bytes(raw_bytes[16:20], "little")
-        data_size = int.from_bytes(raw_bytes[20:24], "little")
-        bit_count = int.from_bytes(raw_bytes[24:28], "little")
-        red_mask = int.from_bytes(raw_bytes[28:32], "little")
-        green_mask = int.from_bytes(raw_bytes[32:36], "little")
-        blue_mask = int.from_bytes(raw_bytes[36:40], "little")
-        alpha_mask = int.from_bytes(raw_bytes[40:44], "little")
-        num_surfs = int.from_bytes(raw_bytes[48:52], "little")
-        meta_data_size = header_size - 52
-        data_offset = header_size
+    def _parse_header(pvr_bytes):
+        """Validates a PVR v3 header.
 
-        compression = PvrzDecoder._infer_compression(width, height, data_size)
+        Returns:
+            ``(width, height, pixel_format, texture_data_offset)``.
 
-        return {
-            "width": width,
-            "height": height,
-            "bit_count": bit_count,
-            "red_mask": red_mask,
-            "green_mask": green_mask,
-            "blue_mask": blue_mask,
-            "alpha_mask": alpha_mask,
-            "data_size": data_size if data_size > 0 else len(raw_bytes) - data_offset,
-            "data_offset": data_offset,
-            "compression": compression,
-            "flags": flags,
-            "meta_data_size": meta_data_size,
-            "mipmap_count": mipmap_count,
-            "num_surfaces": num_surfs,
-        }
-
-    @staticmethod
-    def _parse_v3_header(raw_bytes):
-        flags = int.from_bytes(raw_bytes[4:8], "little")
-        pixel_format = int.from_bytes(raw_bytes[8:16], "little")
-        colour_space = int.from_bytes(raw_bytes[16:20], "little")
-        channel_type = int.from_bytes(raw_bytes[20:24], "little")
-        height = int.from_bytes(raw_bytes[24:28], "little")
-        width = int.from_bytes(raw_bytes[28:32], "little")
-        depth = int.from_bytes(raw_bytes[32:36], "little")
-        num_surfaces = int.from_bytes(raw_bytes[36:40], "little")
-        num_faces = int.from_bytes(raw_bytes[40:44], "little")
-        mip_map_count = int.from_bytes(raw_bytes[44:48], "little")
-        meta_data_size = int.from_bytes(raw_bytes[48:52], "little")
-        if meta_data_size > len(raw_bytes) - 52:
-            meta_data_size = 0
-        data_offset = 52 + meta_data_size
-        data_size = len(raw_bytes) - data_offset
-
-        compression = PvrzDecoder._infer_compression(width, height, data_size)
-
-        return {
-            "width": width,
-            "height": height,
-            "bit_count": 0,
-            "red_mask": 0,
-            "green_mask": 0,
-            "blue_mask": 0,
-            "alpha_mask": 0,
-            "data_size": data_size,
-            "data_offset": data_offset,
-            "compression": compression,
-            "flags": flags,
-            "pixel_format": pixel_format,
-            "colour_space": colour_space,
-            "channel_type": channel_type,
-            "depth": depth,
-            "num_surfaces": num_surfaces,
-            "num_faces": num_faces,
-            "mipmap_count": mip_map_count,
-            "meta_data_size": meta_data_size,
-        }
-
-    @staticmethod
-    def _infer_compression(width, height, data_size):
-        blocks = ((width + 3) // 4) * ((height + 3) // 4)
-        if data_size == blocks * 8:
-            return "DXT1"
-        if data_size == blocks * 16:
-            return "DXT5"
-        return None
-
-    @staticmethod
-    # Numba JIT compilation for performance - compiles the DXT1 decoding loop to native code
-    # Provides significant speedup (20-100x) for texture decompression, especially for large images
-    @numba.jit(nopython=True)
-    def _decode_dxt1(data, width, height):
+        Raises:
+            PvrzError: If the header is too small, has the wrong version, an
+                unsupported pixel format, or a metadata size past the end.
         """
-        Decode DXT1 (BC1) compressed texture to RGBA.
-        """
-        bw = (width  + 3) // 4
-        bh = (height + 3) // 4
-        expected = bw * bh * 8
+        if len(pvr_bytes) < PVR3_HEADER_SIZE:
+            raise PvrzError("PVR data is %d bytes, smaller than its 52-byte header." % len(pvr_bytes))
+        (version, _flags, pixel_format, _colour_space, _channel_type, height, width,
+         _depth, _surfaces, _faces, _mips, metadata_size) = _PVR3_HEADER.unpack_from(pvr_bytes, 0)
+        if version != PVR3_MAGIC:
+            raise PvrzError("Not a PVR v3 header (version field 0x%08X)." % version)
+        if pixel_format not in _BLOCK_BYTES:
+            raise PvrzError("Unsupported PVR pixel format %d; only DXT1 (7) and DXT5 (11) are supported." % pixel_format)
+        data_offset = PVR3_HEADER_SIZE + metadata_size
+        if data_offset > len(pvr_bytes):
+            raise PvrzError("PVR metadata size %d runs past the end of the data." % metadata_size)
+        if width == 0 or height == 0:
+            raise PvrzError("PVR texture has a zero dimension (%dx%d)." % (width, height))
+        return width, height, pixel_format, data_offset
 
-        if len(data) < expected:
-            return np.zeros((height, width, 4), dtype=np.uint8)  # or handle differently
 
-        out = np.zeros((height, width, 4), dtype=np.uint8)
+def _warm_up():
+    """Compiles both decode kernels so the first real page does not pay for it."""
+    try:
+        # frombuffer on bytes gives the read-only array real pages use, so the
+        # compiled signature matches.
+        block = np.frombuffer(bytes(16), dtype=np.uint8)
+        _decode_dxt1(block[:8], 4, 4)
+        _decode_dxt5(block, 4, 4)
+    except Exception:
+        logger.warning("Numba warm-up failed; kernels will compile on first use.", exc_info=True)
 
-        for by in range(bh):
-            for bx in range(bw):
-                off = (by * bw + bx) * 8
-                c0_raw = data[off] | (data[off + 1] << 8)
-                c1_raw = data[off + 2] | (data[off + 3] << 8)
-                cidx = data[off + 4] | (data[off + 5] << 8) | (data[off + 6] << 16) | (data[off + 7] << 24)
 
-                r0, g0, b0 = _unpack_565_numba(c0_raw)
-                r1, g1, b1 = _unpack_565_numba(c1_raw)
-
-                if c0_raw > c1_raw:
-                    colour_table = np.array([
-                        [r0, g0, b0, 255],
-                        [r1, g1, b1, 255],
-                        [(2*r0 + r1) // 3, (2*g0 + g1) // 3, (2*b0 + b1) // 3, 255],
-                        [(r0 + 2*r1) // 3, (g0 + 2*g1) // 3, (b0 + 2*b1) // 3, 255],
-                    ], dtype=np.uint8)
-                else:
-                    colour_table = np.array([
-                        [r0, g0, b0, 255],
-                        [r1, g1, b1, 255],
-                        [(r0 + r1) // 2, (g0 + g1) // 2, (b0 + b1) // 2, 255],
-                        [0, 0, 0, 0],
-                    ], dtype=np.uint8)
-
-                for py in range(4):
-                    for px in range(4):
-                        dx = bx * 4 + px
-                        dy = by * 4 + py
-                        if dx >= width or dy >= height:
-                            continue
-
-                        ci = (cidx >> ((py * 4 + px) * 2)) & 0x3
-                        out[dy, dx] = colour_table[ci]
-
-        return out
-        
-    @staticmethod
-    @numba.jit(nopython=True)
-    def _decode_dxt5(data, width, height):
-        blocks_x = (width + 3) // 4
-        blocks_y = (height + 3) // 4
-        out = np.zeros((height, width, 4), dtype=np.uint8)
-
-        for block_y in range(blocks_y):
-            for block_x in range(blocks_x):
-                off = (block_y * blocks_x + block_x) * 16
-                if off + 16 > len(data):
-                    break
-
-                # --- Alpha Decoding ---
-                alpha0 = data[off]
-                alpha1 = data[off + 1]
-                
-                # Manual 48-bit int from bytes for Numba compatibility
-                alpha_bits = 0
-                for j in range(6):
-                    alpha_bits |= (np.uint64(data[off + 2 + j]) << (np.uint64(8 * j)))
-
-                alpha_values = np.zeros(8, dtype=np.uint8)
-                alpha_values[0] = alpha0
-                alpha_values[1] = alpha1
-                if alpha0 > alpha1:
-                    for i in range(1, 7):
-                        alpha_values[i+1] = ((7 - i) * alpha0 + i * alpha1 + 3) // 7
-                else:
-                    for i in range(1, 5):
-                        alpha_values[i+1] = ((5 - i) * alpha0 + i * alpha1 + 2) // 5
-                    alpha_values[6] = 0
-                    alpha_values[7] = 255
-
-                # --- Color Decoding ---
-                color0 = data[off + 8] | (data[off + 9] << 8)
-                color1 = data[off + 10] | (data[off + 11] << 8)
-                bits = np.uint32(data[off + 12]) | (np.uint32(data[off + 13]) << 8) | \
-                       (np.uint32(data[off + 14]) << 16) | (np.uint32(data[off + 15]) << 24)
-
-                palette = np.zeros((4, 4), dtype=np.uint8)
-                palette[0, 0], palette[0, 1], palette[0, 2] = _unpack_565_numba(color0)
-                palette[1, 0], palette[1, 1], palette[1, 2] = _unpack_565_numba(color1)
-                
-                if color0 > color1:
-                    palette[2, :3] = ((2 * palette[0, :3] + palette[1, :3]) // 3)
-                    palette[3, :3] = ((palette[0, :3] + 2 * palette[1, :3]) // 3)
-                else:
-                    palette[2, :3] = ((palette[0, :3] + palette[1, :3]) // 2)
-                    palette[3, :3] = [0, 0, 0]
-                palette[:, 3] = 255
-
-                # --- Reconstruct Pixels ---
-                for pixel_index in range(16):
-                    pixel_x = block_x * 4 + (pixel_index & 3)
-                    pixel_y = block_y * 4 + (pixel_index >> 2)
-                    if pixel_x < width and pixel_y < height:
-                        palette_index = (bits >> (pixel_index * 2)) & 0x3
-                        alpha_index = (alpha_bits >> (pixel_index * 3)) & 0x7
-                        
-                        out[pixel_y, pixel_x, :3] = palette[palette_index, :3]
-                        out[pixel_y, pixel_x, 3] = alpha_values[alpha_index]
-
-        return out
-
-    @staticmethod
-    def _mask_shift(mask):
-        if mask == 0:
-            return 0
-        return (mask & -mask).bit_length() - 1
-
-    @staticmethod
-    def _decode_raw_pixels(data, width, height, bit_count, red_mask, green_mask, blue_mask, alpha_mask):
-        bytes_per_pixel = bit_count // 8
-        expected_size = width * height * bytes_per_pixel
-        if len(data) < expected_size:
-            raise ValueError("Raw pixel payload shorter than expected for PVR dimensions.")
-
-        pixels = np.frombuffer(data[:expected_size], dtype=np.uint8).reshape((height, width, bytes_per_pixel))
-        if bit_count == 32:
-            image = np.zeros((height, width, 4), dtype=np.uint8)
-            if red_mask == 0x000000FF and green_mask == 0x0000FF00 and blue_mask == 0x00FF0000 and alpha_mask == 0xFF000000:
-                image[:, :, :] = pixels[:, :, :4]
-            elif red_mask == 0x00FF0000 and green_mask == 0x0000FF00 and blue_mask == 0x000000FF and alpha_mask == 0xFF000000:
-                image[:, :, 0] = pixels[:, :, 2]
-                image[:, :, 1] = pixels[:, :, 1]
-                image[:, :, 2] = pixels[:, :, 0]
-                image[:, :, 3] = pixels[:, :, 3]
-            else:
-                pixel_ints = np.frombuffer(pixels.tobytes(), dtype=np.uint32)
-                red_shift = PvrzDecoder._mask_shift(red_mask)
-                green_shift = PvrzDecoder._mask_shift(green_mask)
-                blue_shift = PvrzDecoder._mask_shift(blue_mask)
-                alpha_shift = PvrzDecoder._mask_shift(alpha_mask)
-                image[:, :, 0] = ((pixel_ints & red_mask) >> red_shift).astype(np.uint8)
-                image[:, :, 1] = ((pixel_ints & green_mask) >> green_shift).astype(np.uint8)
-                image[:, :, 2] = ((pixel_ints & blue_mask) >> blue_shift).astype(np.uint8)
-                if alpha_mask:
-                    image[:, :, 3] = ((pixel_ints & alpha_mask) >> alpha_shift).astype(np.uint8)
-                else:
-                    image[:, :, 3] = 255
-            return image
-
-        if bit_count == 24:
-            image = np.zeros((height, width, 4), dtype=np.uint8)
-            image[:, :, :3] = pixels
-            image[:, :, 3] = 255
-            return image
-
-        raise ValueError(f"Unsupported raw pixel bit-depth: {bit_count}")
-
-    @staticmethod
-    def _decode_dds(data):
-        if len(data) < 128:
-            raise ValueError("DDS data too small for header")
-
-        header = data[4:128]  # Skip 'DDS '
-
-        height = int.from_bytes(header[8:12], "little")
-        width = int.from_bytes(header[12:16], "little")
-
-        pixel_format = header[76:96]
-        fourcc = pixel_format[8:12]
-
-        pixel_data = data[128:]
-
-        if fourcc == b'DXT1':
-            return PvrzDecoder._decode_dxt1(pixel_data, width, height)
-        elif fourcc == b'DXT5':
-            return PvrzDecoder._decode_dxt5(pixel_data, width, height)
-        else:
-            raise ValueError(f"Unsupported DDS format: {fourcc}")
-
-# Precompile Numba functions in background thread on module import
-import threading
-def _precompile_numba():
-    """Trigger Numba JIT compilation in background to avoid startup delay."""
-    def compile():
-        try:
-            # Dummy calls to trigger JIT compilation
-            _unpack_565_numba(0)
-            dummy_data = b'\x00' * 8  # Minimal DXT1 block data
-            PvrzDecoder._decode_dxt1(dummy_data, 4, 4)
-        except:
-            pass  # Ignore any compilation errors
-    thread = threading.Thread(target=compile, daemon=True)
-    thread.start()
-
-_precompile_numba()
+threading.Thread(target=_warm_up, daemon=True).start()
