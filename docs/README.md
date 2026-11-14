@@ -73,6 +73,7 @@ The authoritative, detailed record is [Project Status](Project-Status.md).
 ### Tools
 
 * [IESDP Converter](IESDP-Converter.md)
+* [MCP Server](MCP-Server.md) (design)
 
 ### Archive
 
