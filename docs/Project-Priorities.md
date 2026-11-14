@@ -33,7 +33,7 @@ The primary entities users edit.
     - Merchant inventories and container definitions.
 * **EFF** (Effect)
     - External effect definitions.
-* **ARE** (Area) - *Confirmed Working (PST layout: known bugs, issues #6 and #7)*
+* **ARE** (Area) - *Confirmed Working (round trip re-verified on BG2EE, IWDEE and PSTEE; original PST layout has latent bugs, issues #6 and #7)*
     - Defines actors, containers, traps, and regions.
 * **WED** (World Environment) - *Confirmed Working*
     - Visual map definitions (overlays, door polygons).
