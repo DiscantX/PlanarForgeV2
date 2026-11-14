@@ -11,6 +11,7 @@ see docs/Game-Asset-Policy.md).
 Usage (from the repo root):
     python tools/tis_diagnostic.py AR0072 AR0016 --game BG2EE
     python tools/tis_diagnostic.py AR0072 --overlay 0 --cells 20 --out ../ar0072.txt
+    python tools/tis_diagnostic.py --scan --game BG2EE --out ../tis_scan.txt --csv ../tis_scan.csv
 
 The analysis functions are pure (they take plain data) so they can be tested
 without game files; only main() touches an installation.
@@ -333,9 +334,15 @@ def analyze_bif_table(file_size, file_entries_offset, file_entries, tileset_entr
     return out
 
 
-def read_bif_table(path):
-    """Read the BIF V1 header, file entries and tileset entries from a file."""
-    with open(path, "rb") as fh:
+def _plain_open(path):
+    return open(path, "rb")
+
+
+def read_bif_table(path, opener=None):
+    """Read the BIF V1 header, file entries and tileset entries. `opener(path)` must
+    return a context manager yielding a binary stream (default: plain open; the scan
+    passes the loader's BiffHandler.get_stream so compressed BIFs also work)."""
+    with (opener or _plain_open)(path) as fh:
         fh.seek(0, 2)
         size = fh.tell()
         fh.seek(0)
@@ -397,8 +404,8 @@ def report_bif_table(rep, loader, game, entry, declared_count):
         if spec_pos is None:
             rep.flag("no tileset entry has locator tileset bits %s (KEY asks for it)" % mine)
         elif spec_pos != mine:
-            rep.flag("KEY tileset index %s is entry position %d by locator matching, not position %s "
-                     "(position-based lookup would read the wrong entry)" % (mine, spec_pos, mine))
+            rep.add("  note: KEY tileset index %s is table position %d by locator matching (position %s would be "
+                    "another entry); the loader matches by locator since #48" % (mine, spec_pos, mine))
         if spec_pos is not None and rows[spec_pos]["tile_count"] != declared_count:
             rep.flag("TIS loaded %d tiles but the locator-matched entry holds %d"
                      % (declared_count, rows[spec_pos]["tile_count"]))
@@ -420,6 +427,208 @@ def report_bif_table(rep, loader, game, entry, declared_count):
             "%s(ts=%s,res=%s)" % (n, ts, ri) for ts, ri, n in found))
     except Exception as exc:
         rep.add("  KEY entries lookup failed: %r" % (exc,))
+
+
+# --------------------------------------------------------------------------
+# Corpus scan
+# --------------------------------------------------------------------------
+
+TIS_TYPE_CODE = 1003   # 0x3EB, as in the BIF tileset entry type field
+
+
+def scan_tilesets(tis_entries, bif_tables, wed_needed=None):
+    """Cross-check every KEY TIS entry against its BIF tileset table.
+
+    tis_entries: dicts with name, bif_index, ts (KEY tileset index), res (KEY resource index).
+    bif_tables: {bif_index: {"name": str, "rows": analyze_bif_table rows} | {"error": str}}.
+    wed_needed: optional {name: tiles the same-named WED references, or None if it has no WED}.
+    Pure: no I/O.
+    """
+    wed_needed = wed_needed or {}
+    items, claims = [], {}
+    for e in tis_entries:
+        key = (e["bif_index"], e["ts"])
+        claims.setdefault(key, []).append(e["name"])
+
+    out = {"total": len(tis_entries), "by_tile_size": {}, "no_bif": [], "no_entry": [],
+           "old_wrong_entry": [], "old_cannot_load": [], "res_nonzero": [], "shared_claims": [],
+           "unreferenced": [], "duplicate_bits": [], "wed_short": [], "wed_missing": 0,
+           "wed_checked": 0, "items": items}
+
+    for e in tis_entries:
+        table = bif_tables.get(e["bif_index"])
+        item = {"name": e["name"], "bif_index": e["bif_index"], "bif_file": (table or {}).get("name"),
+                "ts": e["ts"], "res": e["res"], "pos": None, "tile_count": None, "tile_size": None,
+                "wed_needed": wed_needed.get(e["name"])}
+        items.append(item)
+        if not table or "rows" not in table:
+            out["no_bif"].append(e["name"])
+            continue
+        rows = table["rows"]
+        match = next((r for r in rows if r["ts_bits"] == e["ts"]), None)
+        if match is None:
+            out["no_entry"].append(e["name"])
+            continue
+        item.update(pos=match["index"], tile_count=match["tile_count"], tile_size=match["tile_size"])
+        sizes = out["by_tile_size"]
+        sizes[match["tile_size"]] = sizes.get(match["tile_size"], 0) + 1
+        if e["ts"] >= len(rows):
+            out["old_cannot_load"].append(e["name"])
+        elif match["index"] != e["ts"]:
+            out["old_wrong_entry"].append(e["name"])
+        if e["res"]:
+            others = [n for n in claims[(e["bif_index"], e["ts"])] if n != e["name"]]
+            out["res_nonzero"].append({"name": e["name"], "res": e["res"], "tile_count": match["tile_count"],
+                                       "inside_entry": e["res"] < match["tile_count"], "shared_with": others})
+        needed = wed_needed.get(e["name"], "unchecked")
+        if needed != "unchecked":
+            if needed is None:
+                out["wed_missing"] += 1
+            else:
+                out["wed_checked"] += 1
+                if needed > match["tile_count"]:
+                    out["wed_short"].append({"name": e["name"], "tiles": match["tile_count"], "needed": needed})
+
+    out["shared_claims"] = [{"bif_index": k[0], "ts": k[1], "names": v} for k, v in claims.items() if len(v) > 1]
+    claimed = {k for k in claims}
+    for bif_index, table in bif_tables.items():
+        if "rows" not in table:
+            continue
+        seen = {}
+        for r in table["rows"]:
+            seen.setdefault(r["ts_bits"], []).append(r["index"])
+            if (bif_index, r["ts_bits"]) not in claimed:
+                out["unreferenced"].append({"bif": table["name"], "position": r["index"], "ts_bits": r["ts_bits"],
+                                            "tiles": r["tile_count"]})
+        for bits, positions in seen.items():
+            if len(positions) > 1:
+                out["duplicate_bits"].append({"bif": table["name"], "ts_bits": bits, "positions": positions})
+    return out
+
+
+def render_scan(res, game, limit=25):
+    L = []
+    add = L.append
+    add("#" * 72)
+    add("TIS SCAN  (game %s)" % game)
+    add("")
+    add("  TIS entries in KEY: %d" % res["total"])
+    add("  matched tileset entries by tile size: " + (", ".join(
+        "%s bytes: %d" % (k, v) for k, v in sorted(res["by_tile_size"].items())) or "(none)"))
+
+    def lst(title, values, fmt=str):
+        add("")
+        add("  %s: %d" % (title, len(values)))
+        for v in values[:limit]:
+            add("    " + fmt(v))
+        if len(values) > limit:
+            add("    ... and %d more" % (len(values) - limit))
+
+    lst("TIS whose BIF could not be read", res["no_bif"])
+    lst("TIS with NO tileset entry matching their KEY tileset index (cannot be loaded)", res["no_entry"])
+    lst("TIS the old position-based lookup would have read from the WRONG entry", res["old_wrong_entry"])
+    lst("TIS the old position-based lookup could not load at all", res["old_cannot_load"])
+    lst("KEY entries with non-zero resource_index (what the 'pool' model would need)", res["res_nonzero"],
+        lambda r: "%s: resource_index=%d, matched entry has %d tiles, start inside entry=%s, shares entry with %s" % (
+            r["name"], r["res"], r["tile_count"], r["inside_entry"], r["shared_with"] or "nobody"))
+    lst("tileset entries claimed by more than one TIS", res["shared_claims"],
+        lambda r: "bif_index %s tileset %s: %s" % (r["bif_index"], r["ts"], ", ".join(r["names"])))
+    lst("tileset entries no TIS claims", res["unreferenced"],
+        lambda r: "%s position %d (tileset bits %d, %d tiles)" % (r["bif"], r["position"], r["ts_bits"], r["tiles"]))
+    lst("BIFs with duplicate tileset locator bits", res["duplicate_bits"],
+        lambda r: "%s: bits %d at positions %s" % (r["bif"], r["ts_bits"], r["positions"]))
+    if res["wed_checked"] or res["wed_missing"]:
+        add("")
+        add("  WED check: %d TIS have a same-named WED, %d do not" % (res["wed_checked"], res["wed_missing"]))
+        lst("TIS holding FEWER tiles than their WED references (the original AR0072 symptom)", res["wed_short"],
+            lambda r: "%s: %d tiles, WED needs %d" % (r["name"], r["tiles"], r["needed"]))
+    add("")
+    add("  Pool model: " + pool_verdict(res))
+    return "\n".join(L)
+
+
+def pool_verdict(res):
+    """One-line reading of the resource_index evidence in this game."""
+    nz = res["res_nonzero"]
+    if not nz and not res["shared_claims"]:
+        return ("no evidence in this game: every resource_index is 0 and no tileset entry is shared, "
+                "so a 'start at resource_index' rule never has any effect here")
+    if nz and any(r["shared_with"] for r in nz):
+        return "evidence FOR pooling: non-zero resource_index values on entries shared by several TIS"
+    return ("inconclusive: %d non-zero resource_index values but no shared entries" % len(nz))
+
+
+def collect_key_tis(loader, game):
+    if game not in loader.chitins:
+        loader._load_chitin(game)
+    chitin = loader.chitins.get(game)
+    out = []
+    for e in (chitin.sections.get("resource_entries", []) if chitin else []):
+        if int(e.get("resource_type", -1)) != TIS_TYPE_CODE:
+            continue
+        loc = e.get("resource_locator") or {}
+        out.append({"name": str(e.get("resource_name")).strip("\x00").upper(), "bif_index": loc.get("bif_index"),
+                    "ts": loc.get("tileset_index"), "res": loc.get("resource_index"), "entry": e})
+    return out
+
+
+def run_scan(loader, game, args):
+    import contextlib
+    import io
+    entries = collect_key_tis(loader, game)
+    bif_tables = {}
+    for e in entries:
+        bi = e["bif_index"]
+        if bi in bif_tables:
+            continue
+        try:
+            path = loader._find_bif_file(e["entry"], game)
+            if not path:
+                bif_tables[bi] = {"error": "BIF file not found"}
+                continue
+            info = read_bif_table(path, opener=loader.biff_handler.get_stream)
+            if "error" in info:
+                bif_tables[bi] = {"error": info["error"], "name": Path(str(path)).name}
+                continue
+            rows = analyze_bif_table(info["file_size"], info["file_entries_offset"], info["files"],
+                                     info["tileset_entries_offset"], info["tilesets"])
+            bif_tables[bi] = {"name": Path(str(path)).name, "rows": rows}
+        except Exception as exc:
+            bif_tables[bi] = {"error": repr(exc)}
+
+    wed_needed = None
+    if not args.no_wed:
+        wed_needed = {}
+        for n, e in enumerate(entries):
+            if n and n % 200 == 0:
+                print("  WED check %d/%d ..." % (n, len(entries)), file=sys.stderr)
+            if loader._find_exact_resource_location(e["name"], "WED", game) is None:
+                wed_needed[e["name"]] = None
+                continue
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    raw, _src, _code = loader.get_raw_bytes(e["name"], restype="WED", game=game)
+                wed = parse_wed_raw(raw)
+                lookup = wed.get("lookup") or []
+                wed_needed[e["name"]] = (max(lookup) + 1) if lookup else 0
+            except Exception:
+                wed_needed[e["name"]] = None
+
+    res = scan_tilesets(entries, bif_tables, wed_needed)
+    if args.csv:
+        write_scan_csv(args.csv, res)
+    return render_scan(res, game, args.limit)
+
+
+def write_scan_csv(path, res):
+    import csv
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["resref", "bif_index", "bif_file", "key_tileset_index", "key_resource_index",
+                    "entry_position", "tile_count", "tile_size", "wed_tiles_needed"])
+        for i in res["items"]:
+            w.writerow([i["name"], i["bif_index"], i["bif_file"], i["ts"], i["res"], i["pos"],
+                        i["tile_count"], i["tile_size"], "" if i["wed_needed"] is None else i["wed_needed"]])
 
 
 # --------------------------------------------------------------------------
@@ -718,7 +927,11 @@ def viewer_mapping(loader, game, tis, overlay_idx):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Text-only TIS/WED diagnostic (see module docstring).")
-    ap.add_argument("resrefs", nargs="+", help="TIS resrefs, e.g. AR0072 AR0016")
+    ap.add_argument("resrefs", nargs="*", help="TIS resrefs, e.g. AR0072 AR0016 (omit with --scan)")
+    ap.add_argument("--scan", action="store_true", help="check every TIS in the game's KEY against its BIFs")
+    ap.add_argument("--no-wed", action="store_true", help="with --scan: skip the WED tile-count check")
+    ap.add_argument("--csv", default=None, help="with --scan: write one row per TIS to this file")
+    ap.add_argument("--limit", type=int, default=25, help="with --scan: examples to list per category")
     ap.add_argument("--game", default=None, help="game key as used by the viewer (default: loader default)")
     ap.add_argument("--overlay", type=int, default=None, help="overlay to map (default: the viewer's choice)")
     ap.add_argument("--cells", type=int, default=8, help="how many leading cells to list in detail")
@@ -731,6 +944,15 @@ def main(argv=None):
     from drivers.InfinityEngine.resource_loader import ResourceLoader
     loader = ResourceLoader()
     game = args.game or loader.default_game
+
+    if args.scan:
+        output = run_scan(loader, game, args)
+        print(output)
+        if args.out:
+            Path(args.out).write_text(output, encoding="utf-8")
+        return
+    if not args.resrefs:
+        ap.error("give one or more TIS resrefs, or use --scan")
 
     texts = []
     for resref in args.resrefs:
