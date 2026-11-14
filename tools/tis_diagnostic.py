@@ -884,9 +884,6 @@ def decode_pages(rep, loader, game, tis_name, pages, override_exists):
 
 def _viewer_app(loader):
     """Build a bare ImageViewerApp (no window) so its mapping code can be called."""
-    vdir = project_root / "tools" / "image_viewer"
-    if str(vdir) not in sys.path:
-        sys.path.insert(0, str(vdir))   # app.py does a bare 'from canvas import ...' (issue #40)
     from tools.image_viewer.app import ImageViewerApp
     app = ImageViewerApp.__new__(ImageViewerApp)
     app.loader = loader
