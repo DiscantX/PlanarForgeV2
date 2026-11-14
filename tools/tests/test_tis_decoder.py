@@ -82,7 +82,9 @@ class TestTisDecoder(unittest.TestCase):
 
         self.assertEqual(call_counter["count"], 1)
         self.assertEqual(buffer.shape, (128, 128, 4))
-        self.assertEqual(int(buffer.sum()), 0)
+        # Tiles whose PVRZ page is missing are painted opaque cyan.
+        cyan = np.array([0, 255, 255, 255], dtype=np.uint8)
+        self.assertTrue(np.all(buffer == cyan))
 
     def test_pvrz_black_tile_sentinel(self):
         entry = struct.pack("<III", 0xFFFFFFFF, 0, 0)
