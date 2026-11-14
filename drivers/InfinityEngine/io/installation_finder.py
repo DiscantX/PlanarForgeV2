@@ -258,14 +258,17 @@ class InstallationFinder:
 # Steam discovery
 # ---------------------------------------------------------------------------
 
-#: Folder name inside the Steam library's steamapps/common/ directory.
-_STEAM_FOLDER_NAMES: dict[str, str] = {
-    "BGEE":  "Baldur's Gate Enhanced Edition",
-    "BG2EE": "Baldur's Gate II Enhanced Edition",
-    "IWDEE": "Icewind Dale Enhanced Edition",
-    "PSTEE": "Project P",
-    "IWD2":  "Icewind Dale 2",
+#: Folder names inside the Steam library's steamapps/common/ directory, newest
+#: first. A game's first name that holds a CHITIN.KEY wins. PSTEE moved from the
+#: legacy "Project P" folder to its proper name.
+_STEAM_FOLDER_NAMES: dict[str, tuple[str, ...]] = {
+    "BGEE":  ("Baldur's Gate Enhanced Edition",),
+    "BG2EE": ("Baldur's Gate II Enhanced Edition",),
+    "IWDEE": ("Icewind Dale Enhanced Edition",),
+    "PSTEE": ("Planescape Torment Enhanced Edition", "Project P"),
+    "IWD2":  ("Icewind Dale 2",),
 }
+
 
 def _probe_steam() -> Iterator[GameInstallation]:
     """Yield installations found in any Steam library folder."""
@@ -276,12 +279,12 @@ def _probe_steam() -> Iterator[GameInstallation]:
         common = library_root / "steamapps" / "common"
         if not common.is_dir():
             continue
-        for game_id, folder_name in _STEAM_FOLDER_NAMES.items():
-            inst = GameInstallation.from_path(
-                game_id, common / folder_name, source="steam"
-            )
-            if inst is not None:
-                yield inst
+        for game_id, folder_names in _STEAM_FOLDER_NAMES.items():
+            for folder_name in folder_names:
+                inst = GameInstallation.from_path(game_id, common / folder_name, source="steam")
+                if inst is not None:
+                    yield inst
+                    break
 
 
 def _steam_library_roots() -> List[Path]:
@@ -347,39 +350,45 @@ def _parse_libraryfolders_vdf(vdf_path: Path) -> List[Path]:
 # GOG discovery
 # ---------------------------------------------------------------------------
 
-#: Registry keys written by the GOG Galaxy installer, with the install-path
-#: value name.  GOG uses HKLM so installations are system-wide.
-_GOG_REGISTRY: dict[str, tuple[str, str]] = {
-    "BGEE":  (r"SOFTWARE\GOG.com\Games\1207666353", "path"),
-    "BG2EE": (r"SOFTWARE\GOG.com\Games\1207666443", "path"),
-    "IWDEE": (r"SOFTWARE\GOG.com\Games\1207658930", "path"),
-    "PSTEE": (r"SOFTWARE\GOG.com\Games\1441974336", "path"),
-    "BG1":   (r"SOFTWARE\GOG.com\Games\1207658886", "path"),
-    "BG2":   (r"SOFTWARE\GOG.com\Games\1207658920", "path"),
-    "IWD":   (r"SOFTWARE\GOG.com\Games\1207658888", "path"),
-    "IWD2":  (r"SOFTWARE\GOG.com\Games\1207658891", "path"),
-    "PST":   (r"SOFTWARE\GOG.com\Games\1207658930", "path"),
+#: GOG product IDs, written by the GOG installer as HKLM\SOFTWARE\GOG.com\Games\<id>
+#: with the install path in the "path" value; GOG uses HKLM so installations are
+#: system-wide. IDs are the game products listed on gogdb.org. Verified there:
+#: BG2EE, IWDEE, PSTEE and PST. BGEE matches gogdb by product number only; BG1,
+#: BG2, IWD and IWD2 are unverified (issue #57).
+_GOG_KEY = r"SOFTWARE\GOG.com\Games\%s"
+_GOG_PRODUCT_IDS: dict[str, tuple[str, ...]] = {
+    "BGEE":  ("1207666353",),
+    "BG2EE": ("1207666373",),
+    "IWDEE": ("1207666683",),
+    "PSTEE": ("1132393016",),
+    "BG1":   ("1207658886",),
+    "BG2":   ("1207658920",),
+    "IWD":   ("1207658888",),
+    "IWD2":  ("1207658891",),
+    "PST":   ("1207658887",),
 }
 
 
 def _probe_gog() -> Iterator[GameInstallation]:
-    """Yield installations found via GOG Galaxy registry entries."""
+    """Yield installations found via GOG installer registry entries."""
     if winreg is None:
         return
 
-    for game_id, (key_path, value_name) in _GOG_REGISTRY.items():
-        # GOG writes to both the native and Wow6432Node hives on 64-bit Windows.
-        path = _registry_value(winreg.HKEY_LOCAL_MACHINE, key_path, value_name)
-        if not path:
-            path = _registry_value(
-                winreg.HKEY_LOCAL_MACHINE,
-                key_path.replace("SOFTWARE\\", "SOFTWARE\\Wow6432Node\\", 1),
-                value_name,
-            )
-        if path:
-            inst = GameInstallation.from_path(game_id, path, source="gog")
+    for game_id, product_ids in _GOG_PRODUCT_IDS.items():
+        for product_id in product_ids:
+            key_path = _GOG_KEY % product_id
+            # GOG writes to both the native and Wow6432Node hives on 64-bit Windows.
+            path = _registry_value(winreg.HKEY_LOCAL_MACHINE, key_path, "path")
+            if not path:
+                path = _registry_value(
+                    winreg.HKEY_LOCAL_MACHINE,
+                    key_path.replace("SOFTWARE\\", "SOFTWARE\\Wow6432Node\\", 1),
+                    "path",
+                )
+            inst = GameInstallation.from_path(game_id, path, source="gog") if path else None
             if inst is not None:
                 yield inst
+                break
 
 
 # ---------------------------------------------------------------------------
