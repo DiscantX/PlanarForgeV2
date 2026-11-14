@@ -37,4 +37,4 @@ The habits that have worked:
 
 ## Game files
 
-Real game data is needed to verify most format work, and it must never enter the repository. See the [Game Asset Policy](Game-Asset-Policy.md). Only Baldur's Gate II: Enhanced Edition is currently installed locally, so work on other games waits until they are installed.
+Real game data is needed to verify most format work, and it must never enter the repository. See the [Game Asset Policy](Game-Asset-Policy.md). Baldur's Gate II, Icewind Dale and Planescape: Torment, all Enhanced Editions, are currently installed locally; the original Planescape: Torment is being obtained, and work on other games waits until they are installed.
