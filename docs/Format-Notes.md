@@ -46,9 +46,20 @@ Choosing the palette or PVRZ schema is done by looking at the `tile_data_block_s
 
 The original Planescape: Torment (PST) and the Enhanced Edition (PSTEE) share a lot of structure, and the later EE versions of several other formats resemble PST variants. Naive identification by a single field is therefore dangerous. The known example is area (ARE) files, where actor records are 268 bytes in the PST layout and 272 bytes in the EE layout. The loader currently decides by reading the double word at `0x84` of the header, but in the PST layout that field is `offset_to_ambients`, not an actor offset, so the test is unreliable ([issue #7](https://github.com/DiscantX/PlanarForgeV2/issues/7)). Format identification should rest on field-level verification, not on resemblance.
 
-## Sections that share an offset
+## Header pointers that omit the animations block
 
-Real game files are not always tidy. In PST-format ARE files the `animations` and `song_entries` sections declare the same file offset. The parser handles this by seeking to each section independently, but a writer that emits sections one after another cannot step backwards, so the output is displaced and the file grows ([issue #6](https://github.com/DiscantX/PlanarForgeV2/issues/6)). Both reading and writing must allow for overlapping sections, because they are legitimate in original files. See also [Round-trip Fidelity](Round-trip-Fidelity.md).
+In PSTEE area (ARE) files the header pointers for `song_entries`, `rest_interruptions`, `automap_notes` and `projectile_traps` are short. The real position of each section is the header value plus 76 × `count_of_animations`, as if the pointers had been computed without the animations block. The pointer to `song_entries` therefore equals the one to `animations`, which looked like two sections sharing an offset; they do not, the song entries follow the animations.
+
+This was checked byte by byte in `AR1001` and `AR13WZ` and by file-size arithmetic in `AR3017` ([issue #68](https://github.com/DiscantX/PlanarForgeV2/issues/68)). In `AR1001` the file is 2616 bytes: the last header pointer says 2464, and 2464 + 2 × 76 = 2616. BG2EE `AR0300` is consistent with the normal rule. Near Infinity reads the same wrong bytes as the parser did.
+
+The schema states the rule with `offset_displacement: {section: animations}` on each affected section. The parser adds the displacement when it seeks, and the writer subtracts it when it repacks, so header pointers keep the original convention and an unmodified file still round trips byte for byte.
+
+Two things are still open:
+
+* Only PSTEE has been checked. Whether the original PST shares the quirk needs the original game, and whether the engine follows the pointers or reads sections in sequence decides how serious the quirk is.
+* `AR13WZ` has 456 extra bytes, apparently six more animation-like records, between the header's song pointer and the real song entries. They are unexplained.
+
+The original PST layout also has the overlapping-pointer symptom recorded in [issue #6](https://github.com/DiscantX/PlanarForgeV2/issues/6): a writer that emits sections one after another cannot step backwards. That symptom is probably the same cause, but this has not been confirmed on the original PST.
 
 ## Design principles for schemas
 

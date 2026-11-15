@@ -57,6 +57,7 @@ The earlier ITM and SPL case followed the same pattern: [five fixes](Shared-and-
 | `offset_from` | Locate a section from a field in another (the tilemaps from the first overlay's pointer) | `Section` attribute |
 | `count_expr` | Derive a count from other sections (`sum`, `ceil_product`) | `Section` attribute |
 | `offset_update` | After repacking, rewrite each parent's pointer using a stride | `Section` attribute |
+| `offset_displacement` | The header pointer is short by the size of an earlier section (PSTEE area song entries, after the animations); the real position is the pointer plus that size ([Format Notes](Format-Notes.md#header-pointers-that-omit-the-animations-block)) | `Section` attribute |
 | `Computed` | A virtual, zero-size field evaluated from the entry's own values (for example a tile count) | field type |
 | `WordScalarArray` | A flat array of 16-bit words, for lookup tables | field type |
 | `evaluate_expr` | A restricted expression evaluator for schema-defined arithmetic, so schemas cannot run arbitrary code | `core/field_types.py` |
