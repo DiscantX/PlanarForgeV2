@@ -328,12 +328,8 @@ class BinaryParser:
             "detail_level": self.gap_audit_detail_level,
         }
 
-    def _offset_displacement(self, section, resource):
-        """Bytes to add to a section's header pointer to reach its real position.
-
-        PST/PSTEE ARE files compute several header pointers as if the animations
-        block were absent; see docs/Format-Notes.md. Zero for every other section.
-        """
+    def _displacement_size(self, section, resource):
+        """Byte size of the block named by a section's offset_displacement (0 if none)."""
         spec = getattr(section, "offset_displacement", None)
         if not spec:
             return 0
@@ -341,8 +337,43 @@ class BinaryParser:
         entries = resource.sections.get(spec["section"], [])
         if src is None or not entries:
             return 0
-        entry_size = sum(f.attributes.get("size", 0) for f in src.fields)
-        return len(entries) * entry_size
+        return len(entries) * sum(f.attributes.get("size", 0) for f in src.fields)
+
+    def _decide_displacement(self, source_name, resource, filesize):
+        """Decide whether the sections displaced by `source_name` really are.
+
+        Not every PSTEE area has short pointers (see docs/Format-Notes.md), so
+        the rule is applied per file: only when it makes the displaced
+        sections end exactly at the end of the file and the plain header
+        pointers do not. Anything else keeps the pointers as written.
+        """
+        group = [s for s in self.schema.sections
+                 if (getattr(s, "offset_displacement", None) or {}).get("section") == source_name]
+
+        def tail_end(displaced):
+            end = 0
+            for sec in group:
+                ptr = resource.values.get(sec.offset_field)
+                if not isinstance(ptr, int) or ptr <= 0:
+                    continue
+                count = resource.values.get(sec.count_field, 0) if sec.count_field else 1
+                size = sum(f.attributes.get("size", 0) for f in sec.fields)
+                shift = self._displacement_size(sec, resource) if displaced else 0
+                end = max(end, ptr + shift + int(count or 0) * size)
+            return end
+
+        return tail_end(False) != filesize and tail_end(True) == filesize
+
+    def _offset_displacement(self, section, resource):
+        """Bytes to add to a section's header pointer to reach its real position.
+
+        Applies only to sections whose displacement was confirmed for this
+        file by `_decide_displacement`; zero for everything else.
+        """
+        spec = getattr(section, "offset_displacement", None)
+        if not spec or not getattr(resource, "displacement_active", {}).get(spec["section"]):
+            return 0
+        return self._displacement_size(section, resource)
 
     def _resolved_offset(self, section, resource):
         """Header pointer plus displacement (None when the pointer is absent)."""
@@ -423,7 +454,13 @@ class BinaryParser:
                 if offset == 0 and not section.count_field and not section.count_expr and section.count is None:
                     resource.sections[section.name] = []
                     continue
-                if offset > 0:
+                if offset > 0 and section.offset_displacement:
+                    src_name = section.offset_displacement["section"]
+                    if not hasattr(resource, "displacement_active"):
+                        resource.displacement_active = {}
+                    active = resource.displacement_active
+                    if src_name not in active:
+                        active[src_name] = self._decide_displacement(src_name, resource, filesize)
                     offset += self._offset_displacement(section, resource)
                 reader.seek(offset)
                 max_pos = max(max_pos, reader.tell())
