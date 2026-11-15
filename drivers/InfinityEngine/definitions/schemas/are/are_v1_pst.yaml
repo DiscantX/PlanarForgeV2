@@ -260,7 +260,7 @@ header:
     size: 4
     offset: 0x00ac
 
-  - name: offset_to_animation
+  - name: offset_to_animations
     type: dword
     size: 4
     offset: 0x00b0
@@ -396,17 +396,17 @@ actors:
     size: 2
     offset: 0x0036
 
-  - name: expiry_timer
+  - name: removal_timer
     type: dword
     size: 4
     offset: 0x0038
 
-  - name: movement_range
+  - name: movement_distance
     type: word
     size: 2
     offset: 0x003c
 
-  - name: move_to_range
+  - name: movement_to_distance
     type: word
     size: 2
     offset: 0x003e
@@ -616,12 +616,12 @@ regions:
     size: 8
     offset: 0x007c
 
-  - name: activation_point_x
+  - name: alternative_use_point_x_coordinate
     type: word 
     size: 2
     offset: 0x0084
 
-  - name: activation_point_y
+  - name: alternative_use_point_y_coordinate
     type: word
     size: 2
     offset: 0x0086
@@ -751,7 +751,7 @@ spawn_points:
     size: 2
     offset: 0x007a
 
-  - name: actor_removal_timer
+  - name: removal_timer
     type: dword
     size: 4
     offset: 0x007c
@@ -776,7 +776,7 @@ spawn_points:
     size: 2
     offset: 0x0086
 
-  - name: spawn_point_appearence_schedule
+  - name: spawn_point_appearance_schedule
     type: bitmask
     flags:
       0x00000001: "0030_0129"
@@ -1170,7 +1170,7 @@ ambients:
     size: 4
     offset: 0x0088
 
-  - name: ambient_appearence_schedule
+  - name: ambient_appearance_schedule
     type: bitmask
     flags:
       0x00000001: "0030_0129"
@@ -1231,7 +1231,7 @@ variables:
     values:
       0: int
       1: float
-      2: script name
+      2: script_name
       3: resref
       4: strref
       5: dword
@@ -1467,7 +1467,7 @@ doors:
     offset: 0x00c0
 
 animations:
-  offset_field: offset_to_animation
+  offset_field: offset_to_animations
   count_field: count_of_animations
   fields:
 
@@ -1486,7 +1486,7 @@ animations:
     size: 2
     offset: 0x0022
 
-  - name: animation_appearence_schedule
+  - name: animation_appearance_schedule
     type: bitmask
     flags:
       0x00000001: "0030_0129"
@@ -1614,7 +1614,7 @@ automap_notes:
     size: 500
     offset: 0x0008
 
-  - name: note_colour
+  - name: note_color
     type: enum
     values:
       0: blue_user_note
@@ -1651,7 +1651,7 @@ tiled_objects:
     size: 4
     offset: 0x0028
 
-  - name: offset_to_first_impeded_vertex_open
+  - name: index_of_first_impeded_vertex_open
     type: dword
     size: 4
     offset: 0x002c
@@ -1666,7 +1666,7 @@ tiled_objects:
     size: 2
     offset: 0x0032
 
-  - name: offset_to_first_impeded_vertex_closed
+  - name: index_of_first_impeded_vertex_closed
     type: dword
     size: 4
     offset: 0x0034
@@ -1810,7 +1810,7 @@ rest_interruptions:
     size: 2
     offset: 0x009a
 
-  - name: removal_time
+  - name: removal_timer
     type: dword
     size: 4
     offset: 0x009c

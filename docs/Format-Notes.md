@@ -22,6 +22,7 @@ IESDP is an excellent but human-maintained document, and it is sometimes wrong o
 When these disagree, the disagreement is worth recording. Known cases:
 
 * **Size of a WED tilemap entry.** Earlier project notes record IESDP as giving 8 bytes, while Near Infinity and hex dumps showed 10. The current IESDP [WED V1.3 page](https://iesdp.bgforge.net/file_formats/ie_formats/wed_v1.3.htm) ends the structure with three unknown bytes at offset `0x0007`, which gives 10, so the upstream error appears to have been fixed. The schema `wed_v1_3.yaml` uses 10.
+* **Area flags and area type in the ARE header.** The double word at `0x14` holds the area flags (save, rest, travel and similar) and the word at `0x48` holds the area type (outdoor, city, dungeon and so on). IESDP and the project schemas use those names; Near Infinity labels the two fields the other way round, "Area type" and "Location". The flag meanings themselves agree between IESDP and Near Infinity: bit 0 is *Save not allowed*, not "save allowed" as the ARE schemas once had it ([issue #67](https://github.com/DiscantX/PlanarForgeV2/issues/67)).
 
 Other IESDP errors were found during earlier work but were not written down. They are to be recovered and listed here as the maintainer re-reviews the code.
 
