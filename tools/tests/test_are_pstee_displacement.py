@@ -1,9 +1,10 @@
-"""Synthetic fixtures for PST/PSTEE ARE section displacement (issue #68).
+"""Synthetic fixtures for PSTEE ARE section displacement (issue #68).
 
-In PSTEE areas the header pointers for song entries, rest interruptions,
-automap notes and projectile traps are short by the size of the animations
-block: the real position is the header value plus 76 * count_of_animations.
-These tests need no installed game.
+Some PSTEE areas (AR1001, AR13WZ) have header pointers for song entries, rest
+interruptions, automap notes and projectile traps that are short by the size of
+the animations block; most areas (AR1305) are correct. The parser applies the
+displacement only when it makes those sections end exactly at the end of the
+file. These tests need no installed game.
 """
 import io
 import sys
@@ -44,7 +45,7 @@ class TestPsteeAreDisplacement(unittest.TestCase):
         off, size = field.attributes["offset"], field.attributes["size"]
         buf[base + off: base + off + size] = value.to_bytes(size, "little")
 
-    def _build(self):
+    def _build(self, displaced=True):
         """Header + animations + song + rest + one automap note, as in AR1001."""
         s = self.schema
         hdr = s.get_section("header")
@@ -71,9 +72,10 @@ class TestPsteeAreDisplacement(unittest.TestCase):
         for f in hdr.fields:
             if f.name.startswith("offset_to_") and not buf[f.attributes["offset"]:f.attributes["offset"] + 4].strip(b"\0"):
                 h(f.name, real["animations"])
-        # Displaced pointers omit the animations block, as the game files do.
+        # Displaced pointers omit the animations block, as AR1001 does; plain
+        # ones point at the real position, as AR1305 does.
         for name in self.DISPLACED:
-            h(f"offset_to_{name}", real[name] - anim_block)
+            h(f"offset_to_{name}", real[name] - (anim_block if displaced else 0))
         h("count_of_automap_notes", 1)
 
         # Markers: day song = 24 / night song = 25 at the real song position.
@@ -107,6 +109,21 @@ class TestPsteeAreDisplacement(unittest.TestCase):
         self.assertEqual(song["day_song_reference_number"], 24)
         self.assertEqual(song["night_song_reference_number"], 25)
         self.assertEqual(len(res.sections["automap_notes"]), 1)
+
+    def test_correct_pointers_are_left_alone(self):
+        data, *_ = self._build(displaced=False)
+        parser, res = self._read(data)
+        self.assertFalse(res.displacement_active.get("animations"))
+        song = res.sections["song_entries"][0]
+        self.assertEqual(song["day_song_reference_number"], 24)
+        out = io.BytesIO()
+        parser.write(BinaryWriter(out), res)
+        self.assertEqual(out.getvalue(), data)
+
+    def test_displacement_requires_a_file_size_fit(self):
+        data, *_ = self._build(displaced=True)
+        _, res = self._read(data + b"\x00" * 4)  # trailing bytes: neither layout fits
+        self.assertFalse(res.displacement_active.get("animations"))
 
     def test_unmodified_roundtrip_is_byte_exact(self):
         data, *_ = self._build()

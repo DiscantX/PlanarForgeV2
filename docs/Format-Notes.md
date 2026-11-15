@@ -48,18 +48,19 @@ The original Planescape: Torment (PST) and the Enhanced Edition (PSTEE) share a 
 
 ## Header pointers that omit the animations block
 
-In PSTEE area (ARE) files the header pointers for `song_entries`, `rest_interruptions`, `automap_notes` and `projectile_traps` are short. The real position of each section is the header value plus 76 × `count_of_animations`, as if the pointers had been computed without the animations block. The pointer to `song_entries` therefore equals the one to `animations`, which looked like two sections sharing an offset; they do not, the song entries follow the animations.
+Some PSTEE area (ARE) files have short header pointers for `song_entries`, `rest_interruptions`, `automap_notes` and `projectile_traps`: the real position of each section is the header value plus 76 × `count_of_animations`, as if the pointers had been computed without the animations block. In `AR1001` the pointer to `song_entries` equals the one to `animations`, which looked like two sections sharing an offset; they do not, the song entries follow the animations. The file is 2616 bytes, and the last header pointer plus the animations block (2464 + 2 × 76) lands exactly on that ([issue #68](https://github.com/DiscantX/PlanarForgeV2/issues/68)).
 
-This was checked byte by byte in `AR1001` and `AR13WZ` and by file-size arithmetic in `AR3017` ([issue #68](https://github.com/DiscantX/PlanarForgeV2/issues/68)). In `AR1001` the file is 2616 bytes: the last header pointer says 2464, and 2464 + 2 × 76 = 2616. BG2EE `AR0300` is consistent with the normal rule. Near Infinity reads the same wrong bytes as the parser did.
+**It is not systematic.** `AR1305` has two animations and correct pointers: its song pointer is the end of the animations, and the rest interruptions end at the file size (4040). A first fix that applied the rule to every PSTEE area crashed 93 of 208 areas in the round-trip suite. BG2EE `AR0300` also follows the normal rule.
 
-The schema states the rule with `offset_displacement: {section: animations}` on each affected section. The parser adds the displacement when it seeks, and the writer subtracts it when it repacks, so header pointers keep the original convention and an unmodified file still round trips byte for byte.
+The schema therefore states the rule with `offset_displacement: {section: animations}`, and the parser applies it per file: only when it makes the displaced sections end exactly at the end of the file and the plain pointers do not. Otherwise the pointers are used as written. The writer subtracts the displacement again when it repacks a file for which it was applied, so header pointers keep the original convention and an unmodified file still round trips byte for byte.
 
-Two things are still open:
+Still open:
 
-* Only PSTEE has been checked. Whether the original PST shares the quirk needs the original game, and whether the engine follows the pointers or reads sections in sequence decides how serious the quirk is.
-* `AR13WZ` has 456 extra bytes, apparently six more animation-like records, between the header's song pointer and the real song entries. They are unexplained.
+* Why some files are affected and others not. `AR1001` and `AR13WZ` are, `AR1305` is not; no cause is known.
+* `AR13WZ` has 456 extra bytes, apparently six more animation-like records, between the header's song pointer and the real song entries. The displacement rule covers it (the pointer is already past the animations, and the real entries sit a further 6 × 76 bytes on), but the bytes are unexplained.
+* Only PSTEE has been checked. Whether the original PST shares the quirk needs the original game, and whether the engine follows the pointers or reads sections in sequence decides how serious it is.
 
-The original PST layout also has the overlapping-pointer symptom recorded in [issue #6](https://github.com/DiscantX/PlanarForgeV2/issues/6): a writer that emits sections one after another cannot step backwards. That symptom is probably the same cause, but this has not been confirmed on the original PST.
+The original PST layout also has the overlapping-pointer symptom recorded in [issue #6](https://github.com/DiscantX/PlanarForgeV2/issues/6): a writer that emits sections one after another cannot step backwards. That may share a cause, but it has not been confirmed on the original PST.
 
 ## Design principles for schemas
 
