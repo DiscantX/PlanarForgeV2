@@ -328,6 +328,29 @@ class BinaryParser:
             "detail_level": self.gap_audit_detail_level,
         }
 
+    def _offset_displacement(self, section, resource):
+        """Bytes to add to a section's header pointer to reach its real position.
+
+        PST/PSTEE ARE files compute several header pointers as if the animations
+        block were absent; see docs/Format-Notes.md. Zero for every other section.
+        """
+        spec = getattr(section, "offset_displacement", None)
+        if not spec:
+            return 0
+        src = self.schema.get_section(spec["section"])
+        entries = resource.sections.get(spec["section"], [])
+        if src is None or not entries:
+            return 0
+        entry_size = sum(f.attributes.get("size", 0) for f in src.fields)
+        return len(entries) * entry_size
+
+    def _resolved_offset(self, section, resource):
+        """Header pointer plus displacement (None when the pointer is absent)."""
+        off = resource.values.get(section.offset_field) if section.offset_field else None
+        if not isinstance(off, int) or off <= 0:
+            return off
+        return off + self._offset_displacement(section, resource)
+
     def read(self, reader, name=None, source=None):
  
         resource = self.resource_class(self.schema, name=name, source=source)
@@ -400,6 +423,8 @@ class BinaryParser:
                 if offset == 0 and not section.count_field and not section.count_expr and section.count is None:
                     resource.sections[section.name] = []
                     continue
+                if offset > 0:
+                    offset += self._offset_displacement(section, resource)
                 reader.seek(offset)
                 max_pos = max(max_pos, reader.tell())
  
@@ -549,7 +574,7 @@ class BinaryParser:
 
                 offset = None
                 if sec.offset_field:
-                    offset = resource.values.get(sec.offset_field)
+                    offset = self._resolved_offset(sec, resource)
                 elif sec.offset_from:
                     spec = sec.offset_from
                     src_entries = resource.sections.get(spec["section"], [])
@@ -723,7 +748,7 @@ class BinaryParser:
                 is_last_section = True
                 for s in self.schema.sections:
                     if s.name != section.name and s.offset_field:
-                        off = resource.values.get(s.offset_field, 0)
+                        off = self._resolved_offset(s, resource) or 0
                         if off > current_offset:
                             is_last_section = False
                             break
@@ -847,7 +872,7 @@ class BinaryParser:
         def _section_write_offset(section):
             """Return the value in resource.values that gives this section's offset."""
             if section.offset_field:
-                return resource.values.get(section.offset_field)
+                return self._resolved_offset(section, resource)
             if section.offset_from:
                 spec      = section.offset_from
                 src_name  = spec["section"]
@@ -910,7 +935,12 @@ class BinaryParser:
                 new_offset = current_offset if count > 0 else 0
  
                 if section.offset_field:
-                    resource.values[section.offset_field] = new_offset
+                    # The header pointer deliberately omits the displaced block
+                    # (see _offset_displacement), as the original files do.
+                    resource.values[section.offset_field] = (
+                        new_offset - self._offset_displacement(section, resource)
+                        if count > 0 else 0
+                    )
  
                 if section.offset_from and count > 0:
                     # Write the new offset back into the source entry field.

@@ -47,6 +47,7 @@ class Section:
         count_expr=None,
         offset_from=None,
         offset_update=None,
+        offset_displacement=None,
     ):
         self.name         = name
         self.fields       = fields
@@ -58,6 +59,10 @@ class Section:
         self.count_expr    = count_expr     # declarative count derivation from another section
         self.offset_from   = offset_from    # locate section via a field inside another section
         self.offset_update = offset_update  # per-entry pointer rewrite after repacking
+        # The header pointer is short by the byte size of another, earlier
+        # section (PST/PSTEE ARE: song entries etc. omit the animations block).
+        # Real position = header value + entries in that section * its entry size.
+        self.offset_displacement = offset_displacement
         self.field_map    = {f.name: f for f in fields}
  
     def get_field(self, name):
@@ -192,6 +197,7 @@ class SchemaLoader:
                     count_expr    = value.get("count_expr"),
                     offset_from   = value.get("offset_from"),
                     offset_update = value.get("offset_update"),
+                    offset_displacement = value.get("offset_displacement"),
                 )
                 sections.append(section)
             else:
@@ -245,6 +251,20 @@ class SchemaLoader:
                         f"offset_field \'{section.offset_field}\' in header."
                     )
  
+        # offset_displacement must name an earlier, counted section.
+        names_in_order = [s.name for s in sections]
+        for section in sections:
+            disp = section.offset_displacement
+            if not disp:
+                continue
+            src = disp.get("section") if isinstance(disp, dict) else None
+            if src not in names_in_order or names_in_order.index(src) >= names_in_order.index(section.name):
+                raise ValueError(
+                    f"Schema validation error in '{filepath.name}': Section "
+                    f"'{section.name}' offset_displacement must name an earlier "
+                    f"section, got '{src}'."
+                )
+
         return Schema(metadata, sections)
 
     def _parse_field(self, field_data):

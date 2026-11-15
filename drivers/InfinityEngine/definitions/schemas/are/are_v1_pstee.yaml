@@ -1667,6 +1667,7 @@ animations:
 
 automap_notes:
   offset_field: offset_to_automap_notes
+  offset_displacement: {section: animations}
   count_field: count_of_automap_notes
   fields:
 
@@ -1773,6 +1774,7 @@ tiled_object_flags:
 
 projectile_traps:
   offset_field: offset_to_projectile_traps
+  offset_displacement: {section: animations}
   count_field: count_of_projectile_traps
   fields: 
 
@@ -1839,6 +1841,7 @@ projectile_traps:
 
 song_entries:
   offset_field: offset_to_song_entries
+  offset_displacement: {section: animations}
   fields:
 
   - name: day_song_reference_number
@@ -1933,6 +1936,7 @@ song_entries:
 
 rest_interruptions:
   offset_field: offset_to_rest_interruptions
+  offset_displacement: {section: animations}
   fields:
 
   - name: name
